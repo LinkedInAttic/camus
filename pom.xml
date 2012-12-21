@@ -31,12 +31,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>com.linkedin.azkaban</groupId>
-			<artifactId>azkaban-common</artifactId>
-			<version>0.10</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.scala-lang</groupId>
 			<artifactId>scala-library</artifactId>
 			<version>2.8.0</version>
@@ -48,20 +42,11 @@
 			<version>1.4.1</version>
 		</dependency>
 
-<!--  	<dependency>
-			<groupId>com.linkedin.avro-schemas</groupId>
-			<artifactId>avro-schemas-builder</artifactId>
-			<version>1.0.0</version>
-		</dependency> -->
-
 		<dependency>
 			<groupId>kafka</groupId>
 			<artifactId>kafka</artifactId>
 			<version>0.7</version>
 		</dependency>
-
-		<!-- <dependency> <groupId>com.linkedin.batch</groupId> <artifactId>batch-common</artifactId> 
-			<version>0.9</version> </dependency> -->
 
 		<dependency>
 			<groupId>com.github.sgroschupf</groupId>
@@ -100,28 +85,12 @@
 
 	<repositories>
 		<repository>
-			<id>external-private</id>
-			<url> http://artifactory.corp.linkedin.com:8081/artifactory/ext-libraries </url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository> 
-
-
-		<repository>
 			<id>public-central</id>
 			<url> http://repo.maven.apache.org/maven2/ </url>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
 		</repository>
-		<repository>
-			<id>central-private</id>
-			<url> http://artifactory.corp.linkedin.com:8081/artifactory/release </url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</repository> 
 		<repository>
 			<id>spymemcached</id>
 			<url>http://files.couchbase.com/maven2/</url>

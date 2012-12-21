@@ -54,11 +54,11 @@
 			<version>0.1</version>
 		</dependency>
 		
-		<dependency>
+	<!-- 	<dependency>
 			<groupId>com.linkedin</groupId>
 			<artifactId>avro-schema-repository</artifactId>
 			<version>1.7.4-SNAPSHOT</version>
-		</dependency>
+		</dependency> -->
 		
 
 	</dependencies>

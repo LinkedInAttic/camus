@@ -3,7 +3,8 @@ package com.linkedin.batch.etl.kafka.coders;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 import kafka.message.Message;
 
@@ -11,37 +12,35 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
-import org.apache.avro.repository.SchemaRepository;
-import org.apache.avro.repository.SchemaRepositoryException;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.log4j.Logger;
 
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaDetails;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaNotFoundException;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistryException;
+
+
 public class KafkaAvroMessageEncoder
 {
 
-  private static final byte             MAGIC_BYTE = 0x0;
-  private static final Logger           logger     =
-                                                       Logger.getLogger(KafkaAvroMessageDecoder.class);
+  private static final byte          MAGIC_BYTE = 0x0;
+  private static final Logger        logger     =
+                                                    Logger.getLogger(KafkaAvroMessageDecoder.class);
 
-  private static SchemaRepository       registry   = null;
-  // private final SchemaRegistryClient client;
-  private static String                 source;
-  private final HashMap<String, String> cache;
-
+  private final SchemaRegistry client;
+  private final Set<String>        cache;
+ 
   public KafkaAvroMessageEncoder()
   {
-    this(null, null);
+    this(null);
   }
 
-  public KafkaAvroMessageEncoder(SchemaRepository registry, String source)
+  public KafkaAvroMessageEncoder(SchemaRegistry client)
   {
-
-    // Get the source information get sorted here
-    this.source = source;
-    this.registry = registry;
-    this.cache =
-        (HashMap<String, String>) Collections.synchronizedMap(new HashMap<String, String>());
+    this.client = client;
+    this.cache = Collections.synchronizedSet(new HashSet<String>());
   }
 
   public Message toMessage(IndexedRecord record)
@@ -55,33 +54,31 @@ public class KafkaAvroMessageEncoder
       logger.debug("Schema string UTF-8 bytes in hex: " + Utils.hex(schemaBytes));
       byte[] md5Bytes = Utils.md5(schemaBytes);
       logger.debug("MD5 bytes in hex: " + Utils.hex(md5Bytes));
-      // SchemaId id = new SchemaId(md5Bytes);
       String id = md5Bytes.toString();
-      String schema = schemaBytes.toString();
 
-      // Concatenation of the source and the string is the primary unique string
-      String key = source + id;
-      if (registry != null && !cache.containsKey(key))
+      // auto-register schema if it is not in the registry, and we've got a
+      // registry client
+      
+      if (client != null && !cache.contains(id))
       {
         try
         {
-          schema = registry.lookup(id, source);
+        	client.getSchemaByID(id);
         }
-        catch (SchemaRepositoryException e)
+        catch (SchemaNotFoundException e)
         {
-          try
-          {
-            id = registry.register(source, schema);
-          }
-          catch (Exception ex)
-          {
-            throw new AvroIncompatibleSchemaException("Unable to register new schema, so aboring message conversion.");
-          }
-          cache.put(source + id, schema);
+        	try{
+        		client.register(schemaBytes.toString());
+        	}
+        	catch(SchemaRegistryException E)
+        	{
+        		throw new AvroIncompatibleSchemaException("Unable to register new schema, so aboring message conversion.");
+        	}
+        	
+          cache.add(id);
         }
       }
 
-      // This is the id that is used to fetch the schema
       out.write(md5Bytes);
       BinaryEncoder encoder = new BinaryEncoder(out);
       DatumWriter<IndexedRecord> writer;

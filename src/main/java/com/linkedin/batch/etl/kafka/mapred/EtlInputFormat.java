@@ -12,8 +12,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.avro.mapred.AvroWrapper;
-import org.apache.avro.repository.SchemaAndId;
-import org.apache.avro.repository.SchemaRepository;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -34,7 +32,8 @@ import com.linkedin.batch.etl.kafka.EtlJob;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.EtlZkClient;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistryClient;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaDetails;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
 
 /**
  * Input format for a Kafka pull job.
@@ -94,16 +93,19 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
       System.out.println("Number of topics pulled from Zookeeper: " + topicList.size());
 
-      // Return the registry if exists, if not create a new one depending on the
-      // parameters defined in the job file
-      SchemaRepository registry = SchemaRegistryClient.getInstance(context);
+      //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented
+      
+      String registryType = EtlInputFormat.getSchemaRegistryType(context);
+      SchemaRegistry registry = (SchemaRegistry)Class.forName(registryType).newInstance(); 
+ 
+      //SchemaRepository registry = SchemaRegistryClient.getInstance(context);
       requests = new ArrayList<EtlRequest>();
 
       for (String topic : topicList)
       {
         try
-        {
-          SchemaAndId schemaStr = registry.lookupLatest(topic);
+        {	
+          SchemaDetails schemaStr = registry.lookUpLatest(topic);
           if (!schemaStr.getSchema().startsWith("<html>"))
           {
             EtlJob.startTiming("kafkaSetupTime");

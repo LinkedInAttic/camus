@@ -10,7 +10,6 @@ import kafka.message.Message;
 
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
-import org.apache.avro.repository.CachedSchemaRepository;
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
@@ -26,7 +25,7 @@ import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.ExceptionWritable;
 import com.linkedin.batch.etl.kafka.common.KafkaReader;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistryClient;
+import com.linkedin.batch.etl.kafka.schemaregistry.CachedSchemaResolver;
 
 public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
 {
@@ -348,9 +347,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
 
           // We even need to get the source information here
           decoder =
-              new KafkaAvroMessageDecoder(new CachedSchemaRepository(SchemaRegistryClient.getInstance(context),
-                                                                     30),
-                                          request.getTopic());
+              new KafkaAvroMessageDecoder(new CachedSchemaResolver(context, request.getTopic()));
           /*
            * decoder = new KafkaAvroMessageDecoder(new
            * CachedSchemaResolver(EtlInputFormat.getEtlSchemaRegistryUrl(context),

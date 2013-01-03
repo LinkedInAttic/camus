@@ -11,29 +11,24 @@ import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DecoderFactory;
-import org.apache.avro.repository.SchemaRepository;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificRecord;
+
+import com.linkedin.batch.etl.kafka.schemaregistry.CachedSchemaResolver;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
 
 public class KafkaAvroMessageDecoder
 {
 
   private static final byte      MAGIC_BYTE = 0x0;
-  private static String          source     = null;
-  private final SchemaRepository registry;
+  private final CachedSchemaResolver resolver;
   private final DecoderFactory   decoderFactory;
 
-  public KafkaAvroMessageDecoder(SchemaRepository registry, String source)
+  public KafkaAvroMessageDecoder(CachedSchemaResolver resolver)
   {
-    this.source = source;
-    this.registry = registry;
+    this.resolver = resolver;
     this.decoderFactory = new DecoderFactory();
   }
-
-  /*
-   * public KafkaAvroMessageDecoder(SchemaResolver resolver) { this.resolver = resolver;
-   * this.decoderFactory = new DecoderFactory(); }
-   */
 
   public Record toRecord(Message message)
   {
@@ -147,7 +142,7 @@ public class KafkaAvroMessageDecoder
       byte[] md5 = new byte[16];
       _buffer.get(md5);
 
-      _schema = Schema.parse(registry.lookup(source, md5.toString()));
+      _schema = Schema.parse(resolver.resolve(md5.toString()));
       if (_schema == null)
       {
         throw new IllegalStateException("Unknown schema id: " + Utils.hex(md5));

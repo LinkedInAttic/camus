@@ -13,7 +13,7 @@ B) Resolve the dependenices:
    	                           Patch Name : AVRO-1124-draft.patch
 
 	   iii) Azkaban-commons jar file
-		This can be built using the dource code at : https://github.com/azkaban/azkaban/downloads
+		This can be built using the source code at : https://github.com/azkaban/azkaban/downloads
 
    b) The above two jar files can de added as external dependencies OR they can be installed in the local maven repository and the dependency can be stated in the project pom.xml.
    	    

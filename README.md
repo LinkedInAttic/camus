@@ -7,7 +7,7 @@ Camus is LinkedIn's [Kafka](http://kafka.apache.org "Kafka")->HDFS pipeline. It 
 
 It is used at LinkedIn where it processes tens of billions of messages per day.
 
-Detailed documentation isn't available yet (we're working on it) but you can get a basic overview form this [paper](http://sites.computer.org/debull/A12june/pipeline.pdf, "Building LinkedIn’s Real-time Activity Data Pipeline"). There is also a google group for discussion that you can email at camus_etl@googlegroups.com, <camus_etl@googlegroups.com> or you can search the [archives](https://groups.google.com/forum/#!forum/camus_etl, "Camus Archives"). If you are interested please ask any questions on that mailing list.
+Detailed documentation isn't available yet (we're working on it) but you can get a basic overview form this [Building LinkedIn’s Real-time Activity Data Pipeline](http://sites.computer.org/debull/A12june/pipeline.pdf "Building LinkedIn’s Real-time Activity Data Pipeline"). There is also a google group for discussion that you can email at camus_etl@googlegroups.com, <camus_etl@googlegroups.com> or you can search the [archives](https://groups.google.com/forum/#!forum/camus_etl "Camus Archives"). If you are interested please ask any questions on that mailing list.
 
 # Brief Overview
 All work is done within a single Hadoop job divided into three stages:

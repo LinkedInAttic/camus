@@ -2,12 +2,12 @@
 Camus is LinkedIn's [Kafka](http://kafka.apache.org "Kafka")->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka. It includes the following features:
 
 * Automatic discovery of topics
-* Schema management
+* Avro schema management
 * Date partitioning
 
 It is used at LinkedIn where it processes tens of billions of messages per day.
 
-Detailed documentation isn't available yet (we're working on it) but you can get a basic overview form this [Building LinkedIn’s Real-time Activity Data Pipeline](http://sites.computer.org/debull/A12june/pipeline.pdf "Building LinkedIn’s Real-time Activity Data Pipeline"). There is also a google group for discussion that you can email at camus_etl@googlegroups.com, <camus_etl@googlegroups.com> or you can search the [archives](https://groups.google.com/forum/#!forum/camus_etl "Camus Archives"). If you are interested please ask any questions on that mailing list.
+This is a new open source project, so we don't yet have detailed documentation available and there are still a few LinkedIn-specific items we haven't fixed yet. For early adopters, you can get a basic overview from this [Building LinkedIn’s Real-time Activity Data Pipeline](http://sites.computer.org/debull/A12june/pipeline.pdf "Building LinkedIn’s Real-time Activity Data Pipeline"). There is also a google group for discussion that you can email at camus_etl@googlegroups.com, <camus_etl@googlegroups.com> or you can search the [archives](https://groups.google.com/forum/#!forum/camus_etl "Camus Archives"). If you are interested please ask any questions on that mailing list.
 
 # Brief Overview
 All work is done within a single Hadoop job divided into three stages:

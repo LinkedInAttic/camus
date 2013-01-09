@@ -11,7 +11,9 @@ import kafka.message.Message;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DirectBinaryEncoder;
 import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
 import org.apache.log4j.Logger;
@@ -80,7 +82,7 @@ public class KafkaAvroMessageEncoder
       }
 
       out.write(md5Bytes);
-      BinaryEncoder encoder = new BinaryEncoder(out);
+      BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(out, null); //new BinaryEncoder(out);
       DatumWriter<IndexedRecord> writer;
       if (record instanceof SpecificRecord)
       {

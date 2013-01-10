@@ -36,6 +36,13 @@
       <id>spymemcached</id>
       <url>http://files.couchbase.com/maven2/</url>
     </repository>
+    <repository>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <id>cloudera-cdh4</id>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
+    </repository>
   </repositories>
 </project>
 

@@ -63,7 +63,7 @@ public class CachedSchemaResolver {
 		if (schema != null)
 			return schema;
 		try {
-			String s = client.getSchemaByID(id.toString());
+			String s = client.getSchemaByID(topic, id.toString());
 			schema = Schema.parse(s);
 			cache.put(details, schema);
 		} catch (Exception e) {

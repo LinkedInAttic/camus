@@ -105,7 +105,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       {
         try
         {	
-          SchemaDetails schemaStr = registry.lookUpLatest(topic);
+          SchemaDetails schemaStr = registry.getLatestSchemaByTopic(topic);
           if (!schemaStr.getSchema().startsWith("<html>"))
           {
             EtlJob.startTiming("kafkaSetupTime");

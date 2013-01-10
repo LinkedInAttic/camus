@@ -1,19 +1,16 @@
 package com.linkedin.batch.etl.kafka.schemaregistry;
 
 public interface SchemaRegistry {
-	
-   
-    public SchemaRegistry getInstance();
     
-	public String register(String schema) throws SchemaRegistryException;
+	public String register(String topic, String schema) throws SchemaRegistryException;
 	
-	public String lookUp(String schema);
+	public String register(String schema) throws SchemaRegistryException, UnsupportedOperationException;
 	
-	public SchemaDetails lookUpLatest(String topic);
+	public String getSchemaByID(String topic, String id) throws SchemaNotFoundException;
 	
-	public String getSchemaByID(String Id) throws SchemaNotFoundException;
+	public String getSchemaByID(String id) throws SchemaNotFoundException;
 	
-	public String getLatestSchemaByName(String topicName);
+	public SchemaDetails getLatestSchemaByTopic(String topicName) throws SchemaNotFoundException, UnsupportedOperationException;
 		
 
 }

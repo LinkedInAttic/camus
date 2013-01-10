@@ -1,41 +1,74 @@
 package com.linkedin.batch.etl.kafka.schemaregistry;
 
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.avro.Schema;
+import org.apache.hadoop.conf.Configuration;
+
+import com.linkedin.batch.etl.kafka.EtlJob;
+import com.linkedin.batch.etl.kafka.coders.Utils;
+
+
 /**
- * Mock implementation of a CachedSchemaResolver as used by the KafkaAvroMessageDecoder
+ * Resolve schema from schema registry service. It maintains a local cache for
+ * previously accessed schema.
+ * 
+ * @author lguo
+ * 
  */
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
+public class CachedSchemaResolver {
 
-import com.linkedin.batch.etl.kafka.mapred.EtlInputFormat;
+	// Schema registry client
+	private SchemaRegistry client = null;
+	// Local cache so we don't constantly query the registry.
+	private Map<SchemaDetails, Schema> cache = new HashMap<SchemaDetails, Schema>();
+	// target schema for the event
+	private Schema readerSchema = null;
+	
+	private String topic;
 
-public class CachedSchemaResolver implements SchemaResolver {
+	/**
+	 * Creates a registry resolver that will go to the schema registry and sets
+	 * the target registry to the latest found by the topic Name
+	 * 
+	 * @param url
+	 * @param topicName
+	 * @throws IOException
+	 * @throws ClassNotFoundException 
+	 * @throws IllegalAccessException 
+	 * @throws InstantiationException 
+	 * @throws SchemaNotFoundException 
+	 * @throws UnsupportedOperationException 
+	 * @throws NoSuchMethodException 
+	 * @throws SecurityException 
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
+	 */
+	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException, SecurityException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
+		Constructor<?> constructor = Class.forName(conf.get(EtlJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
+		
+		client = (SchemaRegistry) constructor.newInstance(conf);
+		SchemaDetails targetSchema = client.getLatestSchemaByTopic(topicName);
+		readerSchema = Schema.parse(targetSchema.getSchema());
+		topic = topicName;
+	}
 
-    SchemaRegistry registry;
-    
-    public CachedSchemaResolver(String topicName){
-        /**
-         * Look into the schema registry and get the schema information
-         */
-    }
-    
-    public CachedSchemaResolver(TaskAttemptContext context, String topicName){
-        try {
-            registry =(SchemaRegistry) Class.forName(EtlInputFormat.getSchemaRegistryType(context)).newInstance();
-        } catch (InstantiationException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        
-    }
-
-    public String resolve(String topicName) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-    
+	public Schema resolve(String id) {
+		SchemaDetails details = new SchemaDetails(id, null, topic);
+		Schema schema = cache.get(details);
+		if (schema != null)
+			return schema;
+		try {
+			String s = client.getSchemaByID(topic, id.toString());
+			schema = Schema.parse(s);
+			cache.put(details, schema);
+		} catch (Exception e) {
+			throw new RuntimeException("Error while resolving schema id:" + id + " msg:" + e.getMessage());
+		}
+		return schema;
+	}
 }

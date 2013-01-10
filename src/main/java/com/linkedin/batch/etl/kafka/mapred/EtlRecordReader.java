@@ -347,7 +347,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
 
           // We even need to get the source information here
           decoder =
-              new KafkaAvroMessageDecoder(new CachedSchemaResolver(context, request.getTopic()));
+              new KafkaAvroMessageDecoder(new CachedSchemaResolver(request.getTopic(), context.getConfiguration()));
           /*
            * decoder = new KafkaAvroMessageDecoder(new
            * CachedSchemaResolver(EtlInputFormat.getEtlSchemaRegistryUrl(context),

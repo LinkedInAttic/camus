@@ -15,7 +15,6 @@ import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificRecord;
 
 import com.linkedin.batch.etl.kafka.schemaregistry.CachedSchemaResolver;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
 
 public class KafkaAvroMessageDecoder
 {
@@ -142,7 +141,7 @@ public class KafkaAvroMessageDecoder
       byte[] md5 = new byte[16];
       _buffer.get(md5);
 
-      _schema = Schema.parse(resolver.resolve(md5.toString()));
+      _schema = resolver.resolve(md5.toString());
       if (_schema == null)
       {
         throw new IllegalStateException("Unknown schema id: " + Utils.hex(md5));

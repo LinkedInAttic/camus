@@ -1,6 +1,8 @@
 package com.linkedin.batch.etl.kafka.schemaregistry;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,9 +43,15 @@ public class CachedSchemaResolver {
 	 * @throws InstantiationException 
 	 * @throws SchemaNotFoundException 
 	 * @throws UnsupportedOperationException 
+	 * @throws NoSuchMethodException 
+	 * @throws SecurityException 
+	 * @throws InvocationTargetException 
+	 * @throws IllegalArgumentException 
 	 */
-	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException {
-		client = (SchemaRegistry) Class.forName(conf.get(EtlJob.SCHEMA_REGISTRY_TYPE)).newInstance();
+	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException, SecurityException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
+		Constructor<?> constructor = Class.forName(conf.get(EtlJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
+		
+		client = (SchemaRegistry) constructor.newInstance(conf);
 		SchemaDetails targetSchema = client.getLatestSchemaByTopic(topicName);
 		readerSchema = Schema.parse(targetSchema.getSchema());
 		topic = topicName;

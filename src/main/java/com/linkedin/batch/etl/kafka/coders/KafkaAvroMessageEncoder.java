@@ -31,16 +31,18 @@ public class KafkaAvroMessageEncoder
 
   private final SchemaRegistry client;
   private final Set<String>        cache;
- 
+  private final String topic;
+  
   public KafkaAvroMessageEncoder()
   {
-    this(null);
+    this(null, "");
   }
 
-  public KafkaAvroMessageEncoder(SchemaRegistry client)
+  public KafkaAvroMessageEncoder(SchemaRegistry client, String topic)
   {
     this.client = client;
     this.cache = Collections.synchronizedSet(new HashSet<String>());
+    this.topic = topic;
   }
 
   public Message toMessage(IndexedRecord record)
@@ -63,12 +65,12 @@ public class KafkaAvroMessageEncoder
       {
         try
         {
-        	client.getSchemaByID(id);
+        	client.getSchemaByID(topic, id);
         }
         catch (SchemaNotFoundException e)
         {
         	try{
-        		client.register(schemaBytes.toString());
+        		client.register(topic, schemaBytes.toString());
         	}
         	catch(SchemaRegistryException E)
         	{

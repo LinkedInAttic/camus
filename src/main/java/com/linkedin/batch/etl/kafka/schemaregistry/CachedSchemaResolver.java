@@ -20,7 +20,7 @@ import com.linkedin.batch.etl.kafka.coders.Utils;
  * @author lguo
  * 
  */
-public class CachedSchemaResolver {
+public class CachedSchemaResolver implements SchemaResolver{
 
 	// Schema registry client
 	private SchemaRegistry client = null;

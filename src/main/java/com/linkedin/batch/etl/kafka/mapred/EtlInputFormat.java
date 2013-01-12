@@ -25,6 +25,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
@@ -41,6 +42,8 @@ import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
 @SuppressWarnings("deprecation")
 public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 {
+	
+  private final Logger _log = Logger.getLogger(getClass());
 
   @Override
   public RecordReader<EtlKey, AvroWrapper<Object>> createRecordReader(InputSplit split,
@@ -55,7 +58,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       InterruptedException
   {
     EtlJob.startTiming("getSplits");
-
+    
+    _log.info("Beginning of getSplits()");
+    
     List<EtlRequest> requests;
     try
     {
@@ -65,21 +70,38 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       String zkBrokerPath = getZkBrokerPath(context);
       int zkSessionTimeout = getZkSessionTimeout(context);
       int zkConnectionTimeout = getZkConnectionTimeout(context);
+      
+      _log.info("Stuff passed into the EtlZkClient constructor:\n\tzkHosts: " + zkHosts + 
+    		  "\n\tzkTopicPath: " + zkTopicPath +
+    		  "\n\tzkBrokerPath: " + zkBrokerPath + 
+    		  "\n\tzkSessionTimeout: " + zkSessionTimeout + 
+    		  "\n\tzkConnectionTimeout: " + zkConnectionTimeout);
+      
       EtlZkClient zkClient =
           new EtlZkClient(zkHosts,
                           zkSessionTimeout,
                           zkConnectionTimeout,
                           zkTopicPath,
                           zkBrokerPath);
+      
+      _log.info("zkClient.toString(): " + zkClient.toString());
 
       List<String> topicList = null;
+      
       Set<String> whiteListTopics =
           new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));
+
+      _log.info("whiteListTopics: " + whiteListTopics);
+
       Set<String> blackListTopics =
           new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
 
+      _log.info("blackListTopics: " + blackListTopics);
+      
       if (whiteListTopics.isEmpty())
       {
+        _log.info("whiteListTopics is empty!");
+
         EtlJob.startTiming("kafkaSetupTime");
         topicList = zkClient.getTopics(blackListTopics);
         EtlJob.stopTiming("kafkaSetupTime");
@@ -90,14 +112,21 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
         topicList = zkClient.getTopics(whiteListTopics, blackListTopics);
         EtlJob.stopTiming("kafkaSetupTime");
       }
+      
+      _log.info("topicList: " + topicList);
 
-      System.out.println("Number of topics pulled from Zookeeper: " + topicList.size());
+      _log.info("Number of topics pulled from Zookeeper: " + topicList.size());
 
       //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented
       
       String registryType = EtlInputFormat.getSchemaRegistryType(context);
+      
+      _log.info("registryType: " + registryType);
+      
       SchemaRegistry registry = (SchemaRegistry)Class.forName(registryType).newInstance(); 
  
+      _log.info("registry.toString(): " + registry.toString());
+
       //SchemaRepository registry = SchemaRegistryClient.getInstance(context);
       requests = new ArrayList<EtlRequest>();
 
@@ -105,6 +134,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       {
         try
         {	
+          // SchemaAndId schemaStr = registry.lookupLatest(topic);
+
           SchemaDetails schemaStr = registry.getLatestSchemaByTopic(topic);
           if (!schemaStr.getSchema().startsWith("<html>"))
           {
@@ -114,16 +145,16 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
           }
           else
           {
-            System.out.println(topic + " does not have a registered schema, skipping");
+            _log.info(topic + " does not have a registered schema, skipping");
           }
         }
         catch (Exception e)
         {
-          System.err.println("Topic " + topic + " had error during setup."
+          _log.error("Topic " + topic + " had error during setup."
               + e.getMessage());
           for (StackTraceElement s : e.getStackTrace())
           {
-            System.err.println(s.toString());
+            _log.error(s.toString());
           }
           continue;
         }
@@ -131,7 +162,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
     }
     catch (Exception e)
     {
-      System.err.println("Unable to pull requests from zookeeper, using previous requests");
+      _log.error("Unable to pull requests from zookeeper, using previous requests", e);
       requests = getPreviousRequests(context);
     }
 
@@ -162,7 +193,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
         request.setOffset(request.getEarliestOffset());
       }
 
-      System.out.println(request);
+      _log.info(request);
     }
 
     writePrevious(offsetKeys.values(), context);
@@ -333,7 +364,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       FileSystem fs = input.getFileSystem(context.getConfiguration());
       for (FileStatus f : fs.listStatus(input, new OffsetFileFilter()))
       {
-        System.out.println("previous offset file:" + f.getPath().toString());
+        _log.info("previous offset file:" + f.getPath().toString());
         SequenceFile.Reader reader =
             new SequenceFile.Reader(fs, f.getPath(), context.getConfiguration());
         EtlKey key = new EtlKey();

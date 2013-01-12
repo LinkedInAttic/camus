@@ -1,6 +1,7 @@
 package com.linkedin.batch.etl.kafka.mapred;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.avro.mapred.AvroWrapper;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -93,12 +95,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
       System.out.println("Number of topics pulled from Zookeeper: " + topicList.size());
 
-      //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented
-      
-      String registryType = EtlInputFormat.getSchemaRegistryType(context);
-      SchemaRegistry registry = (SchemaRegistry)Class.forName(registryType).newInstance(); 
+      //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented      
+      Constructor<?> constructor = Class.forName(context.getConfiguration().get(EtlJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
+      SchemaRegistry registry = (SchemaRegistry) constructor.newInstance(context.getConfiguration());
  
-      //SchemaRepository registry = SchemaRegistryClient.getInstance(context);
       requests = new ArrayList<EtlRequest>();
 
       for (String topic : topicList)

@@ -26,7 +26,7 @@ import org.joda.time.DateTime;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.linkedin.batch.etl.kafka.EtlJob;
+import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.common.DateUtils;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlCounts;
@@ -98,94 +98,94 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 	}
 
 	public static void setDestinationPath(JobContext job, Path dest) {
-		job.getConfiguration().set(EtlJob.ETL_DESTINATION_PATH, dest.toString());
+		job.getConfiguration().set(CamusJob.ETL_DESTINATION_PATH, dest.toString());
 	}
 
 	public static Path getDestinationPath(JobContext job) {
-		return new Path(job.getConfiguration().get(EtlJob.ETL_DESTINATION_PATH));
+		return new Path(job.getConfiguration().get(CamusJob.ETL_DESTINATION_PATH));
 	}
 
 	public static void setCountsPath(JobContext job, Path dest) {
-		job.getConfiguration().set(EtlJob.ETL_COUNTS_PATH, dest.toString());
+		job.getConfiguration().set(CamusJob.ETL_COUNTS_PATH, dest.toString());
 	}
 
 	public static Path getCountsPath(JobContext job) {
-		return new Path(job.getConfiguration().get(EtlJob.ETL_COUNTS_PATH));
+		return new Path(job.getConfiguration().get(CamusJob.ETL_COUNTS_PATH));
 	}
 
 	public static void setHourlySubPath(JobContext job, String subPath) {
-		job.getConfiguration().set(EtlJob.ETL_HOURLY_PATH, subPath);
+		job.getConfiguration().set(CamusJob.ETL_HOURLY_PATH, subPath);
 	}
 
 	public static Path getHourlySubPath(JobContext job) {
-		return new Path(job.getConfiguration().get(EtlJob.ETL_HOURLY_PATH));
+		return new Path(job.getConfiguration().get(CamusJob.ETL_HOURLY_PATH));
 	}
 
 	public static void setEtlKeepCountFiles(JobContext job, boolean val) {
-		job.getConfiguration().setBoolean(EtlJob.ETL_KEEP_COUNT_FILES, val);
+		job.getConfiguration().setBoolean(CamusJob.ETL_KEEP_COUNT_FILES, val);
 	}
 
 	public static boolean getEtlKeepCountFiles(JobContext job) {
-		return job.getConfiguration().getBoolean(EtlJob.ETL_KEEP_COUNT_FILES, true);
+		return job.getConfiguration().getBoolean(CamusJob.ETL_KEEP_COUNT_FILES, true);
 	}
 	
 	public static void setMonitorTimeGranularityMins(JobContext job, int mins) {
-		job.getConfiguration().setInt(EtlJob.KAFKA_MONITOR_TIME_GRANULARITY_MS, mins);
+		job.getConfiguration().setInt(CamusJob.KAFKA_MONITOR_TIME_GRANULARITY_MS, mins);
 	}
 
 	public static int getMonitorTimeGranularityMins(JobContext job) {
-		return job.getConfiguration().getInt(EtlJob.KAFKA_MONITOR_TIME_GRANULARITY_MS, 10);
+		return job.getConfiguration().getInt(CamusJob.KAFKA_MONITOR_TIME_GRANULARITY_MS, 10);
 	}
 	
 	public static void setEtlAuditIgnoreServiceTopicList(JobContext job, String topics) {
-		job.getConfiguration().set(EtlJob.ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, topics);
+		job.getConfiguration().set(CamusJob.ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, topics);
 	}
 
 	public static String[] getEtlAuditIgnoreServiceTopicList(JobContext job) {
-		return job.getConfiguration().getStrings(EtlJob.ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST);
+		return job.getConfiguration().getStrings(CamusJob.ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST);
 	}
 
 	public static void setEtlAvroWriterSyncInterval(JobContext job, int val) {
-		job.getConfiguration().setInt(EtlJob.ETL_AVRO_WRITER_SYNC_INTERVAL, val);
+		job.getConfiguration().setInt(CamusJob.ETL_AVRO_WRITER_SYNC_INTERVAL, val);
 	}
 
 	public static int getEtlAvroWriterSyncInterval(JobContext job) {
-		return job.getConfiguration().getInt(EtlJob.ETL_AVRO_WRITER_SYNC_INTERVAL, 16000);
+		return job.getConfiguration().getInt(CamusJob.ETL_AVRO_WRITER_SYNC_INTERVAL, 16000);
 	}
 
 	public static void setEtlDeflateLevel(JobContext job, int val) {
-		job.getConfiguration().setInt(EtlJob.ETL_DEFLATE_LEVEL, val);
+		job.getConfiguration().setInt(CamusJob.ETL_DEFLATE_LEVEL, val);
 	}
 	
 	public static int getEtlOutputFileTimePartitionMins(JobContext job) {
-		return job.getConfiguration().getInt(EtlJob.ETL_OUTPUT_FILE_TIME_PARTITION_MINS, 60);
+		return job.getConfiguration().getInt(CamusJob.ETL_OUTPUT_FILE_TIME_PARTITION_MINS, 60);
 	}
 
 	public static void setEtlOutputFileTimePartitionMins(JobContext job, int val) {
-		job.getConfiguration().setInt(EtlJob.ETL_OUTPUT_FILE_TIME_PARTITION_MINS, val);
+		job.getConfiguration().setInt(CamusJob.ETL_OUTPUT_FILE_TIME_PARTITION_MINS, val);
 	}
 
 	public static int getEtlDeflateLevel(JobContext job) {
-		return job.getConfiguration().getInt(EtlJob.ETL_DEFLATE_LEVEL, 6);
+		return job.getConfiguration().getInt(CamusJob.ETL_DEFLATE_LEVEL, 6);
 	}
 
 	public static String getMonitorTier(JobContext job) {
-		return job.getConfiguration().get(EtlJob.KAFKA_MONITOR_TIER);
+		return job.getConfiguration().get(CamusJob.KAFKA_MONITOR_TIER);
 	}
 
 	public static void setMonitorTier(JobContext job, String tier) {
-		job.getConfiguration().set(EtlJob.KAFKA_MONITOR_TIER, tier);
+		job.getConfiguration().set(CamusJob.KAFKA_MONITOR_TIER, tier);
 	}
 
 	public static void setZkAuditHosts(JobContext job, String val) {
-		job.getConfiguration().set(EtlJob.ZK_AUDIT_HOSTS, val);
+		job.getConfiguration().set(CamusJob.ZK_AUDIT_HOSTS, val);
 	}
 
 	public static String getZkAuditHosts(JobContext job) {
-		if (job.getConfiguration().get(EtlJob.ZK_AUDIT_HOSTS) != null)
-			return job.getConfiguration().get(EtlJob.ZK_AUDIT_HOSTS);
+		if (job.getConfiguration().get(CamusJob.ZK_AUDIT_HOSTS) != null)
+			return job.getConfiguration().get(CamusJob.ZK_AUDIT_HOSTS);
 		else
-			return job.getConfiguration().get(EtlJob.ZK_HOSTS);
+			return job.getConfiguration().get(CamusJob.ZK_HOSTS);
 	}
 
 	class MultiEtlRecordWriter extends RecordWriter<EtlKey, Object> {
@@ -283,9 +283,9 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 		@Override
 		public void commitTask(TaskAttemptContext context) throws IOException {
 			FileSystem fs = FileSystem.get(context.getConfiguration());
-			if (context.getConfiguration().getBoolean(EtlJob.ETL_RUN_MOVE_DATA, false)) {
+			if (context.getConfiguration().getBoolean(CamusJob.ETL_RUN_MOVE_DATA, false)) {
 				Path workPath = super.getWorkPath();
-				Path baseOutDir = new Path(context.getConfiguration().get(EtlJob.ETL_DESTINATION_PATH));
+				Path baseOutDir = new Path(context.getConfiguration().get(CamusJob.ETL_DESTINATION_PATH));
 
 				for (FileStatus f : fs.listStatus(workPath)) {
 					String file = f.getPath().getName();
@@ -313,7 +313,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 							fs.mkdirs(dest.getParent());
 
 						fs.rename(f.getPath(), dest);
-						if (context.getConfiguration().getBoolean(EtlJob.ETL_RUN_TRACKING_POST, false)) {
+						
+						if (context.getConfiguration().getBoolean(CamusJob.ETL_RUN_TRACKING_POST, false)) {
 							count.writeCountsToHDFS(fs, new Path(workPath, COUNTS_PREFIX + "." + dest.getName().replace(EXT, "")));
 						}
 					}

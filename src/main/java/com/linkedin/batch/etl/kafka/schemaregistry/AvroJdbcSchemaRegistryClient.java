@@ -10,7 +10,7 @@ import org.apache.avro.repository.SchemaRepository;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.JobContext;
 
-import com.linkedin.batch.etl.kafka.EtlJob;
+import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.mapred.EtlInputFormat;
 
 /**
@@ -34,9 +34,9 @@ public class AvroJdbcSchemaRegistryClient implements SchemaRegistry
                                    idGenerator,
                                    conf.get("schema.registry.user"),
                                    conf.get("schema.registry.password"),
-                                   conf.get(EtlJob.ETL_SCHEMA_REGISTRY_URL),
-                                   conf.get(EtlJob.JDBC_SCHEMA_REGISTRY_DRIVER),
-                                   conf.getInt(EtlJob.JDBC_SCHEMA_REGISTRY_POOL_SIZE, 8));
+                                   conf.get(CamusJob.ETL_SCHEMA_REGISTRY_URL),
+                                   conf.get(CamusJob.JDBC_SCHEMA_REGISTRY_DRIVER),
+                                   conf.getInt(CamusJob.JDBC_SCHEMA_REGISTRY_POOL_SIZE, 8));
   }
 
 @Override

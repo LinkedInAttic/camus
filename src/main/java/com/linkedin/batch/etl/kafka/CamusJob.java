@@ -176,16 +176,18 @@ public class CamusJob {
 		return brokerURI;
 	}
 
-	private Configuration createConf(Properties props) throws IOException {
-		Configuration conf = new Configuration();
+	private Job createJob(Properties props) throws IOException {
+		Job job = new Job();
+		job.setJarByClass(CamusJob.class);
+		job.setJobName("Camus Job");
 
 		for (Object key : props.keySet()) {
-			conf.set(key.toString(), props.getProperty(key.toString()));
+			job.getConfiguration().set(key.toString(), props.getProperty(key.toString()));
 		}
 
-		FileSystem fs = FileSystem.get(conf);
+		FileSystem fs = FileSystem.get(job.getConfiguration());
 
-		String hadoopCacheJarDir = conf.get("hdfs.default.classpath.dir", null);
+		String hadoopCacheJarDir = job.getConfiguration().get("hdfs.default.classpath.dir", null);
 		if (hadoopCacheJarDir != null) {
 			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
 
@@ -197,7 +199,7 @@ public class CamusJob {
 										+ status[i].getPath());
 
 						DistributedCache.addFileToClassPath(
-								status[i].getPath(), conf, fs);
+								status[i].getPath(), job.getConfiguration(), fs);
 					}
 				}
 			} else {
@@ -207,17 +209,17 @@ public class CamusJob {
 		}
 
 		// Adds External jars to hadoop classpath
-		String externalJarList = conf.get("hadoop.external.jarFiles", null);
+		String externalJarList = job.getConfiguration().get("hadoop.external.jarFiles", null);
 		if (externalJarList != null) {
 			String[] jarFiles = externalJarList.split(",");
 			for (String jarFile : jarFiles) {
 				System.out.println("Adding extenral jar File:" + jarFile);
 				DistributedCache
-						.addFileToClassPath(new Path(jarFile), conf, fs);
+						.addFileToClassPath(new Path(jarFile), job.getConfiguration(), fs);
 			}
 		}
 
-		return conf;
+		return job;
 	}
 
 	public void run() throws Exception {
@@ -225,9 +227,8 @@ public class CamusJob {
 		startTiming("total");
 		System.out.println("Starting Kafka ETL Job");
 
-		Configuration conf = createConf(props);
-		FileSystem fs = FileSystem.get(conf);
-		Job job = new Job(conf);
+		Job job = createJob(props);
+		FileSystem fs = FileSystem.get(job.getConfiguration());
 
 		System.out.println("The blacklisted topics: "
 				+ Arrays.toString(EtlInputFormat.getKafkaBlacklistTopic(job)));
@@ -256,7 +257,7 @@ public class CamusJob {
 		// exceeding HDFS quota. retention is set to a percentage of available
 		// quota.
 		ContentSummary content = fs.getContentSummary(execBasePath);
-		long limit = (long) (content.getQuota() * conf.getFloat(
+		long limit = (long) (content.getQuota() * job.getConfiguration().getFloat(
 				ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
 
@@ -308,7 +309,7 @@ public class CamusJob {
 		job.setOutputValueClass(AvroWrapper.class);
 
 		stopTiming("pre-setup");
-
+		job.submit();
 		job.waitForCompletion(true);
 
 		// dump all counters
@@ -328,7 +329,7 @@ public class CamusJob {
 
 		// this is for kafka-audit.  currently that is only semi-open sourced, but you can find more info 
 		// at https://issues.apache.org/jira/browse/KAFKA-260. For now, we disable this section.
-		if (conf.getBoolean(ETL_RUN_TRACKING_POST, false)) {
+		if (job.getConfiguration().getBoolean(ETL_RUN_TRACKING_POST, false)) {
 			HashMap<String, EtlCounts> countsMap = new HashMap<String, EtlCounts>();
 
 			for (FileStatus f : fs.listStatus(newExecutionOutput,

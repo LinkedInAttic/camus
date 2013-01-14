@@ -4,9 +4,9 @@ public interface SchemaRegistry {
     
 	public String register(String topic, String schema) throws SchemaRegistryException;
 	
-	public String getSchemaByID(String topic, String id) throws SchemaNotFoundException;
+	public String getSchemaByID(String topic, String id) throws SchemaRegistryException, SchemaNotFoundException;
 	
-	public SchemaDetails getLatestSchemaByTopic(String topicName) throws SchemaNotFoundException, UnsupportedOperationException;
+	public SchemaDetails getLatestSchemaByTopic(String topicName) throws SchemaRegistryException, SchemaNotFoundException;
 		
 
 }

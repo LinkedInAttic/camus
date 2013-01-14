@@ -1,6 +1,7 @@
 package com.linkedin.batch.etl.kafka.mapred;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.avro.mapred.AvroWrapper;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -29,12 +31,14 @@ import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
-import com.linkedin.batch.etl.kafka.EtlJob;
+import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.EtlZkClient;
 import com.linkedin.batch.etl.kafka.schemaregistry.SchemaDetails;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaNotFoundException;
 import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
+import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistryException;
 
 /**
  * Input format for a Kafka pull job.
@@ -57,10 +61,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
   public List<InputSplit> getSplits(JobContext context) throws IOException,
       InterruptedException
   {
-    EtlJob.startTiming("getSplits");
-    
-    _log.info("Beginning of getSplits()");
-    
+    CamusJob.startTiming("getSplits");
+
     List<EtlRequest> requests;
     try
     {
@@ -100,64 +102,27 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       
       if (whiteListTopics.isEmpty())
       {
-        _log.info("whiteListTopics is empty!");
-
-        EtlJob.startTiming("kafkaSetupTime");
+        CamusJob.startTiming("kafkaSetupTime");
         topicList = zkClient.getTopics(blackListTopics);
-        EtlJob.stopTiming("kafkaSetupTime");
+        CamusJob.stopTiming("kafkaSetupTime");
       }
       else
       {
-        EtlJob.startTiming("kafkaSetupTime");
+        CamusJob.startTiming("kafkaSetupTime");
         topicList = zkClient.getTopics(whiteListTopics, blackListTopics);
-        EtlJob.stopTiming("kafkaSetupTime");
+        CamusJob.stopTiming("kafkaSetupTime");
       }
       
       _log.info("topicList: " + topicList);
 
       _log.info("Number of topics pulled from Zookeeper: " + topicList.size());
-
-      //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented
-      
-      String registryType = EtlInputFormat.getSchemaRegistryType(context);
-      
-      _log.info("registryType: " + registryType);
-      
-      SchemaRegistry registry = (SchemaRegistry)Class.forName(registryType).newInstance(); 
- 
-      _log.info("registry.toString(): " + registry.toString());
-
-      //SchemaRepository registry = SchemaRegistryClient.getInstance(context);
       requests = new ArrayList<EtlRequest>();
 
       for (String topic : topicList)
       {
-        try
-        {	
-          // SchemaAndId schemaStr = registry.lookupLatest(topic);
-
-          SchemaDetails schemaStr = registry.getLatestSchemaByTopic(topic);
-          if (!schemaStr.getSchema().startsWith("<html>"))
-          {
-            EtlJob.startTiming("kafkaSetupTime");
-            requests.addAll(zkClient.getKafkaRequest(topic));
-            EtlJob.stopTiming("kafkaSetupTime");
-          }
-          else
-          {
-            _log.info(topic + " does not have a registered schema, skipping");
-          }
-        }
-        catch (Exception e)
-        {
-          _log.error("Topic " + topic + " had error during setup."
-              + e.getMessage());
-          for (StackTraceElement s : e.getStackTrace())
-          {
-            _log.error(s.toString());
-          }
-          continue;
-        }
+    	  CamusJob.startTiming("kafkaSetupTime");
+          requests.addAll(zkClient.getKafkaRequest(topic));
+          CamusJob.stopTiming("kafkaSetupTime");
       }
     }
     catch (Exception e)
@@ -165,8 +130,46 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       _log.error("Unable to pull requests from zookeeper, using previous requests", e);
       requests = getPreviousRequests(context);
     }
-
+    
+    // writing request to output directory so next Camus run can use them if needed
     writeRequests(requests, context);
+    
+    //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented      
+    SchemaRegistry registry;
+	try {
+		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
+		registry = (SchemaRegistry) constructor.newInstance(context.getConfiguration());
+	} catch (Exception e1) {
+		e1.printStackTrace();
+		throw new RuntimeException(e1);
+	} 
+    
+	// only using topics that have registered schemas
+    List<EtlRequest> filteredRequests = new ArrayList<EtlRequest>();
+    for (EtlRequest r : requests)
+    {
+      try
+      {	
+        registry.getLatestSchemaByTopic(r.getTopic());
+        filteredRequests.add(r);
+      }
+      catch (SchemaNotFoundException e)
+      {
+        System.err.println("Topic " + r.getTopic() + " is not registered in the schema registry, skipping");
+        continue;
+      }
+      catch (SchemaRegistryException e)
+      {
+    	  // we shouldn't get a registry error so we should quit here.
+    	  throw new RuntimeException(e);
+      }
+    }
+    requests = filteredRequests;
+    
+    if (requests.size() == 0)
+    	throw new RuntimeException("Houston we have a problem, nothing to pull from kafka. " +
+    			"Possibly none of the topic schemas were pulled from the registry");
+    
     Map<EtlRequest, EtlKey> offsetKeys =
         getPreviousOffsets(FileInputFormat.getInputPaths(context), context);
     Set<String> moveLatest = getMoveToLatestTopicsSet(context);
@@ -198,9 +201,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
     writePrevious(offsetKeys.values(), context);
 
-    EtlJob.stopTiming("getSplits");
-    EtlJob.startTiming("hadoop");
-    EtlJob.setTime("hadoop_start");
+    CamusJob.stopTiming("getSplits");
+    CamusJob.startTiming("hadoop");
+    CamusJob.setTime("hadoop_start");
 
     return allocateWork(requests, context);
   }
@@ -396,106 +399,106 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
   public static void setMonitorAlternateFields(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.KAFKA_MONITOR_ALTERNATE_FIELDS, val);
+    job.getConfiguration().set(CamusJob.KAFKA_MONITOR_ALTERNATE_FIELDS, val);
   }
 
   public static String[] getMonitorAlternateFields(JobContext job)
   {
-    return job.getConfiguration().getStrings(EtlJob.KAFKA_MONITOR_ALTERNATE_FIELDS);
+    return job.getConfiguration().getStrings(CamusJob.KAFKA_MONITOR_ALTERNATE_FIELDS);
   }
 
   public static void setMoveToLatestTopics(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.KAFKA_MOVE_TO_LAST_OFFSET_LIST, val);
+    job.getConfiguration().set(CamusJob.KAFKA_MOVE_TO_LAST_OFFSET_LIST, val);
   }
 
   public static String[] getMoveToLatestTopics(JobContext job)
   {
-    return job.getConfiguration().getStrings(EtlJob.KAFKA_MOVE_TO_LAST_OFFSET_LIST);
+    return job.getConfiguration().getStrings(CamusJob.KAFKA_MOVE_TO_LAST_OFFSET_LIST);
   }
 
   public static void setKafkaClientBufferSize(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.KAFKA_CLIENT_BUFFER_SIZE, val);
+    job.getConfiguration().setInt(CamusJob.KAFKA_CLIENT_BUFFER_SIZE, val);
   }
 
   public static int getKafkaClientBufferSize(JobContext job)
   {
     return job.getConfiguration()
-              .getInt(EtlJob.KAFKA_CLIENT_BUFFER_SIZE, 2 * 1024 * 1024);
+              .getInt(CamusJob.KAFKA_CLIENT_BUFFER_SIZE, 2 * 1024 * 1024);
   }
 
   public static void setKafkaClientTimeout(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.KAFKA_CLIENT_SO_TIMEOUT, val);
+    job.getConfiguration().setInt(CamusJob.KAFKA_CLIENT_SO_TIMEOUT, val);
   }
 
   public static int getKafkaClientTimeout(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.KAFKA_CLIENT_SO_TIMEOUT, 60000);
+    return job.getConfiguration().getInt(CamusJob.KAFKA_CLIENT_SO_TIMEOUT, 60000);
   }
 
   public static void setKafkaStartTimeMs(JobContext job, long val)
   {
-    job.getConfiguration().setLong(EtlJob.KAFKA_START_TIMESTAMP, val);
+    job.getConfiguration().setLong(CamusJob.KAFKA_START_TIMESTAMP, val);
   }
 
   public static Long getKafkaStartTimeMs(JobContext job)
   {
-    return job.getConfiguration().getLong(EtlJob.KAFKA_START_TIMESTAMP, -1);
+    return job.getConfiguration().getLong(CamusJob.KAFKA_START_TIMESTAMP, -1);
   }
 
   public static void setKafkaMaxPullHrs(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.KAFKA_MAX_PULL_HRS, val);
+    job.getConfiguration().setInt(CamusJob.KAFKA_MAX_PULL_HRS, val);
   }
 
   public static int getKafkaMaxPullHrs(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.KAFKA_MAX_PULL_HRS, -1);
+    return job.getConfiguration().getInt(CamusJob.KAFKA_MAX_PULL_HRS, -1);
   }
 
   public static void setKafkaMaxPullMinutesPerTask(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.KAFKA_MAX_PULL_MINUTES_PER_TASK, val);
+    job.getConfiguration().setInt(CamusJob.KAFKA_MAX_PULL_MINUTES_PER_TASK, val);
   }
 
   public static int getKafkaMaxPullMinutesPerTask(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.KAFKA_MAX_PULL_MINUTES_PER_TASK, -1);
+    return job.getConfiguration().getInt(CamusJob.KAFKA_MAX_PULL_MINUTES_PER_TASK, -1);
   }
 
   public static void setKafkaMaxHistoricalDays(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.KAFKA_MAX_HISTORICAL_DAYS, val);
+    job.getConfiguration().setInt(CamusJob.KAFKA_MAX_HISTORICAL_DAYS, val);
   }
 
   public static int getKafkaMaxHistoricalDays(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.KAFKA_MAX_HISTORICAL_DAYS, -1);
+    return job.getConfiguration().getInt(CamusJob.KAFKA_MAX_HISTORICAL_DAYS, -1);
   }
 
   public static void setKafkaBlacklistTopic(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.KAFKA_BLACKLIST_TOPIC, val);
+    job.getConfiguration().set(CamusJob.KAFKA_BLACKLIST_TOPIC, val);
   }
 
   public static String[] getKafkaBlacklistTopic(JobContext job)
   {
-    return job.getConfiguration().getStrings(EtlJob.KAFKA_BLACKLIST_TOPIC);
+    return job.getConfiguration().getStrings(CamusJob.KAFKA_BLACKLIST_TOPIC);
   }
 
   public static void setKafkaWhitelistTopic(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.KAFKA_WHITELIST_TOPIC, val);
+    job.getConfiguration().set(CamusJob.KAFKA_WHITELIST_TOPIC, val);
   }
 
   public static String[] getKafkaWhitelistTopic(JobContext job)
   {
-    if (job.getConfiguration().get(EtlJob.KAFKA_WHITELIST_TOPIC) != null
-        && !job.getConfiguration().get(EtlJob.KAFKA_WHITELIST_TOPIC).isEmpty())
+    if (job.getConfiguration().get(CamusJob.KAFKA_WHITELIST_TOPIC) != null
+        && !job.getConfiguration().get(CamusJob.KAFKA_WHITELIST_TOPIC).isEmpty())
     {
-      return job.getConfiguration().getStrings(EtlJob.KAFKA_WHITELIST_TOPIC);
+      return job.getConfiguration().getStrings(CamusJob.KAFKA_WHITELIST_TOPIC);
     }
     else
     {
@@ -505,144 +508,144 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
   public static void setZkHosts(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.ZK_HOSTS, val);
+    job.getConfiguration().set(CamusJob.ZK_HOSTS, val);
   }
 
   public static String getZkHosts(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.ZK_HOSTS);
+    return job.getConfiguration().get(CamusJob.ZK_HOSTS);
   }
 
   public static void setZkTopicPath(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.ZK_TOPIC_PATH, val);
+    job.getConfiguration().set(CamusJob.ZK_TOPIC_PATH, val);
   }
 
   public static String getZkTopicPath(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.ZK_TOPIC_PATH);
+    return job.getConfiguration().get(CamusJob.ZK_TOPIC_PATH);
   }
 
   public static void setZkBrokerPath(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.ZK_BROKER_PATH, val);
+    job.getConfiguration().set(CamusJob.ZK_BROKER_PATH, val);
   }
 
   public static String getZkBrokerPath(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.ZK_BROKER_PATH);
+    return job.getConfiguration().get(CamusJob.ZK_BROKER_PATH);
   }
 
   public static void setZkSessionTimeout(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.ZK_SESSION_TIMEOUT, val);
+    job.getConfiguration().setInt(CamusJob.ZK_SESSION_TIMEOUT, val);
   }
 
   public static int getZkSessionTimeout(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.ZK_SESSION_TIMEOUT,
+    return job.getConfiguration().getInt(CamusJob.ZK_SESSION_TIMEOUT,
                                          EtlZkClient.DEFAULT_ZOOKEEPER_TIMEOUT);
   }
 
   public static void setZkConnectionTimeout(JobContext job, int val)
   {
-    job.getConfiguration().setInt(EtlJob.ZK_CONNECTION_TIMEOUT, val);
+    job.getConfiguration().setInt(CamusJob.ZK_CONNECTION_TIMEOUT, val);
   }
 
   public static int getZkConnectionTimeout(JobContext job)
   {
-    return job.getConfiguration().getInt(EtlJob.ZK_CONNECTION_TIMEOUT,
+    return job.getConfiguration().getInt(CamusJob.ZK_CONNECTION_TIMEOUT,
                                          EtlZkClient.DEFAULT_ZOOKEEPER_TIMEOUT);
   }
 
   public static void setEtlExecutionBasePath(JobContext job, Path val)
   {
-    job.getConfiguration().set(EtlJob.ETL_EXECUTION_BASE_PATH, val.toString());
+    job.getConfiguration().set(CamusJob.ETL_EXECUTION_BASE_PATH, val.toString());
   }
 
   public static Path getEtlExecutionBasePath(JobContext job)
   {
-    return new Path(job.getConfiguration().get(EtlJob.ETL_EXECUTION_BASE_PATH));
+    return new Path(job.getConfiguration().get(CamusJob.ETL_EXECUTION_BASE_PATH));
   }
 
   public static void setEtlExecutionHistoryPath(JobContext job, Path val)
   {
-    job.getConfiguration().set(EtlJob.ETL_EXECUTION_HISTORY_PATH, val.toString());
+    job.getConfiguration().set(CamusJob.ETL_EXECUTION_HISTORY_PATH, val.toString());
   }
 
   public static Path getEtlExecutionHistoryPath(JobContext job)
   {
-    return new Path(job.getConfiguration().get(EtlJob.ETL_EXECUTION_HISTORY_PATH));
+    return new Path(job.getConfiguration().get(CamusJob.ETL_EXECUTION_HISTORY_PATH));
   }
 
   public static void setEtlIgnoreSchemaErrors(JobContext job, boolean val)
   {
-    job.getConfiguration().setBoolean(EtlJob.ETL_IGNORE_SCHEMA_ERRORS, val);
+    job.getConfiguration().setBoolean(CamusJob.ETL_IGNORE_SCHEMA_ERRORS, val);
   }
 
   public static boolean getEtlIgnoreSchemaErrors(JobContext job)
   {
-    return job.getConfiguration().getBoolean(EtlJob.ETL_IGNORE_SCHEMA_ERRORS, false);
+    return job.getConfiguration().getBoolean(CamusJob.ETL_IGNORE_SCHEMA_ERRORS, false);
   }
 
   public static void setEtlSchemaRegistryUrl(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.ETL_SCHEMA_REGISTRY_URL, val);
+    job.getConfiguration().set(CamusJob.ETL_SCHEMA_REGISTRY_URL, val);
   }
 
   public static String getEtlSchemaRegistryUrl(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.ETL_SCHEMA_REGISTRY_URL);
+    return job.getConfiguration().get(CamusJob.ETL_SCHEMA_REGISTRY_URL);
   }
 
   public static void setEtlDefaultTimezone(JobContext job, String val)
   {
-    job.getConfiguration().set(EtlJob.ETL_DEFAULT_TIMEZONE, val);
+    job.getConfiguration().set(CamusJob.ETL_DEFAULT_TIMEZONE, val);
   }
 
   public static String getEtlDefaultTimezone(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.ETL_DEFAULT_TIMEZONE);
+    return job.getConfiguration().get(CamusJob.ETL_DEFAULT_TIMEZONE);
   }
 
   public static String getSchemaRegistryType(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.SCHEMA_REGISTRY_TYPE);
+    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_TYPE);
   }
 
   public static String getJDBCSchemaRegistryURL(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.JDBC_SCHEMA_REGISTRY_URL);
+    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_URL);
   }
 
   public static String getJDBCSchemaRegistryUser(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.JDBC_SCHEMA_REGISTRY_USER);
+    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_USER);
   }
 
   public static String getJDBCSchemaRegistryDriver(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.JDBC_SCHEMA_REGISTRY_DRIVER);
+    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_DRIVER);
   }
 
   public static String getJDBCSchemaRegistryPassword(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.JDBC_SCHEMA_REGISTRY_PASSWORD);
+    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_PASSWORD);
   }
 
   public static String getValidatorClassName(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.SCHEMA_REGISTRY_VALIDATOR_CLASS_NAME);
+    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_VALIDATOR_CLASS_NAME);
   }
 
   public static String getIdGeneratorClassName(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.SCHEMA_REGISTRY_IDGENERATOR_CLASS_NAME);
+    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_IDGENERATOR_CLASS_NAME);
   }
 
   public static String getEtlSchemaRegistryPoolSize(JobContext job)
   {
-    return job.getConfiguration().get(EtlJob.JDBC_SCHEMA_REGISTRY_POOL_SIZE);
+    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_POOL_SIZE);
   }
 
   private class OffsetFileFilter implements PathFilter

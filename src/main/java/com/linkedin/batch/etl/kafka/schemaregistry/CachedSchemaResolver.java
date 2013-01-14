@@ -9,7 +9,7 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
 
-import com.linkedin.batch.etl.kafka.EtlJob;
+import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.coders.Utils;
 
 
@@ -20,7 +20,7 @@ import com.linkedin.batch.etl.kafka.coders.Utils;
  * @author lguo
  * 
  */
-public class CachedSchemaResolver {
+public class CachedSchemaResolver implements SchemaResolver{
 
 	// Schema registry client
 	private SchemaRegistry client = null;
@@ -47,9 +47,10 @@ public class CachedSchemaResolver {
 	 * @throws SecurityException 
 	 * @throws InvocationTargetException 
 	 * @throws IllegalArgumentException 
+	 * @throws SchemaRegistryException 
 	 */
-	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException, SecurityException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException {
-		Constructor<?> constructor = Class.forName(conf.get(EtlJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
+	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException, SecurityException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException, SchemaRegistryException {
+		Constructor<?> constructor = Class.forName(conf.get(CamusJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
 		
 		client = (SchemaRegistry) constructor.newInstance(conf);
 		SchemaDetails targetSchema = client.getLatestSchemaByTopic(topicName);

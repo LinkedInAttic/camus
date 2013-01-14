@@ -7,12 +7,6 @@
 	<dependencies>
 
 		<dependency>
-			<groupId>com.linkedin</groupId>
-			<artifactId>azkaban-common</artifactId>
-			<version>snapshot-0.10</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.apache.hadoop</groupId>
 			<artifactId>hadoop-core</artifactId>
 			<!--version>1.0.3</version-->
@@ -84,12 +78,14 @@
 			<version>1.6.1</version>
 		</dependency>
 
+		<!-- 
 	 	<dependency>
 			<groupId>org.apache.avro</groupId>
 			<artifactId>avro-mapred</artifactId>
 			<version>1.6.1</version>
 		</dependency>
-
+		-->
+		 
 	</dependencies>
 
 	<build>

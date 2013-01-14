@@ -149,7 +149,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
     requests = filteredRequests;
     
     if (requests.size() == 0)
-    	throw new RuntimeException("Houstan we have a problem, nothing to pull from kafka. " +
+    	throw new RuntimeException("Houston we have a problem, nothing to pull from kafka. " +
     			"Possibly none of the topic schemas were pulled from the registry");
     
     Map<EtlRequest, EtlKey> offsetKeys =

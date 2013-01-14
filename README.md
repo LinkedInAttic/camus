@@ -54,40 +54,38 @@ Final offsets are written to HDFS and consumed by the subsequent job.
 
 ## Job Cleanup 
 
-Once the hadoop job has completed, the main client running on Azkaban reads all the written audit counts and aggregates them.  The aggregated results is then submitted to Kafka.
+Once the hadoop job has completed, the main client reads all the written audit counts and aggregates them.  The aggregated results is then submitted to Kafka.
 
-## Configurations 
+## Configuration
+
+Camus can be ran from the command line as Java App. You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath), or from the commandline itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
 
 Here is an abbreviated list of commonly used parameters.
 
-Note, these are azkaban property files, soon to be replaced with something more generic.  You will notice all properties are prepended with “hadoop-conf.”  The Azkaban job adds these properties to the hadoop job configuration with the prepend remove.  i.e. hadoop-conf.zookeeper.hosts is added to the job conf as zookeeper.hosts.
-
+* Top-level data output directory, sub-directories will be dynamically created for each topic pulled
+ * etl.destination.path=
+* HDFS location where you want to keep execution files, i.e. offsets, error logs, and count files
+ * etl.execution.base.path=
+* Where completed Camus job output directories are kept, usually a sub-dir in the base.path
+ * etl.execution.history.path=
 * Zookeeper configurations:
- * hadoop-conf.zookeeper.hosts
- * hadoop-conf.zookeeper.broker.topics/brokers/topics
- * hadoop-conf.zookeeper.broker.nodes/brokers/ids
-* blacklist/whitelist
- * hadoop-conf.kafka.blacklist.topics
- * hadoop-conf.kafka.whitelist.topics
-* url to schema registry
- * hadoop-conf.etl.schema.registry.url
-* time granularity of outputs
- * hadoop-conf.etl.output.file.time.partition.mins10 
-* kafka config: client buffer size 1M
- * hadoop-conf.kafka.client.buffer.size20971520
-* kafka config: client timeout 1 minute
- * hadoop-conf.kafka.client.so.timeout60000 
-* pull restrictions
- * hadoop-conf.kafka.max.pull.hrs6
- * hadoop-conf.kafka.max.historical.days3
- * hadoop-conf.kafka.max.pull.minutes.per.partition10
- * hadoop-conf.kafka.monitor.time.granularity10 
-* Topic Output Base Path
- * hadoop-conf.etl.destination.path
-* The location of the Jobs are run from
- * hadoop-conf.etl.execution.base.path 
-* The location of previous output directories.
- * hadoop-conf.etl.execution.history.path 
-* Audit props
- * hadoop-conf.etl.counts.path 
- * hadoop-conf.kafka.monitor.tier
+ * zookeeper.hosts=
+ * zookeeper.broker.topics=/brokers/topics
+ * zookeeper.broker.nodes=/brokers/ids
+* Schema Registry configurations:
+ * etl.schema.registry.url=
+ * etl.kafka.schemaregistry.client.class=com.linkedin.batch.etl.kafka.schemaregistry.AvroJdbcSchemaRegistryClient
+* All files in this dir will be added to the distributed cache and placed on the classpath for hadoop tasks
+ * hdfs.default.classpath.dir=
+* Max hadoop tasks to use, each task can pull multiple topic partitions
+ * mapred.map.tasks=30
+* Max historical time that will be pulled from each partition based on event timestamp
+ * kafka.max.pull.hrs=1
+* Events with a timestamp older than this will be discarded. 
+ * kafka.max.historical.days=3
+* Max bytes pull for a topic-partition in a single run
+ * kafka.max.pull.megabytes.per.topic=4096
+* If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
+ * kafka.blacklist.topics=
+ * kafka.whitelist.topics=
+

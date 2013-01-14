@@ -2,11 +2,14 @@ package com.linkedin.batch.etl.kafka.schemaregistry;
 
 public class SchemaDetails {
 	
-	public String id;
-	public String schema;
-	public String topic;
+	private String id;
+	private String schema;
+	private String topic;
 	
 	public SchemaDetails(String id, String schema, String topic) {
+		this.id = id;
+		this.schema = schema;
+		this.topic = topic;
 	}
 	/**
 	 * Get the schema

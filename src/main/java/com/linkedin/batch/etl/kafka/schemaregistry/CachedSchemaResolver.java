@@ -50,9 +50,9 @@ public class CachedSchemaResolver implements SchemaResolver{
 	 * @throws SchemaRegistryException 
 	 */
 	public CachedSchemaResolver(String topicName, Configuration conf) throws IOException, InstantiationException, IllegalAccessException, ClassNotFoundException, UnsupportedOperationException, SchemaNotFoundException, SecurityException, NoSuchMethodException, IllegalArgumentException, InvocationTargetException, SchemaRegistryException {
-		Constructor<?> constructor = Class.forName(conf.get(CamusJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
-		
+		Constructor<?> constructor = Class.forName(conf.get(CamusJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);		
 		client = (SchemaRegistry) constructor.newInstance(conf);
+		
 		SchemaDetails targetSchema = client.getLatestSchemaByTopic(topicName);
 		readerSchema = Schema.parse(targetSchema.getSchema());
 		topic = topicName;

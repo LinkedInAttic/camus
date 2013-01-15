@@ -24,7 +24,7 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 	public Mate1KafkaAvroMessageDecoder(Configuration conf)
 	{
 		super(conf);
-		this.decoderFactory = new DecoderFactory();
+		this.decoderFactory = DecoderFactory.get();
 	}
 
 	@Override

@@ -99,6 +99,8 @@ public class CamusJob extends Configured implements Tool {
 	public static final String KAFKA_MONITOR_TIME_GRANULARITY_MS = "kafka.monitor.time.granularity";
 	public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
 	public static final String KAFKA_MONITOR_ALTERNATE_FIELDS = "kafka.monitor.alternate.fields";
+	public static final String KAFKA_MESSAGE_DECODER_CLASS = "kafka.message.decoder.class";
+	public static final String KAFKA_MESSAGE_ENCODER_CLASS = "kafka.message.encoder.class";
 
 	public static final String ZK_HOSTS = "zookeeper.hosts";
 	public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";

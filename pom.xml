@@ -83,7 +83,13 @@
 			<artifactId>avro-mapred</artifactId>
 			<version>1.6.1</version>
 		</dependency>
-		 
+		
+                <dependency>
+                        <groupId>com.edate</groupId>
+                        <artifactId>database-full</artifactId>
+                        <version>14.0</version>
+                </dependency>
+ 
 	</dependencies>
 
 	<build>

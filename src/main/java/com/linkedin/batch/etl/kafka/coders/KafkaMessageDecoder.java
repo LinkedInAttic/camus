@@ -15,18 +15,18 @@ public abstract class KafkaMessageDecoder implements Configurable {
 		this.conf = conf;
 	}
 
-	public Record toRecord(Message message) {
-		return toRecord(message, null);
+	public Record toRecord(String topicName, Message message) {
+		return toRecord(topicName, message, null);
 	}
 
-	public <T extends SpecificRecord> T toSpecificRecord(Message message) {
-		T specificRecord = this.<T> toSpecificRecord(message, null);
+	public <T extends SpecificRecord> T toSpecificRecord(String topicName, Message message) {
+		T specificRecord = this.<T> toSpecificRecord(topicName, message, null);
 		return specificRecord;
 	}
 
-	public abstract Record toRecord(Message message, BinaryDecoder decoderReuse);
+	public abstract Record toRecord(String topicName, Message message, BinaryDecoder decoderReuse);
 
-	public abstract <T extends SpecificRecord> T toSpecificRecord(
+	public abstract <T extends SpecificRecord> T toSpecificRecord(String topicName, 
 			Message message, BinaryDecoder decoderReuse);
 
 	@Override

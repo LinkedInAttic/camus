@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.URI;
@@ -573,7 +574,12 @@ public class CamusJob extends Configured implements Tool {
 	
 	public static Properties getDefaultProps() throws IOException{
 		Properties props = new Properties();
-		props.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
+		
+		InputStream propsInputStream = ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties");
+		if (propsInputStream != null) {
+			props.load(propsInputStream);			
+		}
+		
 		return props;
 	}
 	

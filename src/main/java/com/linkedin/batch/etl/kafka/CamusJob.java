@@ -29,6 +29,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.ContentSummary;
 import org.apache.hadoop.fs.FileStatus;
@@ -48,6 +49,8 @@ import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -60,7 +63,7 @@ import com.linkedin.batch.etl.kafka.common.ExceptionWritable;
 import com.linkedin.batch.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.batch.etl.kafka.mapred.EtlMultiOutputFormat;
 
-public class CamusJob {
+public class CamusJob extends Configured implements Tool {
 	public static final String ETL_DESTINATION_PATH = "etl.destination.path";
 	public static final String ETL_EXECUTION_BASE_PATH = "etl.execution.base.path";
 	public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
@@ -177,7 +180,7 @@ public class CamusJob {
 	}
 
 	private Job createJob(Properties props) throws IOException {
-		Job job = new Job();
+		Job job = new Job(getConf());
 		job.setJarByClass(CamusJob.class);
 		job.setJobName("Camus Job");
 
@@ -307,6 +310,8 @@ public class CamusJob {
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setOutputKeyClass(EtlKey.class);
 		job.setOutputValueClass(AvroWrapper.class);
+		
+		job.setNumReduceTasks(0);
 
 		stopTiming("pre-setup");
 		job.submit();
@@ -566,8 +571,21 @@ public class CamusJob {
 		}
 	}
 	
-	@SuppressWarnings("static-access")
+	public static Properties getDefaultProps() throws IOException{
+		Properties props = new Properties();
+		props.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
+		return props;
+	}
+	
+	
 	public static void main(String[] args) throws Exception{
+		CamusJob job = new CamusJob(getDefaultProps());
+		ToolRunner.run(job, args);
+	}
+
+	@SuppressWarnings("static-access")
+	@Override
+	public int run(String[] args) throws Exception {
 		Options options = new Options();
 
 		options.addOption("p", true, "properties filename from the classpath");
@@ -585,26 +603,21 @@ public class CamusJob {
 		if (! (cmd.hasOption('p') || cmd.hasOption('P'))){
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.printHelp( "CamusJob.java", options );
-			return;
+			return 1;
 		}
-		
-		Properties prop = new Properties();
-		
-		//loading defaults
-		//prop.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
-		
+
 		if (cmd.hasOption('p'))
-			prop.load(ClassLoader.getSystemClassLoader().getResourceAsStream(cmd.getOptionValue('p')));
+			props.load(ClassLoader.getSystemClassLoader().getResourceAsStream(cmd.getOptionValue('p')));
 		
 		if (cmd.hasOption('P')){
 			File file = new File(cmd.getOptionValue('P'));
 			FileInputStream fStream = new FileInputStream(file);
-			prop.load(fStream);
+			props.load(fStream);
 		}
 		
-		prop.putAll(cmd.getOptionProperties("D"));
+		props.putAll(cmd.getOptionProperties("D"));
 		
-		CamusJob job = new CamusJob(prop);
-		job.run();			
+		run();			
+		return 0;
 	}
 }

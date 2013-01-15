@@ -443,9 +443,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
       }
       catch (Throwable t)
       {
+    	  Exception e = new Exception(t.getLocalizedMessage(), t);
+    	  e.setStackTrace(t.getStackTrace());
         mapperContext.write(key,
-                            new ExceptionWritable(new Exception(t.getLocalizedMessage(),
-                                                                t)));
+                            new ExceptionWritable(e));
         reader = null;
         continue;
       }

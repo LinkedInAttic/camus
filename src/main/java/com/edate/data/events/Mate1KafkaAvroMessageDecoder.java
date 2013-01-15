@@ -63,7 +63,17 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 		{
 			DatumReader<T> reader = new GenericDatumReader<T>(type.getSchema());
 
-			return reader.read(null, decoderFactory.jsonDecoder(type.getSchema(), new String(message.payload().array())));
+			return reader.read(
+					null, 
+					decoderFactory.jsonDecoder(
+							type.getSchema(), 
+							new String(
+									message.payload().array(), 
+									Message.payloadOffset(message.magic()),
+									message.payloadSize()
+							)
+					)
+			);
 		}
 		catch (IOException e)
 		{

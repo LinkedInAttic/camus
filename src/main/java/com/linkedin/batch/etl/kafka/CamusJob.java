@@ -347,7 +347,7 @@ public class CamusJob extends Configured implements Tool {
 				if (!countsMap.containsKey(topic)) {
 					countsMap
 							.put(topic,
-									new EtlCounts(
+									new EtlCounts(job.getConfiguration(),
 											topic,
 											EtlMultiOutputFormat
 													.getMonitorTimeGranularityMins(job) * 60 * 1000L));

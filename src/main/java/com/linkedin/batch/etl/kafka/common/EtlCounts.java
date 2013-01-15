@@ -5,6 +5,8 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,7 +32,8 @@ import org.codehaus.jackson.JsonToken;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.joda.time.DateTime;
 
-import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageEncoder;
+import com.linkedin.batch.etl.kafka.CamusJob;
+import com.linkedin.batch.etl.kafka.coders.KafkaMessageEncoder;
 import com.linkedin.events.EventHeader;
 import com.linkedin.events.Guid;
 import com.linkedin.events.TrackingMonitoringEvent;
@@ -69,12 +72,14 @@ public class EtlCounts
   // String instance
   private final HashMap<String, String> stringIntern        =
                                                                 new HashMap<String, String>();
+  private Configuration conf;
 
-  public EtlCounts(String topic, long monitorGranularity)
+  public EtlCounts(Configuration conf, String topic, long monitorGranularity)
   {
     this.topic = topic;
     this.monitorGranularity = monitorGranularity;
     this.startTime = System.currentTimeMillis();
+    this.conf = conf;
   }
 
   public void incrementMonitorCount(EtlKey key)
@@ -365,7 +370,14 @@ public class EtlCounts
 
   public void postTrackingCountToKafka(String tier, List<URI> brokerURI)
   {
-    KafkaAvroMessageEncoder encoder = new KafkaAvroMessageEncoder();
+    KafkaMessageEncoder encoder;
+    
+    try {
+		Constructor<?> constructor = Class.forName(conf.get(CamusJob.KAFKA_MESSAGE_ENCODER_CLASS)).getConstructor(Configuration.class);
+		encoder = (KafkaMessageEncoder) constructor.newInstance(conf);
+	} catch (Exception e1) {
+		throw new RuntimeException(e1);
+	} 
 
     ArrayList<Message> monitorSet = new ArrayList<Message>();
     long timestamp = new DateTime().getMillis();

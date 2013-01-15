@@ -13,7 +13,6 @@ import org.apache.avro.specific.SpecificRecord;
 import org.apache.hadoop.conf.Configuration;
 
 import com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder;
-import com.linkedin.batch.etl.kafka.schemaregistry.CachedSchemaResolver;
 
 import com.edate.data.events.EventDataAvro.EventTypeAvro;
 
@@ -37,7 +36,17 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 		{
 			DatumReader<Record> reader = new GenericDatumReader<Record>(type.getSchema());
 
-			return reader.read(null, decoderFactory.binaryDecoder(message.payload().array(), decoderReuse));
+			return reader.read(
+					null, 
+					decoderFactory.jsonDecoder(
+							type.getSchema(), 
+							new String(
+									message.payload().array(), 
+									Message.payloadOffset(message.magic()),
+									message.payloadSize()
+							)
+					)
+			);
 		}
 		catch (IOException e)
 		{
@@ -54,7 +63,7 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 		{
 			DatumReader<T> reader = new GenericDatumReader<T>(type.getSchema());
 
-			return reader.read(null, decoderFactory.binaryDecoder(message.payload().array(), decoderReuse));
+			return reader.read(null, decoderFactory.jsonDecoder(type.getSchema(), new String(message.payload().array())));
 		}
 		catch (IOException e)
 		{

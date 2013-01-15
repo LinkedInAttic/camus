@@ -72,11 +72,11 @@
 			<version>1.7.4-SNAPSHOT</version>
 		</dependency--> 
 		
-	 	<dependency>
+	 	<!--dependency>
 			<groupId>org.apache.avro</groupId>
 			<artifactId>avro-schema-repository</artifactId>
 			<version>1.6.1</version>
-		</dependency>
+		</dependency-->
 
 	 	<dependency>
 			<groupId>org.apache.avro</groupId>

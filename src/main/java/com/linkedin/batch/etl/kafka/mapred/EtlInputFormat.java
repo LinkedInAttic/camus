@@ -34,10 +34,6 @@ import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.EtlZkClient;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaDetails;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaNotFoundException;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;
-import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistryException;
 
 /**
  * Input format for a Kafka pull job.
@@ -115,42 +111,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
     
     // writing request to output directory so next Camus run can use them if needed
     writeRequests(requests, context);
-    
-    //Get the class name of the concrete implementation of the Schema Registry and get the concrete class implemented      
-    SchemaRegistry registry;
-	try {
-		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_TYPE)).getConstructor(Configuration.class);
-		registry = (SchemaRegistry) constructor.newInstance(context.getConfiguration());
-	} catch (Exception e1) {
-		e1.printStackTrace();
-		throw new RuntimeException(e1);
-	} 
-    
-	// only using topics that have registered schemas
-    List<EtlRequest> filteredRequests = new ArrayList<EtlRequest>();
-    for (EtlRequest r : requests)
-    {
-      try
-      {	
-        registry.getLatestSchemaByTopic(r.getTopic());
-        filteredRequests.add(r);
-      }
-      catch (SchemaNotFoundException e)
-      {
-        System.err.println("Topic " + r.getTopic() + " is not registered in the schema registry, skipping");
-        continue;
-      }
-      catch (SchemaRegistryException e)
-      {
-    	  // we shouldn't get a registry error so we should quit here.
-    	  throw new RuntimeException(e);
-      }
-    }
-    requests = filteredRequests;
-    
-    if (requests.size() == 0)
-    	throw new RuntimeException("Houston we have a problem, nothing to pull from kafka. " +
-    			"Possibly none of the topic schemas were pulled from the registry");
     
     Map<EtlRequest, EtlKey> offsetKeys =
         getPreviousOffsets(FileInputFormat.getInputPaths(context), context);

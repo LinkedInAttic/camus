@@ -265,7 +265,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 		public void addCounts(EtlKey key) {
 			String name = generateFileNameForKey(key);
 			if (!counts.containsKey(name))
-				counts.put(name, new EtlCounts(key.getTopic(), granularityMs));
+				counts.put(name, new EtlCounts(context.getConfiguration(), key.getTopic(), granularityMs));
 			counts.get(name).incrementMonitorCount(key);
 			addOffset(key);
 		}

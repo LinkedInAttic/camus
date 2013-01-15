@@ -1,6 +1,7 @@
 package com.linkedin.batch.etl.kafka.mapred;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -10,6 +11,7 @@ import kafka.message.Message;
 
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
@@ -20,12 +22,12 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.joda.time.DateTime;
 
-import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.batch.etl.kafka.CamusJob;
+import com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.ExceptionWritable;
 import com.linkedin.batch.etl.kafka.common.KafkaReader;
-import com.linkedin.batch.etl.kafka.schemaregistry.CachedSchemaResolver;
 
 public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
 {
@@ -39,7 +41,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
   private long                                               readBytes        = 0;
 
   private boolean                                            skipSchemaErrors = false;
-  private KafkaAvroMessageDecoder                            decoder;
+  private KafkaMessageDecoder                                decoder;
   private final BytesWritable                                msgValue         =
                                                                                   new BytesWritable();
   private final EtlKey                                       key              =
@@ -165,12 +167,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
     }
   }
 
-  public Record getRecord(Message msg) throws IOException
+  public Record getRecord(String topicName, Message msg) throws IOException
   {
     Record r = null;
     try
     {
-      r = decoder.toRecord(msg);
+      r = decoder.toRecord(topicName, msg);
     }
     catch (Exception e)
     {
@@ -344,10 +346,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
               new KafkaReader(request,
                               EtlInputFormat.getKafkaClientTimeout(mapperContext),
                               EtlInputFormat.getKafkaClientBufferSize(mapperContext));
+          
+          try {
+      		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.KAFKA_MESSAGE_DECODER_CLASS)).getConstructor(Configuration.class);
+      		decoder = (KafkaMessageDecoder) constructor.newInstance(context.getConfiguration());
+      	} catch (Exception e1) {
+      		throw new RuntimeException(e1);
+      	} 
 
-          // We even need to get the source information here
-          decoder =
-              new KafkaAvroMessageDecoder(new CachedSchemaResolver(request.getTopic(), context.getConfiguration()));
           /*
            * decoder = new KafkaAvroMessageDecoder(new
            * CachedSchemaResolver(EtlInputFormat.getEtlSchemaRegistryUrl(context),
@@ -375,7 +381,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
           Record record;
           try
           {
-            record = getRecord(message);
+            record = getRecord(key.getTopic(), message);
           }
           catch (Exception e)
           {

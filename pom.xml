@@ -78,13 +78,11 @@
 			<version>1.6.1</version>
 		</dependency>
 
-		<!-- 
 	 	<dependency>
 			<groupId>org.apache.avro</groupId>
 			<artifactId>avro-mapred</artifactId>
 			<version>1.6.1</version>
 		</dependency>
-		-->
 		 
 	</dependencies>
 

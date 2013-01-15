@@ -79,7 +79,13 @@ public class KafkaAvroMessageEncoder {
             }
 
             out.write(md5Bytes);
-            BinaryEncoder encoder = new BinaryEncoder(out);
+            
+            // The line below (from linkedin's master branch) works against avro 1.4.1 but not against avro 1.5.0 and later
+            //BinaryEncoder encoder = new BinaryEncoder(out);
+            
+            // This works:
+            BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(out, null);
+            
             DatumWriter<IndexedRecord> writer;
             if (record instanceof SpecificRecord) {
                 writer = new SpecificDatumWriter<IndexedRecord>(

@@ -591,7 +591,7 @@ public class CamusJob {
 		Properties prop = new Properties();
 		
 		//loading defaults
-		prop.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
+		//prop.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
 		
 		if (cmd.hasOption('p'))
 			prop.load(ClassLoader.getSystemClassLoader().getResourceAsStream(cmd.getOptionValue('p')));

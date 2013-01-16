@@ -6,6 +6,7 @@ import kafka.message.Message;
 
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DecoderFactory;
@@ -30,39 +31,23 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 	@Override
 	public Record toRecord(String topicName, Message message, BinaryDecoder decoderReuse)
 	{
-		EventTypeAvro type = EventDataAvro.EventTypeAvro.valueOf(topicName);
-
-		try
-		{
-			DatumReader<Record> reader = new GenericDatumReader<Record>(type.getSchema());
-
-			return reader.read(
-					null, 
-					decoderFactory.jsonDecoder(
-							type.getSchema(), 
-							new String(
-									message.payload().array(), 
-									Message.payloadOffset(message.magic()),
-									message.payloadSize()
-							)
-					)
-			);
-		}
-		catch (IOException e)
-		{
-			throw new RuntimeException(e);
-		}
+		return getRecord(topicName, message, decoderReuse, new GenericDatumReader<Record>());
 	}
 
 	@Override
 	public <T extends SpecificRecord> T toSpecificRecord(String topicName, Message message, BinaryDecoder decoderReuse)
 	{
-		EventTypeAvro type = EventDataAvro.EventTypeAvro.valueOf(topicName);
-
+		return getRecord(topicName, message, decoderReuse, new GenericDatumReader<T>());
+	}
+	
+	private <T extends IndexedRecord> T getRecord(String topicName, Message message, BinaryDecoder decoderReuse, DatumReader<T> reader)
+	{
 		try
 		{
-			DatumReader<T> reader = new GenericDatumReader<T>(type.getSchema());
-
+			EventTypeAvro type = EventDataAvro.EventTypeAvro.valueOf(topicName);
+			
+			reader.setSchema(type.getSchema());
+			
 			return reader.read(
 					null, 
 					decoderFactory.jsonDecoder(
@@ -75,9 +60,14 @@ public class Mate1KafkaAvroMessageDecoder extends KafkaMessageDecoder
 					)
 			);
 		}
+		catch (IllegalArgumentException e) // If the enum is not found
+		{
+			return null;
+		}
 		catch (IOException e)
 		{
 			throw new RuntimeException(e);
 		}
 	}
+
 }

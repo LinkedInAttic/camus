@@ -383,10 +383,10 @@ public class CamusJob extends Configured implements Tool {
 
 			writeBrokers(fs, job, brokerURI);
 
-//			for (EtlCounts count : countsMap.values()) {
-//				count.postTrackingCountToKafka(
-//						EtlMultiOutputFormat.getMonitorTier(job), brokerURI);
-//			}
+			for (EtlCounts count : countsMap.values()) {
+				count.postTrackingCountToKafka(
+						EtlMultiOutputFormat.getMonitorTier(job), brokerURI);
+			}
 		}
 
 		// echo any errors in the error files.  hopefully there are none

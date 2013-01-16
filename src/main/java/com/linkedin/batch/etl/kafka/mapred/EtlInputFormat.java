@@ -91,8 +91,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
       _log.info("whiteListTopics: " + whiteListTopics);
 
-      Set<String> blackListTopics =
-          new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
+      Set<String> blackListTopics = new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
 
       _log.info("blackListTopics: " + blackListTopics);
       
@@ -445,7 +444,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
   public static String[] getKafkaBlacklistTopic(JobContext job)
   {
-    return job.getConfiguration().getStrings(CamusJob.KAFKA_BLACKLIST_TOPIC);
+    if (job.getConfiguration().get(CamusJob.KAFKA_BLACKLIST_TOPIC) != null
+        && !job.getConfiguration().get(CamusJob.KAFKA_BLACKLIST_TOPIC).isEmpty())
+    {
+      return job.getConfiguration().getStrings(CamusJob.KAFKA_BLACKLIST_TOPIC);
+    }
+    else
+    {
+      return new String[] {};
+    }
   }
 
   public static void setKafkaWhitelistTopic(JobContext job, String val)

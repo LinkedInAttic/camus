@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
+import com.edate.data.events.EventDataAvro;
 import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
@@ -87,8 +88,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       List<String> topicList = null;
       
       Set<String> whiteListTopics =
-          new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));
-
+          new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));      
+      
       _log.info("whiteListTopics: " + whiteListTopics);
 
       Set<String> blackListTopics = new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
@@ -107,8 +108,38 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
         topicList = zkClient.getTopics(whiteListTopics, blackListTopics);
         CamusJob.stopTiming("kafkaSetupTime");
       }
+
+      // TEMPORARY HACK...
+      // TODO: Refactor in a cleaner more general way.
       
-      _log.info("topicList: " + topicList);
+      List<String> topicsToDiscard = new ArrayList<String>();
+      
+      for (String topic : topicList)
+      {
+    	  try 
+    	  {
+    		  EventDataAvro.EventTypeAvro.valueOf(topic);
+    	  }
+    	  catch (IllegalArgumentException e)
+    	  {
+    		  _log.debug("Topic '" + topic + "' was not found in the schema registry, so it will be discarded.");
+    		  topicsToDiscard.add(topic);
+    	  }
+      }
+      
+      if (topicsToDiscard.isEmpty())
+      {
+    	  _log.info("All topics seem valid! None will be discarded :)");
+      }
+      else
+      {
+    	  _log.error("The following topics were not found in the schema registry, so they will be discarded: " + topicsToDiscard);
+          topicList.removeAll(topicsToDiscard);  
+      }      
+      
+      // END OF HACK...
+      
+      _log.info("(Valid) topicList: " + topicList);
 
       _log.info("Number of topics pulled from Zookeeper: " + topicList.size());
       requests = new ArrayList<EtlRequest>();

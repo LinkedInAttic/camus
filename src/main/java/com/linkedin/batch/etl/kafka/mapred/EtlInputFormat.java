@@ -31,7 +31,6 @@ import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
-import com.edate.data.events.EventDataAvro;
 import com.linkedin.batch.etl.kafka.CamusJob;
 import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoderException;

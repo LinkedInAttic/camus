@@ -55,6 +55,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.batch.etl.kafka.common.DateUtils;
 import com.linkedin.batch.etl.kafka.common.EtlCounts;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
@@ -109,15 +110,6 @@ public class CamusJob extends Configured implements Tool {
 	public static final String ZK_CONNECTION_TIMEOUT = "zookeeper.connection.timeout";
 
 	public static final String BROKER_URI_FILE = "brokers.uri";
-
-	public static final String SCHEMA_REGISTRY_TYPE = "etl.kafka.schemaregistry.client.class";
-	public static final String JDBC_SCHEMA_REGISTRY_USER = "etl.kafka.schemaregistry.jdbc.user";
-	public static final String JDBC_SCHEMA_REGISTRY_PASSWORD = "etl.kafka.schemaregistry.jdbc.password";
-	public static final String JDBC_SCHEMA_REGISTRY_URL = "etl.kafka.schemaregistry.jdbc.url";
-	public static final String JDBC_SCHEMA_REGISTRY_POOL_SIZE = "etl.kafka.schemaregistry.jdbc.pool.size";
-	public static final String JDBC_SCHEMA_REGISTRY_DRIVER = "etl.kafka.schemaregistry.jdbc.driverClassName";
-	public static final String SCHEMA_REGISTRY_VALIDATOR_CLASS_NAME = "etl.kafka.schemaregistry.validator.class.name";
-	public static final String SCHEMA_REGISTRY_IDGENERATOR_CLASS_NAME = "etl.kafka.schemaregistry.idgenerator.class.name";
 
 	private final Properties props;
 

@@ -27,10 +27,14 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
+import com.edate.data.events.EventDataAvro;
 import com.linkedin.batch.etl.kafka.CamusJob;
+import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoderException;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.EtlZkClient;
@@ -41,6 +45,8 @@ import com.linkedin.batch.etl.kafka.common.EtlZkClient;
 @SuppressWarnings("deprecation")
 public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 {
+	
+  private final Logger log = Logger.getLogger(getClass());
 
   @Override
   public RecordReader<EtlKey, AvroWrapper<Object>> createRecordReader(InputSplit split,
@@ -65,19 +71,33 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       String zkBrokerPath = getZkBrokerPath(context);
       int zkSessionTimeout = getZkSessionTimeout(context);
       int zkConnectionTimeout = getZkConnectionTimeout(context);
+      
+      log.info("Stuff passed into the EtlZkClient constructor:\n\tzkHosts: " + zkHosts + 
+    		  "\n\tzkTopicPath: " + zkTopicPath +
+    		  "\n\tzkBrokerPath: " + zkBrokerPath + 
+    		  "\n\tzkSessionTimeout: " + zkSessionTimeout + 
+    		  "\n\tzkConnectionTimeout: " + zkConnectionTimeout);
+      
       EtlZkClient zkClient =
           new EtlZkClient(zkHosts,
                           zkSessionTimeout,
                           zkConnectionTimeout,
                           zkTopicPath,
                           zkBrokerPath);
+      
+      log.info("zkClient.toString(): " + zkClient.toString());
 
       List<String> topicList = null;
+      
       Set<String> whiteListTopics =
-          new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));
-      Set<String> blackListTopics =
-          new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
+          new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));      
+      
+      log.info("whiteListTopics: " + whiteListTopics);
 
+      Set<String> blackListTopics = new HashSet<String>(Arrays.asList(getKafkaBlacklistTopic(context)));
+
+      log.info("blackListTopics: " + blackListTopics);
+      
       if (whiteListTopics.isEmpty())
       {
         CamusJob.startTiming("kafkaSetupTime");
@@ -91,8 +111,38 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
         CamusJob.stopTiming("kafkaSetupTime");
       }
 
-      System.out.println("Number of topics pulled from Zookeeper: " + topicList.size());
- 
+      // Initialize a decoder for each topic so we can discard the topics for which we cannot construct a decoder
+      
+      List<String> topicsToDiscard = new ArrayList<String>();
+      
+      for (String topic : topicList)
+      {
+    	  try 
+    	  {
+    		  Constructor<?> constructor = Class.forName(
+    				  context.getConfiguration().get(CamusJob.KAFKA_MESSAGE_DECODER_CLASS)).getConstructor(Configuration.class, String.class);
+    		  KafkaAvroMessageDecoder decoder = (KafkaAvroMessageDecoder) constructor.newInstance(context.getConfiguration(), topic); 
+    	  }
+    	  catch (Exception e)
+    	  {
+    		  log.debug("We cound not construct a decoder for topic '" + topic + "', so that topic will be discarded.", e);
+    		  topicsToDiscard.add(topic);
+    	  }
+      }
+      
+      if (topicsToDiscard.isEmpty())
+      {
+    	  log.info("All topics seem valid! None will be discarded :)");
+      }
+      else
+      {
+    	  log.error("We could not construct decoders for the following topics, so they will be discarded: " + topicsToDiscard);
+          topicList.removeAll(topicsToDiscard);  
+      }      
+            
+      log.info("The following topicList will be pulled from Kafka and written to HDFS: " + topicList);
+
+      log.info("Number of topics pulled from Zookeeper: " + topicList.size());
       requests = new ArrayList<EtlRequest>();
 
       for (String topic : topicList)
@@ -104,8 +154,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
     }
     catch (Exception e)
     {
-      System.err.println("Unable to pull requests from zookeeper, using previous requests");
-      e.printStackTrace();
+      log.error("Unable to pull requests from zookeeper, using previous requests", e);
       requests = getPreviousRequests(context);
     }
     
@@ -138,7 +187,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
         request.setOffset(request.getEarliestOffset());
       }
 
-      System.out.println(request);
+      log.info(request);
     }
 
     writePrevious(offsetKeys.values(), context);
@@ -309,7 +358,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
       FileSystem fs = input.getFileSystem(context.getConfiguration());
       for (FileStatus f : fs.listStatus(input, new OffsetFileFilter()))
       {
-        System.out.println("previous offset file:" + f.getPath().toString());
+        log.info("previous offset file:" + f.getPath().toString());
         SequenceFile.Reader reader =
             new SequenceFile.Reader(fs, f.getPath(), context.getConfiguration());
         EtlKey key = new EtlKey();
@@ -427,7 +476,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 
   public static String[] getKafkaBlacklistTopic(JobContext job)
   {
-    return job.getConfiguration().getStrings(CamusJob.KAFKA_BLACKLIST_TOPIC);
+    if (job.getConfiguration().get(CamusJob.KAFKA_BLACKLIST_TOPIC) != null
+        && !job.getConfiguration().get(CamusJob.KAFKA_BLACKLIST_TOPIC).isEmpty())
+    {
+      return job.getConfiguration().getStrings(CamusJob.KAFKA_BLACKLIST_TOPIC);
+    }
+    else
+    {
+      return new String[] {};
+    }
   }
 
   public static void setKafkaWhitelistTopic(JobContext job, String val)
@@ -548,46 +605,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
   public static String getEtlDefaultTimezone(JobContext job)
   {
     return job.getConfiguration().get(CamusJob.ETL_DEFAULT_TIMEZONE);
-  }
-
-  public static String getSchemaRegistryType(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_TYPE);
-  }
-
-  public static String getJDBCSchemaRegistryURL(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_URL);
-  }
-
-  public static String getJDBCSchemaRegistryUser(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_USER);
-  }
-
-  public static String getJDBCSchemaRegistryDriver(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_DRIVER);
-  }
-
-  public static String getJDBCSchemaRegistryPassword(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_PASSWORD);
-  }
-
-  public static String getValidatorClassName(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_VALIDATOR_CLASS_NAME);
-  }
-
-  public static String getIdGeneratorClassName(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.SCHEMA_REGISTRY_IDGENERATOR_CLASS_NAME);
-  }
-
-  public static String getEtlSchemaRegistryPoolSize(JobContext job)
-  {
-    return job.getConfiguration().get(CamusJob.JDBC_SCHEMA_REGISTRY_POOL_SIZE);
   }
 
   private class OffsetFileFilter implements PathFilter

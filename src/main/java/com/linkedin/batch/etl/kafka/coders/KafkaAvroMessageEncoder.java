@@ -6,10 +6,10 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 
-public abstract class KafkaMessageEncoder implements Configurable {
+public abstract class KafkaAvroMessageEncoder implements Configurable {
 	Configuration conf;
 	
-	public KafkaMessageEncoder(Configuration conf) {
+	public KafkaAvroMessageEncoder(Configuration conf) {
 		this.conf = conf;
 	}
 	

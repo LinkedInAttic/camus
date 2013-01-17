@@ -33,7 +33,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.joda.time.DateTime;
 
 import com.linkedin.batch.etl.kafka.CamusJob;
-import com.linkedin.batch.etl.kafka.coders.KafkaMessageEncoder;
+import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageEncoder;
 import com.linkedin.events.EventHeader;
 import com.linkedin.events.Guid;
 import com.linkedin.events.TrackingMonitoringEvent;
@@ -370,11 +370,12 @@ public class EtlCounts
 
   public void postTrackingCountToKafka(String tier, List<URI> brokerURI)
   {
-    KafkaMessageEncoder encoder;
+    KafkaAvroMessageEncoder encoder;
     
     try {
+    	// TODO: Refactor this
 		Constructor<?> constructor = Class.forName(conf.get(CamusJob.KAFKA_MESSAGE_ENCODER_CLASS)).getConstructor(Configuration.class);
-		encoder = (KafkaMessageEncoder) constructor.newInstance(conf);
+		encoder = (KafkaAvroMessageEncoder) constructor.newInstance(conf);
 	} catch (Exception e1) {
 		throw new RuntimeException(e1);
 	} 

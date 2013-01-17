@@ -23,7 +23,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.joda.time.DateTime;
 
 import com.linkedin.batch.etl.kafka.CamusJob;
-import com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder;
+import com.linkedin.batch.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.batch.etl.kafka.common.EtlKey;
 import com.linkedin.batch.etl.kafka.common.EtlRequest;
 import com.linkedin.batch.etl.kafka.common.ExceptionWritable;
@@ -41,7 +41,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
   private long                                               readBytes        = 0;
 
   private boolean                                            skipSchemaErrors = false;
-  private KafkaMessageDecoder                                decoder;
+  private KafkaAvroMessageDecoder                                decoder;
   private final BytesWritable                                msgValue         =
                                                                                   new BytesWritable();
   private final EtlKey                                       key              =
@@ -172,7 +172,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
     Record r = null;
     try
     {
-      r = decoder.toRecord(topicName, msg);
+      r = decoder.toRecord(msg);
     }
     catch (Exception e)
     {
@@ -348,8 +348,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
                               EtlInputFormat.getKafkaClientBufferSize(mapperContext));
           
           try {
-      		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.KAFKA_MESSAGE_DECODER_CLASS)).getConstructor(Configuration.class);
-      		decoder = (KafkaMessageDecoder) constructor.newInstance(context.getConfiguration());
+        	  // Not needed anymore (?) because the decoders are now held statically in CamusJob.topicDecoders
+      		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.KAFKA_MESSAGE_DECODER_CLASS)).getConstructor(Configuration.class, String.class);
+      		decoder = (KafkaAvroMessageDecoder) constructor.newInstance(context.getConfiguration(), key.getTopic());
+        	  //decoder = CamusJob.topicDecoders.get(key.getTopic());
       	} catch (Exception e1) {
       		throw new RuntimeException(e1);
       	} 

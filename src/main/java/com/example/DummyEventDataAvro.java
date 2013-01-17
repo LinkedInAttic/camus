@@ -6,8 +6,6 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.specific.SpecificRecord;
 
-import com.edate.data.events.EventData.EventType;
-
 public class DummyEventDataAvro
 {
 	private SpecificRecord m_data;
@@ -32,7 +30,7 @@ public class DummyEventDataAvro
 	 * These EventTypes are meant to be used as validation for the types/format
 	 * of messages we publish 
 	 */
-	public enum EventTypeAvro implements EventType
+	public enum EventTypeAvro
 	{		 
 		DUMMY_LOG,
 		DUMMY_LOG_2;

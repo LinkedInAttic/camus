@@ -4,9 +4,7 @@ import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
-import kafka.message.Message;
 
-import com.edate.data.events.EventDataAvro.EventTypeAvro;
 import com.linkedin.batch.etl.kafka.schemaregistry.SchemaDetails;
 import com.linkedin.batch.etl.kafka.schemaregistry.SchemaNotFoundException;
 import com.linkedin.batch.etl.kafka.schemaregistry.SchemaRegistry;

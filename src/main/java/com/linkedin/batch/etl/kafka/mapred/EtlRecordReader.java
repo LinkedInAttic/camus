@@ -348,19 +348,11 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
                               EtlInputFormat.getKafkaClientBufferSize(mapperContext));
           
           try {
-        	  // Not needed anymore (?) because the decoders are now held statically in CamusJob.topicDecoders
       		Constructor<?> constructor = Class.forName(context.getConfiguration().get(CamusJob.KAFKA_MESSAGE_DECODER_CLASS)).getConstructor(Configuration.class, String.class);
       		decoder = (KafkaAvroMessageDecoder) constructor.newInstance(context.getConfiguration(), key.getTopic());
-        	  //decoder = CamusJob.topicDecoders.get(key.getTopic());
-      	} catch (Exception e1) {
-      		throw new RuntimeException(e1);
-      	} 
-
-          /*
-           * decoder = new KafkaAvroMessageDecoder(new
-           * CachedSchemaResolver(EtlInputFormat.getEtlSchemaRegistryUrl(context),
-           * request.getTopic()));
-           */
+          } catch (Exception e1) {
+	      	throw new RuntimeException(e1);
+	      } 
         }
 
         while (reader.getNext(key, msgValue))

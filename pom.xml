@@ -37,23 +37,6 @@
     <module>camus-schema-registry</module>
   </modules>
 
-  <developers>
-    <developer>
-      <name>Ken Goodhope</name>
-      <email>kgoodhope@linkedin.com</email>
-      <timezone>-8</timezone>
-    </developer>
-    <developer>
-      <name>Felix GV</name>
-      <timezone>0</timezone>
-    </developer>
-    <developer>
-      <name>Chris Riccomini</name>
-      <email>criccomini@linkedin.com</email>
-      <timezone>-8</timezone>
-    </developer>
-  </developers>
-
   <licenses>
     <license>
       <name>Apache License 2.0</name>

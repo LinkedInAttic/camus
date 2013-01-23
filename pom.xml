@@ -86,7 +86,7 @@
 		
                 <dependency>
                         <groupId>com.edate</groupId>
-                        <artifactId>database-full</artifactId>
+                        <artifactId>edate-database-full</artifactId>
                         <version>14.0</version>
                 </dependency>
  

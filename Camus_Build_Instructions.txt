@@ -12,6 +12,6 @@ B) Resolve the dependenices:
    	     Patch File Location : https://issues.apache.org/jira/browse/AVRO-1124
    	                           Patch Name : AVRO-1124-draft.patch
 
-   b) The above two jar files can de added as external dependencies OR they can be installed in the local maven repository and the dependency can be stated in the project pom.xml.
+   b) The above two jar files can be added as external dependencies OR they can be installed in the local maven repository and the dependency can be stated in the project pom.xml.
    	    
 C) Go the base directory and run command : mvn clean package

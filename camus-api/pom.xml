@@ -19,4 +19,5 @@
       <version>${avro.version}</version>
     </dependency>
   </dependencies>
+
 </project>

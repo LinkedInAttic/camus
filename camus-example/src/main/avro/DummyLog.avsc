@@ -1,5 +1,5 @@
 {
-  "namespace": "com.example",
+  "namespace": "com.linkedin.camus.example.records",
   "type": "record",
   "name": "DummyLog",
   "doc": "Logs for not so important stuff.",

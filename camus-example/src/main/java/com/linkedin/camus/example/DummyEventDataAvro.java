@@ -6,6 +6,9 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.specific.SpecificRecord;
 
+import com.linkedin.camus.example.records.DummyLog;
+import com.linkedin.camus.example.records.DummyLog2;
+
 public class DummyEventDataAvro
 {
 	private SpecificRecord m_data;

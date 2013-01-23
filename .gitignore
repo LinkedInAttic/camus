@@ -1,3 +1,6 @@
 target
 .classpath
 .project
+
+# auto-gen'd avro records
+camus-example/src/main/java/com/linkedin/camus/example/records/

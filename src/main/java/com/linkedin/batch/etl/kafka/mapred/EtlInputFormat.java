@@ -2,6 +2,7 @@ package com.linkedin.batch.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -52,7 +53,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
                                                                       TaskAttemptContext context) throws IOException,
       InterruptedException
   {
-    return new EtlRecordReader(split, context);
+	try
+	{
+		Constructor<?> constructor = Class.forName(
+				  context.getConfiguration().get(CamusJob.ETL_RECORD_READER_CLASS)).getConstructor(InputSplit.class, TaskAttemptContext.class);
+		return (RecordReader<EtlKey, AvroWrapper<Object>>) constructor.newInstance(split, context); 
+	}
+	catch (Exception e)
+	{
+		log.error("Failed to instantiate a RecordReader!", e);
+		throw new IOException(e);
+	}
   }
 
   @Override

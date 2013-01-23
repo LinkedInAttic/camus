@@ -218,7 +218,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
     return (float) ((double) getPos() / totalBytes);
   }
 
-  private long getTimeStamp(Record record)
+  protected long getTimeStamp(Record record)
   {
     Record header = (Record) record.get("header");
 

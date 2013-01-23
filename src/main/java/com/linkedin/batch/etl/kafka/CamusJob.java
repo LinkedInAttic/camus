@@ -83,6 +83,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String ETL_OUTPUT_FILE_TIME_PARTITION_MINS = "etl.output.file.time.partition.mins";
 	public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
 	public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
+	public static final String ETL_RECORD_READER_CLASS = "etl.record.reader.class";
 
 	public static final String HADOOP_EXECUTION_INPUT_PATH = "mapred.input.dir";
 	public static final String HADOOP_EXECUTION_OUTPUT_PATH = "mapred.output.dir";

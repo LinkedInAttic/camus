@@ -33,9 +33,9 @@ import org.joda.time.DateTime;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageEncoder;
-import com.linkedin.camus.events.EventHeader;
-import com.linkedin.camus.events.Guid;
-import com.linkedin.camus.events.TrackingMonitoringEvent;
+import com.linkedin.camus.events.records.EventHeader;
+import com.linkedin.camus.events.records.Guid;
+import com.linkedin.camus.events.records.TrackingMonitoringEvent;
 
 public class EtlCounts
 {

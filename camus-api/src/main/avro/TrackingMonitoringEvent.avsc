@@ -1,0 +1,60 @@
+{
+  "type": "record",
+  "doc":"An event to monitor the tracking system itself",
+  "name": "TrackingMonitoringEvent",
+  "namespace": "com.linkedin.camus.events.records",
+  "fields" : [
+    {
+      "name":"header", "type": {
+        "type": "record",
+        "name": "EventHeader",
+        "namespace": "com.linkedin.camus.events.records",
+        "doc":"The basic header for every tracking event.",
+        "fields" : [
+          {"name":"memberId", "type":"int", "doc":"The member id of the user initiating the action"},
+          {"name":"time", "type":"long", "doc":"The time of the event"},
+          {"name":"server", "type":"string", "doc":"The name of the server"},
+          {"name":"service", "type":"string", "doc":"The name of the service"},
+          {"name":"guid", 
+           "type":{"name": "Guid", "type":"fixed", "size":16}, 
+           "doc":"A unique identifier for the message"}, {
+             "name": "treeId",
+             "type": [
+               "null",
+               {
+                 "type": "fixed",
+                 "name": "fixed_16",
+                 "size": 16
+               }
+             ],
+            "default": null,
+            "doc": "Service call tree uuid"
+          },
+          {
+            "name": "requestId",
+            "type": [
+              "null",
+              "int"
+            ],
+            "default": null,
+            "doc": "Service call request id"
+          },
+          {
+            "name": "impersonatorId",
+            "type": [
+              "null",
+              "string"
+            ],
+            "default": null,
+            "doc": "this is the ID of the CS Agent or Application acting on the users behalf"
+          }
+        ]
+      }
+    },
+    {"name":"tier", "type":"string", "doc":"A name for the tier of servers to which this event belongs (client, broker, etc)"},
+    {"name":"eventType", "type":"string", "doc":"The event type being monitored"},
+    {"name":"count", "type":"long", "doc":"The number of events sent in this time period"},
+    {"name":"beginTimestamp", "type":"long", "doc":"The timestamp at which this count began"},
+    {"name":"endTimestamp", "type":"long", "doc":"The timestamp at which this count ended"}    
+  ]
+}

@@ -24,4 +24,5 @@
       <version>${hadoop.version}</version>
     </dependency>
   </dependencies>
+
 </project>

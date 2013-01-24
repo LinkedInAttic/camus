@@ -2,7 +2,7 @@
 Camus is LinkedIn's [Kafka](http://kafka.apache.org "Kafka")->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka. It includes the following features:
 
 * Automatic discovery of topics
-* Avro schema management
+* Avro schema management / In progress
 * Date partitioning
 
 It is used at LinkedIn where it processes tens of billions of messages per day.
@@ -56,7 +56,21 @@ Final offsets are written to HDFS and consumed by the subsequent job.
 
 Once the hadoop job has completed, the main client reads all the written audit counts and aggregates them.  The aggregated results is then submitted to Kafka.
 
-## Configuration
+## Setting up Camus
+
+### Building the project
+
+You can build Camus with:
+
+    mvn clean package
+
+Note that there are two jars that are not currently in a public Maven repo. These jars (kafka-0.7.2 and avro-schema-repository-1.74-SNAPSHOT) are supplied in the lib directory, and maven will automatically install them into your local Maven cache (usually ~/.m2).
+
+### First, Create a Custom Kafka Message to Avro Record Decoder
+
+We hope to eventually create a more out of the box solution, but until we get there you will need to create a custom decoder for handling Kafka messages.  You can do this by implementing the abstract class com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder.  Internally, we use a schema registry that enables obtaining an Avro schema usingan identifier included in the Kafka byte payload. For more information on othe options, you can email camus_etl@googlegroups.com.  Once you have created a decoder, you will need to specify that decoder in the propeties as described below.
+
+### Configuration
 
 Camus can be ran from the command line as Java App. You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath), or from the commandline itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
 
@@ -72,9 +86,6 @@ Here is an abbreviated list of commonly used parameters.
  * zookeeper.hosts=
  * zookeeper.broker.topics=/brokers/topics
  * zookeeper.broker.nodes=/brokers/ids
-* Schema Registry configurations:
- * etl.schema.registry.url=
- * etl.kafka.schemaregistry.client.class=com.linkedin.batch.etl.kafka.schemaregistry.AvroJdbcSchemaRegistryClient
 * All files in this dir will be added to the distributed cache and placed on the classpath for hadoop tasks
  * hdfs.default.classpath.dir=
 * Max hadoop tasks to use, each task can pull multiple topic partitions
@@ -85,7 +96,17 @@ Here is an abbreviated list of commonly used parameters.
  * kafka.max.historical.days=3
 * Max bytes pull for a topic-partition in a single run
  * kafka.max.pull.megabytes.per.topic=4096
+* Decoder class for Kafka Messages to Avro Records
+ * kafka.message.decoder.class=
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
  * kafka.blacklist.topics=
  * kafka.whitelist.topics=
 
+### Running Camus
+
+Camus can be run from the command line using java jar.  Here is the usage:
+
+usage: CamusJob.java<br/>
+ -D <property=value>   use value for given property<br/>
+ -P <arg>              external properties filename<br/>
+ -p <arg>              properties filename from the classpath<br/>

@@ -1,0 +1,7 @@
+target
+.classpath
+.project
+
+# auto-gen'd avro records
+camus-api/src/main/java/com/linkedin/camus/events/records
+camus-example/src/main/java/com/linkedin/camus/example/records

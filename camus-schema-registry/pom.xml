@@ -13,16 +13,25 @@
   <packaging>jar</packaging>
 
   <dependencies>
+ 	 <dependency>
+	      <groupId>org.apache.avro</groupId>
+	      <artifactId>avro</artifactId>
+	      <version>${avro.version}</version>
+	    </dependency>
+	    <dependency>
+	      <groupId>org.apache.hadoop</groupId>
+	      <artifactId>hadoop-core</artifactId>
+	      <version>${hadoop.version}</version>
+	    </dependency>
+	<dependency>
+		<groupId>log4j</groupId>
+		<artifactId>log4j</artifactId>
+		<version>1.2.17</version>
+	</dependency>
     <dependency>
-      <groupId>org.apache.avro</groupId>
-      <artifactId>avro</artifactId>
-      <version>${avro.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-core</artifactId>
-      <version>${hadoop.version}</version>
+	  <groupId>org.apache.avro</groupId>
+	  <version>1.7.4-SNAPSHOT</version>
+	  <artifactId>avro-repo-bundle</artifactId>
     </dependency>
   </dependencies>
-
 </project>

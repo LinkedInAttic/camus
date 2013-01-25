@@ -4,15 +4,21 @@ import org.apache.avro.Schema;
 
 public class SchemaDetails
 {
+	private String topic;
 	private String id;
 	private Schema schema;
-	private String topic;
 
-	public SchemaDetails(String id, Schema schema, String topic) {
+	public SchemaDetails(String topic, String id, Schema schema) {
+		this.topic = topic;
 		this.id = id;
 		this.schema = schema;
-		this.topic = topic;
 	}
+	
+	public SchemaDetails(String topic, String id) {
+		this.topic = topic;
+		this.id = id;
+	}
+	
 	/**
 	 * Get the schema
 	 */

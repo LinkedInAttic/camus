@@ -5,10 +5,10 @@ import org.apache.hadoop.conf.Configuration;
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
-import com.linkedin.camus.etl.kafka.schemaregistry.SchemaDetails;
-import com.linkedin.camus.etl.kafka.schemaregistry.SchemaNotFoundException;
-import com.linkedin.camus.etl.kafka.schemaregistry.SchemaRegistry;
-import com.linkedin.camus.etl.kafka.schemaregistry.SchemaRegistryException;
+import com.linkedin.camus.schemaregistry.SchemaDetails;
+import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
+import com.linkedin.camus.schemaregistry.SchemaRegistry;
+import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
 public class ExampleEnumBasedAvroSchemaRegistry extends SchemaRegistry
 {

@@ -5,10 +5,10 @@ import org.apache.hadoop.conf.Configuration;
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
-import com.linkedin.camus.schemaregistry.SchemaDetails;
-import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
-import com.linkedin.camus.schemaregistry.SchemaRegistry;
-import com.linkedin.camus.schemaregistry.SchemaRegistryException;
+import com.linkedin.camus.etl.kafka.schemaregistry.SchemaDetails;
+import com.linkedin.camus.etl.kafka.schemaregistry.SchemaNotFoundException;
+import com.linkedin.camus.etl.kafka.schemaregistry.SchemaRegistry;
+import com.linkedin.camus.etl.kafka.schemaregistry.SchemaRegistryException;
 
 public class ExampleEnumBasedAvroSchemaRegistry extends SchemaRegistry
 {
@@ -35,7 +35,7 @@ public class ExampleEnumBasedAvroSchemaRegistry extends SchemaRegistry
 	public SchemaDetails getLatestSchemaByTopic(String topicName)
 			throws SchemaRegistryException, SchemaNotFoundException
 	{
-			return new SchemaDetails(null, getSchema(topicName), topicName);
+			return new SchemaDetails(topicName, null, getSchema(topicName));
 	}
 	
 	private Schema getSchema(String topicName) throws SchemaRegistryException, SchemaNotFoundException

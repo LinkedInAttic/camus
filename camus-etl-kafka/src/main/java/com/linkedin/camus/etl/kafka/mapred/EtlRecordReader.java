@@ -23,6 +23,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.joda.time.DateTime;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.CamusWrapper;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
@@ -167,12 +168,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
     }
   }
 
-  public Record getRecord(String topicName, Message msg) throws IOException
+  public CamusWrapper getWrappedRecord(String topicName, Message msg) throws IOException
   {
-    Record r = null;
+	CamusWrapper r = null;
     try
     {
-      r = decoder.toRecord(msg);
+      r = decoder.decode(msg);
     }
     catch (Exception e)
     {
@@ -216,49 +217,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
       return 1f;
     }
     return (float) ((double) getPos() / totalBytes);
-  }
-
-  protected long getTimeStamp(Record record)
-  {
-    Record header = (Record) record.get("header");
-
-    if (header != null && header.get("time") != null)
-    {
-      return (Long) header.get("time");
-    }
-    else if (record.get("timestamp") != null)
-    {
-      return (Long) record.get("timestamp");
-    }
-    else
-    {
-      return System.currentTimeMillis();
-    }
-  }
-
-  private void setServerSerice(Record record, EtlKey key)
-  {
-    Record header = (Record) record.get("header");
-
-    if (!ignoreMonitorServiceTopics.contains(key.getTopic()))
-    {
-      if (header != null)
-      {
-        key.setServer(header.get("server").toString());
-        key.setService(header.get("service").toString());
-      }
-      else if (alternateMonitorFields.containsKey(key.getTopic()))
-      {
-        String[] fields = alternateMonitorFields.get(key.getTopic()).split(":");
-        key.setServer(record.get(fields[0]).toString());
-        key.setService(record.get(fields[1]).toString());
-      }
-    }
-    else
-    {
-      key.setServer("aggregated");
-      key.setService("aggregated");
-    }
   }
 
   private long getPos() throws IOException
@@ -372,10 +330,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
           }
 
           long tempTime = System.currentTimeMillis();
-          Record record;
+          CamusWrapper wrapper;
           try
           {
-            record = getRecord(key.getTopic(), message);
+            wrapper = getWrappedRecord(key.getTopic(), message);
           }
           catch (Exception e)
           {
@@ -383,19 +341,19 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
             continue;
           }
 
-          if (record == null)
+          if (wrapper == null)
           {
             mapperContext.write(key,
                                 new ExceptionWritable(new RuntimeException("null record")));
             continue;
           }
 
-          long timeStamp;
+          long timeStamp = wrapper.getTimeStamp();
           try
           {
-            timeStamp = getTimeStamp(record);
             key.setTime(timeStamp);
-            setServerSerice(record, key);
+            key.setServer(wrapper.getServer());
+            key.setService(wrapper.getService());
           }
           catch (Exception e)
           {
@@ -427,7 +385,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
           }
 
           long secondTime = System.currentTimeMillis();
-          value.datum(record);
+          value.datum(wrapper.getRecord());
           long decodeTime = ((secondTime - tempTime));
 
           mapperContext.getCounter("total", "decode-time(ms)").increment(decodeTime);

@@ -22,7 +22,6 @@
     <hadoop.version>2.0.0-mr1-cdh4.1.2</hadoop.version>
     <hadoop-common.version>2.0.0-cdh4.1.2</hadoop-common.version>     <!-- Because I use CDH4 and the hadoop Configuration is now located in hadoop-common rather than hadoop-core -->
     <joda-time.version>1.6</joda-time.version>
-    <jackson.version>1.7.3</jackson.version> <!-- Unused ?? -->
     <avro.version>1.6.1</avro.version>
     <kafka.version>0.7.0</kafka.version>
     <avro-schema-registry.version>1.6.1</avro-schema-registry.version>
@@ -94,18 +93,18 @@
             </configuration>
           </execution>
           <execution>
-            <id>install-avro-schema-repository</id>
+            <id>install-avro-repo-client</id>
             <phase>validate</phase>
             <goals>
               <goal>install-file</goal>
             </goals>
             <configuration>
               <groupId>org.apache.avro</groupId>
-              <artifactId>avro-schema-repository</artifactId>
+              <artifactId>avro-repo-bundle</artifactId>
               <version>1.7.4-SNAPSHOT</version>
               <packaging>jar</packaging>
-              <file>${basedir}/lib/avro-schema-repository-1.7.4-SNAPSHOT.jar</file>
-              <pomFile>${basedir}/lib/avro-schema-repository-1.7.4-SNAPSHOT.xml</pomFile>
+              <file>${basedir}/lib/avro-repo-bundle-1.7.4-SNAPSHOT-withdeps.jar</file>
+              <pomFile>${basedir}/lib/avro-repo-bundle-1.7.4-SNAPSHOT-withdeps.xml</pomFile>
             </configuration>
           </execution>
         </executions>

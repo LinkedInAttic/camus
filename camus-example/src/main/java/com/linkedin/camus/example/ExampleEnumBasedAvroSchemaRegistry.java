@@ -35,7 +35,7 @@ public class ExampleEnumBasedAvroSchemaRegistry extends SchemaRegistry
 	public SchemaDetails getLatestSchemaByTopic(String topicName)
 			throws SchemaRegistryException, SchemaNotFoundException
 	{
-			return new SchemaDetails(null, getSchema(topicName), topicName);
+			return new SchemaDetails(topicName, null, getSchema(topicName));
 	}
 	
 	private Schema getSchema(String topicName) throws SchemaRegistryException, SchemaNotFoundException

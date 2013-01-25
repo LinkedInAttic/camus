@@ -27,6 +27,13 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
       <version>${hadoop.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- Because it pulls version 1.5.2 otherwise, and I'd rather let avro manage that dependency -->
+          <groupId>org.codehaus.jackson</groupId>
+          <artifactId>jackson-core-asl</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- I needed to add the following dependencies to run the shaded jar successfully... -->
@@ -36,6 +43,13 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
       <version>${hadoop-common.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- Because it pulls version 1.8.8 otherwise, and I'd rather let avro manage that dependency -->
+          <groupId>org.codehaus.jackson</groupId>
+          <artifactId>jackson-core-asl</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- Because I want to be able to run the shaded camus-example jar directly and so it needs to have the CamusJob class -->
@@ -50,22 +64,6 @@
       <groupId>com.edate</groupId>
       <artifactId>edate-database-full</artifactId>
       <version>14.0</version>
-    </dependency>
- 
-    <!-- For some reason, jackson-core-asl 1.5.2 and jackson-mapper-asl 1.8.6 were being included in the shaded jar.
-	
-	This caused a problem because in de enum-based schema repo, the JavaType class (in jackson-core-asl) was being constructed by the 
-	TypeBase class' constructor (located in jackson-mapper-asl), but the constructor's signature had apparently changed between the two
-	versions, causing a java.lang.NoSuchMethodError error... 
-
-	Perhaps the fact that I changed my avro version caused maven to pull wacky jar versions for jackson. I haven't investigated much 
-	so far, so I don't know...
-
-	In any case, I know it's probably not a good idea to hard-code this version here, but until I can figure out more that's what it is... -->
-    <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-core-asl</artifactId>
-      <version>1.8.6</version>
     </dependency>
   </dependencies>
 

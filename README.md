@@ -58,6 +58,14 @@ Once the hadoop job has completed, the main client reads all the written audit c
 
 ## Setting up Camus
 
+### Building the project
+
+You can build Camus with:
+
+    mvn clean package
+
+Note that there are two jars that are not currently in a public Maven repo. These jars (kafka-0.7.2 and avro-schema-repository-1.74-SNAPSHOT) are supplied in the lib directory, and maven will automatically install them into your local Maven cache (usually ~/.m2).
+
 ### First, Create a Custom Kafka Message to Avro Record Decoder
 
 We hope to eventually create a more out of the box solution, but until we get there you will need to create a custom decoder for handling Kafka messages.  You can do this by implementing the abstract class com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder.  Internally, we use a schema registry that enables obtaining an Avro schema usingan identifier included in the Kafka byte payload. For more information on othe options, you can email camus_etl@googlegroups.com.  Once you have created a decoder, you will need to specify that decoder in the propeties as described below.

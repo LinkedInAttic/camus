@@ -23,6 +23,13 @@
       <artifactId>hadoop-core</artifactId>
       <version>${hadoop.version}</version>
     </dependency>
+
+    <!-- Because I use CDH4 and the hadoop Configuration is now located in hadoop-common rather than hadoop-core -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>${hadoop-common.version}</version>
+    </dependency>
   </dependencies>
 
 </project>

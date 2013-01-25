@@ -43,7 +43,10 @@
       <version>${hadoop-common.version}</version>
     </dependency>
     <dependency>
+      <!--
       <groupId>kafka</groupId>
+      -->
+      <groupId>org.apache.kafka</groupId>
       <artifactId>kafka</artifactId>
       <version>${kafka.version}</version>
     </dependency>

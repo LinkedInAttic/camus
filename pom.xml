@@ -20,9 +20,9 @@
   <properties>
     <!-- dependency versions -->
     <hadoop.version>2.0.0-mr1-cdh4.1.2</hadoop.version>
-    <hadoop-common.version>2.0.0-cdh4.1.2</hadoop.version>
+    <hadoop-common.version>2.0.0-cdh4.1.2</hadoop-common.version>     <!-- Because I use CDH4 and the hadoop Configuration is now located in hadoop-common rather than hadoop-core -->
     <joda-time.version>1.6</joda-time.version>
-    <jackson.version>1.7.3</jackson.version>
+    <jackson.version>1.7.3</jackson.version> <!-- Unused ?? -->
     <avro.version>1.6.1</avro.version>
     <kafka.version>0.7.0</kafka.version>
     <avro-schema-registry.version>1.6.1</avro-schema-registry.version>
@@ -38,39 +38,6 @@
     <module>camus-schema-registry</module>
   </modules>
 
-<!-- My old dependencies...
-		<dependency>
-			<groupId>org.apache.avro</groupId>
-			<artifactId>avro</artifactId>
-			<version>1.6.1</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.apache.kafka</groupId>
-			<artifactId>kafka</artifactId>
-			<version>0.7.0</version>
-		</dependency>
-
-		<dependency>
-			<groupId>com.github.sgroschupf</groupId>
-			<artifactId>zkclient</artifactId>
-			<version>0.1</version>
-		</dependency>
-		
-	 	<dependency>
-			<groupId>org.apache.avro</groupId>
-			<artifactId>avro-mapred</artifactId>
-			<version>1.6.1</version>
-		</dependency>
-		
-                <dependency>
-                        <groupId>com.edate</groupId>
-                        <artifactId>edate-database-full</artifactId>
-                        <version>14.0</version>
-                </dependency>
- 
-	</dependencies>
--->
   <licenses>
     <license>
       <name>Apache License 2.0</name>

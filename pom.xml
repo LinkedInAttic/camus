@@ -21,7 +21,6 @@
     <!-- dependency versions -->
     <hadoop.version>1.0.3</hadoop.version>
     <joda-time.version>1.6</joda-time.version>
-    <jackson.version>1.7.3</jackson.version>
     <avro.version>1.7.3</avro.version>
     <kafka.version>0.7.2</kafka.version>
     <avro-schema-registry.version>1.7.4-SNAPSHOT</avro-schema-registry.version>

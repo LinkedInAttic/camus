@@ -21,7 +21,7 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 	}
 
 	@Override
-	public Record toRecord(Message message)
+	public CamusWrapper decode(Message message)
 	{
 		try
 		{
@@ -31,7 +31,7 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 			
 			reader.setSchema(schema);
 			
-			return reader.read(
+			return new CamusWrapper(reader.read(
 					null, 
 					decoderFactory.jsonDecoder(
 							schema, 
@@ -41,7 +41,7 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 									message.payloadSize()
 							)
 					)
-			);
+			));
 		}
 		catch (Exception e)
 		{

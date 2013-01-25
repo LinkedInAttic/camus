@@ -106,7 +106,7 @@ public class KafkaAvroMessageDecoder implements Configurable {
 		}
 	}
 
-	public Record toRecord(Message message) {
+	public CamusWrapper decode(Message message) {
 		MessageDecoderHelper helper = new MessageDecoderHelper(message)
 				.invoke();
 		try {
@@ -114,9 +114,9 @@ public class KafkaAvroMessageDecoder implements Configurable {
 					helper.getSchema()) : new GenericDatumReader<Record>(
 					helper.getSchema(), helper.getTargetSchema());
 
-			return reader.read(null, decoderFactory.binaryDecoder(helper
+			return new CamusWrapper(reader.read(null, decoderFactory.binaryDecoder(helper
 					.getBuffer().array(), helper.getStart(),
-					helper.getLength(), null));
+					helper.getLength(), null)));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

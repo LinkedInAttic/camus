@@ -16,22 +16,18 @@
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-etl-kafka</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
-      <version>${avro.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
-      <version>${hadoop.version}</version>
     </dependency>
   </dependencies>
 

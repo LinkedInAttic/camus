@@ -40,6 +40,18 @@ public class FileSchemaRegistry<S> implements SchemaRegistry<S> {
 			File file = getSchemaPath(topic, id, true);
 			out = new FileOutputStream(file);
 			out.write(bytes);
+
+			// move any old "latest" files to be regular schema files
+			for (File fileToRename : topicDir.listFiles()) {
+				if (!fileToRename.equals(file)
+						&& fileToRename.getName().endsWith(".latest")) {
+					String oldName = fileToRename.getName();
+					// 7 = len(.latest)
+					File renameTo = new File(fileToRename.getParentFile(),
+							oldName.substring(0, oldName.length() - 7));
+					fileToRename.renameTo(renameTo);
+				}
+			}
 			return id;
 		} catch (Exception e) {
 			throw new SchemaRegistryException(e);

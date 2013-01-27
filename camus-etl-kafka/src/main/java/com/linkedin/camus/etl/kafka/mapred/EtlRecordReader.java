@@ -9,7 +9,6 @@ import java.util.Set;
 
 import kafka.message.Message;
 
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
@@ -34,7 +33,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
 {
   private TaskAttemptContext                                 context;
 
-  @SuppressWarnings("rawtypes")
   private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
   private KafkaReader                                        reader;
 
@@ -77,7 +75,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>>
     initialize(split, context);
   }
 
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
   public void initialize(InputSplit split, TaskAttemptContext context) throws IOException,
       InterruptedException

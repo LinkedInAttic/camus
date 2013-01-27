@@ -15,7 +15,6 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
  * output -- EtlKey, AvroWrapper
  * 
  */
-@SuppressWarnings("deprecation")
 public class EtlMapper extends Mapper<EtlKey, AvroWrapper<Object>, EtlKey, AvroWrapper<Object>> {
 	
 	@Override

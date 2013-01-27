@@ -36,5 +36,4 @@ public class CamusWrapper {
 	public String getService() {
 		return ((Record) record.get("header")).get("service").toString();
 	}
-
 }

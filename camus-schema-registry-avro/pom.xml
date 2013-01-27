@@ -41,7 +41,12 @@
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>
-      <classifier>test</classifier>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.linkedin.camus</groupId>
+      <artifactId>camus-schema-registry</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

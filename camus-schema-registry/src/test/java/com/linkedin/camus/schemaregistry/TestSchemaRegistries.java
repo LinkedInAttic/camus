@@ -78,6 +78,13 @@ public class TestSchemaRegistries {
 		} catch (SchemaNotFoundException e) {
 			// expected
 		}
+
+		secondId = registry.register("test", getSchema2());
+
+		assertEquals(getSchema1(), registry.getSchemaByID("test", id));
+		assertEquals(getSchema2(), registry.getSchemaByID("test", secondId));
+		assertEquals(new SchemaDetails("test", secondId, getSchema2()),
+				registry.getLatestSchemaByTopic("test"));
 	}
 
 	@Parameters

@@ -1,7 +1,6 @@
 package com.linkedin.camus.example;
 
 import org.apache.avro.Schema;
-import org.apache.hadoop.conf.Configuration;
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
@@ -10,35 +9,27 @@ import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
-public class ExampleEnumBasedAvroSchemaRegistry extends SchemaRegistry
+public class ExampleEnumBasedAvroSchemaRegistry implements SchemaRegistry<Schema>
 {
-	public ExampleEnumBasedAvroSchemaRegistry(Configuration conf)
-	{
-		super(conf);
-	}
-
 	@Override
 	public String register(String topic, String schema)
-			throws SchemaRegistryException
 	{
 		throw new SchemaRegistryException(new NotImplementedException());
 	}
 
 	@Override
 	public Schema getSchemaByID(String topicName, String id)
-			throws SchemaRegistryException, SchemaNotFoundException
 	{
 		return getSchema(topicName);
 	}
 
 	@Override
-	public SchemaDetails getLatestSchemaByTopic(String topicName)
-			throws SchemaRegistryException, SchemaNotFoundException
+	public SchemaDetails<Schema> getLatestSchemaByTopic(String topicName)
 	{
-			return new SchemaDetails(topicName, null, getSchema(topicName));
+			return new SchemaDetails<Schema>(topicName, null, getSchema(topicName));
 	}
 	
-	private Schema getSchema(String topicName) throws SchemaRegistryException, SchemaNotFoundException
+	private Schema getSchema(String topicName)
 	{
 		try
 		{

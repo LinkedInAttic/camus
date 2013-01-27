@@ -15,6 +15,10 @@
   <dependencies>
     <dependency>
       <groupId>com.linkedin.camus</groupId>
+      <artifactId>camus-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>
     </dependency>
     <dependency>

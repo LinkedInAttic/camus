@@ -27,26 +27,26 @@ import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
 public class KafkaAvroMessageEncoder implements Configurable {
 	public static final String KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS = "kafka.message.coder.schema.registry.class";
-	
+
 	Configuration conf;
 	private static final byte MAGIC_BYTE = 0x0;
 	private static final Logger logger = Logger
 			.getLogger(KafkaAvroMessageDecoder.class);
 
-	private final SchemaRegistry client;
+	private final SchemaRegistry<Schema> client;
 	private final String topicName;
 	private final Map<Schema, String> cache = Collections
 			.synchronizedMap(new HashMap<Schema, String>());
 	private final EncoderFactory encoderFactory = EncoderFactory.get();
 
-	public KafkaAvroMessageEncoder(String topicName, Configuration conf)
-			throws KafkaMessageEncoderException {
+	@SuppressWarnings("unchecked")
+	public KafkaAvroMessageEncoder(String topicName, Configuration conf) {
 		this.topicName = topicName;
 		try {
 			Constructor<?> constructor = Class.forName(
 					conf.get(KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS))
 					.getConstructor(Configuration.class);
-			client = (SchemaRegistry) constructor.newInstance(conf);
+			client = (SchemaRegistry<Schema>) constructor.newInstance(conf);
 		} catch (Exception e) {
 			throw new KafkaMessageEncoderException(e);
 		}
@@ -54,17 +54,18 @@ public class KafkaAvroMessageEncoder implements Configurable {
 
 	public Message toMessage(IndexedRecord record) {
 		try {
-			
+
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			out.write(MAGIC_BYTE);
-			
+
 			Schema schema = record.getSchema();
 
-			// auto-register schema if it is not in the cache			
+			// auto-register schema if it is not in the cache
 			String id;
 			if (!cache.containsKey(schema)) {
 				try {
-					id = client.register(topicName, record.getSchema().toString());
+					id = client.register(topicName, record.getSchema()
+							.toString());
 					cache.put(schema, id);
 				} catch (SchemaRegistryException e) {
 					throw new RuntimeException(e);
@@ -72,12 +73,14 @@ public class KafkaAvroMessageEncoder implements Configurable {
 			} else {
 				id = cache.get(schema);
 			}
-			
-			out.write(ByteBuffer.allocate(4).putInt(Integer.parseInt(id)).array());
-			
-			BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out, null);
+
+			out.write(ByteBuffer.allocate(4).putInt(Integer.parseInt(id))
+					.array());
+
+			BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out,
+					null);
 			DatumWriter<IndexedRecord> writer;
-			
+
 			if (record instanceof SpecificRecord)
 				writer = new SpecificDatumWriter<IndexedRecord>(
 						record.getSchema());
@@ -89,7 +92,7 @@ public class KafkaAvroMessageEncoder implements Configurable {
 			System.err.println(out.toByteArray().length);
 			return new Message(out.toByteArray());
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new KafkaMessageEncoderException(e);
 		}
 	}
 

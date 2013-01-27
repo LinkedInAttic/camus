@@ -12,36 +12,4 @@
   <name>Camus API.</name>
   <packaging>jar</packaging>
 
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.avro</groupId>
-      <artifactId>avro</artifactId>
-    </dependency>
-  </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.avro</groupId>
-        <artifactId>avro-maven-plugin</artifactId>
-        <version>1.7.0</version>
-        <executions>
-          <execution>
-            <id>schemas</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>schema</goal>
-              <goal>protocol</goal>
-              <goal>idl-protocol</goal>
-            </goals>
-            <configuration>
-              <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory>
-              <outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
-
 </project>

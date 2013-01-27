@@ -13,7 +13,7 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
 		this.cachedLatest = new ConcurrentHashMap<String, S>();
 	}
 
-	public String register(String topic, String schema) {
+	public String register(String topic, S schema) {
 		return registry.register(topic, schema);
 	}
 

@@ -64,8 +64,7 @@ public class KafkaAvroMessageEncoder implements Configurable {
 			String id;
 			if (!cache.containsKey(schema)) {
 				try {
-					id = client.register(topicName, record.getSchema()
-							.toString());
+					id = client.register(topicName, record.getSchema());
 					cache.put(schema, id);
 				} catch (SchemaRegistryException e) {
 					throw new RuntimeException(e);

@@ -8,7 +8,7 @@
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>camus-schema-registry</artifactId>
+  <artifactId>camus-schema-registry-avro</artifactId>
   <name>Camus schema registry.</name>
   <packaging>jar</packaging>
 
@@ -36,6 +36,12 @@
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.linkedin.camus</groupId>
+      <artifactId>camus-schema-registry</artifactId>
+      <classifier>test</classifier>
       <scope>test</scope>
     </dependency>
   </dependencies>

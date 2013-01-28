@@ -2,7 +2,6 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,7 +50,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
                                                                       TaskAttemptContext context) throws IOException,
       InterruptedException
   {
-	    return new EtlRecordReader(split, context);
+    return new EtlRecordReader(split, context);
   }
 
   @Override

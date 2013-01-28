@@ -48,13 +48,6 @@
       <artifactId>camus-etl-kafka</artifactId>
       <version>${project.version}</version>
     </dependency>
-
-    <!-- Added because it's used by my custom implementation of the EnumBasedAvroSchemaRegistry -->
-    <dependency>
-      <groupId>com.edate</groupId>
-      <artifactId>edate-database-full</artifactId>
-      <version>14.0</version>
-    </dependency>
   </dependencies>
 
   <build>

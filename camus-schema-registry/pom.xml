@@ -13,32 +13,36 @@
   <packaging>jar</packaging>
 
   <dependencies>
- 	 <dependency>
-	      <groupId>org.apache.avro</groupId>
-	      <artifactId>avro</artifactId>
-	      <version>${avro.version}</version>
-	    </dependency>
-	    <dependency>
-	      <groupId>org.apache.hadoop</groupId>
-	      <artifactId>hadoop-core</artifactId>
-	      <version>${hadoop.version}</version>
-	    </dependency>
-	<dependency>
-		<groupId>log4j</groupId>
-		<artifactId>log4j</artifactId>
-		<version>1.2.17</version>
-	</dependency>
     <dependency>
-	  <groupId>org.apache.avro</groupId>
-	  <version>1.7.4-SNAPSHOT</version>
-	  <artifactId>avro-repo-bundle</artifactId>
+      <groupId>com.linkedin.camus</groupId>
+      <artifactId>camus-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.avro</groupId>
+      <artifactId>avro-repo-bundle</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
     </dependency>
 
     <!-- Because I use CDH4 and the hadoop Configuration is now located in hadoop-common rather than hadoop-core -->
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
-      <version>${hadoop-common.version}</version>
     </dependency>
   </dependencies>
 </project>

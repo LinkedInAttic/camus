@@ -14,20 +14,17 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 
-import com.linkedin.camus.schemaregistry.CachedSchemaResolver;
+import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
-import com.linkedin.camus.schemaregistry.SchemaRegistryResolver;
-import com.linkedin.camus.schemaregistry.SchemaResolver;
 
 public class KafkaAvroMessageDecoder implements Configurable {
 	protected Configuration conf;
 	protected String topicName;
-	protected Schema latestSchema;
-	protected static SchemaResolver resolver = null;
 	protected final DecoderFactory decoderFactory;
+	protected final SchemaRegistry<Schema> registry;
 
-	public KafkaAvroMessageDecoder(Configuration conf, String topicName)
-			throws KafkaMessageDecoderException {
+	@SuppressWarnings("unchecked")
+	public KafkaAvroMessageDecoder(Configuration conf, String topicName) {
 		this.conf = conf;
 		this.topicName = topicName;
 
@@ -41,13 +38,9 @@ public class KafkaAvroMessageDecoder implements Configurable {
 			
 			Constructor<?> constructor = Class.forName(schemaRegistryClassName)
 					.getConstructor(Configuration.class);
-			SchemaRegistry registry = (SchemaRegistry) constructor
+			SchemaRegistry<Schema> registry = (SchemaRegistry<Schema>) constructor
 					.newInstance(conf);
-
-			registry.getLatestSchemaByTopic(topicName);
-			SchemaRegistryResolver actualResolver = new SchemaRegistryResolver(
-					registry, topicName);
-			resolver = new CachedSchemaResolver(topicName, actualResolver);
+			this.registry = new CachedSchemaRegistry<Schema>(registry);
 		} catch (Exception e) {
 			throw new KafkaMessageDecoderException(e);
 		}
@@ -56,36 +49,41 @@ public class KafkaAvroMessageDecoder implements Configurable {
 	}
 
 	private class MessageDecoderHelper {
-		private Message _message;
-		private ByteBuffer _buffer;
-		private Schema _schema;
-		private int _start;
-		private int _length;
-		private Schema _targetSchema;
+		private Message message;
+		private ByteBuffer buffer;
+		private Schema schema;
+		private int start;
+		private int length;
+		private Schema targetSchema;
 		private static final byte MAGIC_BYTE = 0x0;
+		private final SchemaRegistry<Schema> registry;
+		private final String topicName;
 
-		public MessageDecoderHelper(Message message) {
-			_message = message;
+		public MessageDecoderHelper(SchemaRegistry<Schema> registry,
+				String topicName, Message message) {
+			this.registry = registry;
+			this.topicName = topicName;
+			this.message = message;
 		}
 
 		public ByteBuffer getBuffer() {
-			return _buffer;
+			return buffer;
 		}
 
 		public Schema getSchema() {
-			return _schema;
+			return schema;
 		}
 
 		public int getStart() {
-			return _start;
+			return start;
 		}
 
 		public int getLength() {
-			return _length;
+			return length;
 		}
 
 		public Schema getTargetSchema() {
-			return _targetSchema;
+			return targetSchema;
 		}
 
 		private ByteBuffer getByteBuffer(Message message) {
@@ -96,35 +94,35 @@ public class KafkaAvroMessageDecoder implements Configurable {
 		}
 
 		public MessageDecoderHelper invoke() {
-			_buffer = getByteBuffer(_message);
-			String id = Integer.toString(_buffer.getInt());
-			_schema = resolver.resolve(id);
-			if (_schema == null)
-				throw new IllegalStateException("Unknown schema id: "
-						+ id);
+			buffer = getByteBuffer(message);
+			String id = Integer.toString(buffer.getInt());
+			schema = registry.getSchemaByID(topicName, id);
+			if (schema == null)
+				throw new IllegalStateException("Unknown schema id: " + id);
 
-			_start = _buffer.position() + _buffer.arrayOffset();
-			_length = _buffer.limit() - 5;
-			
+			start = buffer.position() + buffer.arrayOffset();
+			length = buffer.limit() - 5;
+
 			// try to get a target schema, if any
-			_targetSchema = resolver.getTargetSchema();
+			targetSchema = registry.getLatestSchemaByTopic(topicName)
+					.getSchema();
 			return this;
 		}
 	}
 
 	public CamusWrapper decode(Message message) {
-		MessageDecoderHelper helper = new MessageDecoderHelper(message)
-				.invoke();
 		try {
+			MessageDecoderHelper helper = new MessageDecoderHelper(registry,
+					topicName, message).invoke();
 			DatumReader<Record> reader = (helper.getTargetSchema() == null) ? new GenericDatumReader<Record>(
 					helper.getSchema()) : new GenericDatumReader<Record>(
 					helper.getSchema(), helper.getTargetSchema());
 
-			return new CamusWrapper(reader.read(null, decoderFactory.binaryDecoder(helper
-					.getBuffer().array(), helper.getStart(),
-					helper.getLength(), null)));
+			return new CamusWrapper(reader.read(null, decoderFactory
+					.binaryDecoder(helper.getBuffer().array(),
+							helper.getStart(), helper.getLength(), null)));
 		} catch (IOException e) {
-			throw new RuntimeException(e);
+			throw new KafkaMessageDecoderException(e);
 		}
 	}
 

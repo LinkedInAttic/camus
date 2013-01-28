@@ -1,7 +1,5 @@
 package com.linkedin.camus.etl.kafka.common;
 
-import java.io.DataInput;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 

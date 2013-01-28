@@ -41,7 +41,6 @@ import com.linkedin.camus.etl.kafka.common.EtlZkClient;
 /**
  * Input format for a Kafka pull job.
  */
-@SuppressWarnings("deprecation")
 public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>>
 {
 	

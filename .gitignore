@@ -8,5 +8,5 @@ camus-example/target/
 camus-schema-registry/target/
 
 # auto-gen'd avro records
-camus-api/src/main/java/com/linkedin/camus/events/records
+camus-etl-kafka/src/main/java/com/linkedin/camus/events/records
 camus-example/src/main/java/com/linkedin/camus/example/records

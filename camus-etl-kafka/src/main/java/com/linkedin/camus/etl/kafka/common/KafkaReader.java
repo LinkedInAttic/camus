@@ -19,7 +19,6 @@ import org.apache.hadoop.io.BytesWritable;
  * 
  * @author Richard Park
  */
-@SuppressWarnings({ "deprecation" })
 public class KafkaReader {
 	// index of context
 	private EtlRequest kafkaRequest = null;
@@ -68,8 +67,6 @@ public class KafkaReader {
 		return (messageIter != null && messageIter.hasNext()) || fetch();
 	}
 
-	private int i;
-
 	/**
 	 * Fetches the next Kafka message and stuffs the results into the key and
 	 * value
@@ -79,7 +76,6 @@ public class KafkaReader {
 	 * @return true if there exists more events
 	 * @throws IOException
 	 */
-	@SuppressWarnings("unchecked")
 	public boolean getNext(EtlKey key, BytesWritable value) throws IOException {
 		if (hasNext()) {
 			MessageAndOffset msgAndOffset = messageIter.next();

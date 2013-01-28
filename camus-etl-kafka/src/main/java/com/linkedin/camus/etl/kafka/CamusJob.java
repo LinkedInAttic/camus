@@ -5,7 +5,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.URI;
@@ -79,7 +78,6 @@ public class CamusJob extends Configured implements Tool {
 	public static final String ETL_OUTPUT_FILE_TIME_PARTITION_MINS = "etl.output.file.time.partition.mins";
 	public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
 	public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
-	public static final String ETL_RECORD_READER_CLASS = "etl.record.reader.class";
 
 	public static final String HADOOP_EXECUTION_INPUT_PATH = "mapred.input.dir";
 	public static final String HADOOP_EXECUTION_OUTPUT_PATH = "mapred.output.dir";
@@ -565,12 +563,7 @@ public class CamusJob extends Configured implements Tool {
 	
 	public static Properties getDefaultProps() throws IOException{
 		Properties props = new Properties();
-		
-		InputStream propsInputStream = ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties");
-		if (propsInputStream != null) {
-			props.load(propsInputStream);			
-		}
-		
+		props.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
 		return props;
 	}
 	
@@ -602,7 +595,7 @@ public class CamusJob extends Configured implements Tool {
 			formatter.printHelp( "CamusJob.java", options );
 			return 1;
 		}
-
+		
 		if (cmd.hasOption('p'))
 			props.load(ClassLoader.getSystemClassLoader().getResourceAsStream(cmd.getOptionValue('p')));
 		

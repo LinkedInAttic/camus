@@ -29,14 +29,9 @@ public class KafkaAvroMessageDecoder implements Configurable {
 		this.topicName = topicName;
 
 		try {
-			String schemaRegistryClassName = conf.get(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS);
-			
-			if (schemaRegistryClassName == null) {
-				throw new IllegalArgumentException("You must provide a schema registry implementation by setting the following property: "
-						+ KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS);
-			}
-			
-			Constructor<?> constructor = Class.forName(schemaRegistryClassName)
+			Constructor<?> constructor = Class
+					.forName(
+							conf.get(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS))
 					.getConstructor(Configuration.class);
 			SchemaRegistry<Schema> registry = (SchemaRegistry<Schema>) constructor
 					.newInstance(conf);

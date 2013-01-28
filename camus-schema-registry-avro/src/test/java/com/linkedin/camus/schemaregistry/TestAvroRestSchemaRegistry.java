@@ -19,7 +19,7 @@ public class TestAvroRestSchemaRegistry extends TestSchemaRegistries {
 	private RepositoryServer server;
 
 	public static final Schema SCHEMA1 = new Schema.Parser()
-			.parse("{\"type\":\"record\",\"name\":\"DummyLog1\",\"namespace\":\"com.linkedin.camus.example.records\",\"doc\":\"Logs for really important stuff.\",\"fields\":[{\"name\":\"id\",\"type\":\"long\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"muchoStuff\",\"type\":{\"type\":\"map\",\"values\":\"string\"}}]}");
+			.parse("{\"type\":\"record\",\"name\":\"DummyLog2\",\"namespace\":\"com.linkedin.camus.example.records\",\"doc\":\"Logs for really important stuff.\",\"fields\":[{\"name\":\"id\",\"type\":\"long\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"muchoStuff\",\"type\":{\"type\":\"map\",\"values\":\"string\"}}]}");
 	public static final Schema SCHEMA2 = new Schema.Parser()
 			.parse("{\"type\":\"record\",\"name\":\"DummyLog2\",\"namespace\":\"com.linkedin.camus.example.records\",\"doc\":\"Logs for really important stuff.\",\"fields\":[{\"name\":\"id\",\"type\":\"long\"},{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"muchoStuff\",\"type\":{\"type\":\"map\",\"values\":\"string\"}}]}");
 

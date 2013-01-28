@@ -33,21 +33,6 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
     </dependency>
-
-    <!-- I needed to add the following dependencies to run the shaded jar successfully... -->
-   
-    <!-- Because I use CDH4 and the hadoop Configuration is now located in hadoop-common rather than hadoop-core -->
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-common</artifactId>
-    </dependency>
-
-    <!-- Because I want to be able to run the shaded camus-example jar directly and so it needs to have the CamusJob class -->
-    <dependency>
-      <groupId>com.linkedin.camus</groupId>
-      <artifactId>camus-etl-kafka</artifactId>
-      <version>${project.version}</version>
-    </dependency>
   </dependencies>
 
   <build>

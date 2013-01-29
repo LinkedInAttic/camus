@@ -35,6 +35,11 @@ public class KafkaAvroMessageDecoder implements Configurable {
 					.getConstructor(Configuration.class);
 			SchemaRegistry<Schema> registry = (SchemaRegistry<Schema>) constructor
 					.newInstance(conf);
+			
+			// The call below ensures the KafkaAvroMessageDecoder will fail to construct if
+			// its schema registry fails to provide a schema for the specified topicName.
+			registry.getLatestSchemaByTopic(topicName); 
+			
 			this.registry = new CachedSchemaRegistry<Schema>(registry);
 		} catch (Exception e) {
 			throw new KafkaMessageDecoderException(e);

@@ -55,11 +55,12 @@ public class TestAvroRestSchemaRegistry extends TestSchemaRegistries {
 
 	@Parameters
 	public static Collection data() {
-		Configuration conf = new Configuration();
-		conf.set(AvroRestSchemaRegistry.ETL_SCHEMA_REGISTRY_URL,
+	    Properties props = new Properties();
+		props.put(AvroRestSchemaRegistry.ETL_SCHEMA_REGISTRY_URL,
 				"http://localhost:8123/schema-repo/");
-		SchemaRegistry<Schema> avroSchemaRegistry = new AvroRestSchemaRegistry(
-				conf);
+		SchemaRegistry<Schema> avroSchemaRegistry = new AvroRestSchemaRegistry();
+		
+		avroSchemaRegistry.init(props);
 		Object[][] data = new Object[][] { { avroSchemaRegistry } };
 		return Arrays.asList(data);
 	}

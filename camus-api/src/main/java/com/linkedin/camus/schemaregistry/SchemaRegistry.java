@@ -1,5 +1,7 @@
 package com.linkedin.camus.schemaregistry;
 
+import java.util.Properties;
+
 /**
  * The schema registry is used to read and write schemas for Kafka topics. This
  * is useful because it means you no longer have to store your schema with your
@@ -12,6 +14,14 @@ package com.linkedin.camus.schemaregistry;
  *            A schema type.
  */
 public interface SchemaRegistry<S> {
+    
+    /**
+     * Initializer for SchemaRegistry;
+     * 
+     * @param props
+     *            Java properties
+     */
+    public void init(Properties props);
 
 	/**
 	 * Store a schema in the registry. If a schema already exists for this

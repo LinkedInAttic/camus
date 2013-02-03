@@ -1,11 +1,14 @@
 package com.linkedin.camus.schemaregistry;
 
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
 	private final SchemaRegistry<S> registry;
 	private final ConcurrentHashMap<CachedSchemaTuple, S> cachedById;
 	private final ConcurrentHashMap<String, S> cachedLatest;
+	
+	public void init(Properties props) {}
 
 	public CachedSchemaRegistry(SchemaRegistry<S> registry) {
 		this.registry = registry;

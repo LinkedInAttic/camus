@@ -1,6 +1,7 @@
 package com.linkedin.camus.schemaregistry;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -17,6 +18,8 @@ public class MemorySchemaRegistry<S> implements SchemaRegistry<S> {
 	private final Map<MemorySchemaRegistryTuple, S> schemasById;
 	private final Map<String, MemorySchemaRegistryTuple> latest;
 	private final AtomicLong ids;
+	
+	public void init(Properties props) {}
 
 	public MemorySchemaRegistry() {
 		this.schemasById = new ConcurrentHashMap<MemorySchemaRegistryTuple, S>();

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Formatter;
+import java.util.Properties;
 
 /**
  * Not thread safe.
@@ -18,6 +19,8 @@ import java.util.Formatter;
 public class FileSchemaRegistry<S> implements SchemaRegistry<S> {
 	private final File root;
 	private final Serde<S> serde;
+	
+	public void init(Properties props) {}
 
 	public FileSchemaRegistry(File root, Serde<S> serde) {
 		this.root = root;

@@ -1,5 +1,7 @@
 package com.linkedin.camus.schemaregistry;
 
+import java.util.Properties;
+
 import org.apache.avro.Schema;
 import org.apache.avro.repo.SchemaEntry;
 import org.apache.avro.repo.SchemaValidationException;
@@ -14,9 +16,10 @@ import org.apache.hadoop.conf.Configuration;
 public class AvroRestSchemaRegistry implements SchemaRegistry<Schema> {
 	private RESTRepositoryClient client;
 	public static final String ETL_SCHEMA_REGISTRY_URL = "etl.schema.registry.url";
-
-	public AvroRestSchemaRegistry(Configuration conf) {
-		client = new RESTRepositoryClient(conf.get(ETL_SCHEMA_REGISTRY_URL));
+	
+	 @Override
+	public void init(Properties props) {
+	     client = new RESTRepositoryClient(props.getProperty(ETL_SCHEMA_REGISTRY_URL));
 	}
 
 	@Override

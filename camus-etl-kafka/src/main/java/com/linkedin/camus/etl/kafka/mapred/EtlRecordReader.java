@@ -28,6 +28,7 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
@@ -221,18 +222,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             EtlInputFormat.getKafkaClientTimeout(mapperContext),
                             EtlInputFormat.getKafkaClientBufferSize(mapperContext));
 
-                    try {
-                        decoder = (MessageDecoder<Message, Record>) EtlInputFormat.getMessageDecoderClass(context).newInstance();
-                       
-                        Properties props = new Properties();
-                        for (Entry<String, String> entry : context.getConfiguration()){
-                            props.put(entry.getKey(), entry.getValue());
-                        }
-                        
-                        decoder.init(props, key.getTopic());
-                    } catch (Exception e1) {
-                        throw new RuntimeException(e1);
-                    }
+                    decoder = (MessageDecoder<Message, Record>) MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
                 }
 
                 while (reader.getNext(key, msgValue)) {

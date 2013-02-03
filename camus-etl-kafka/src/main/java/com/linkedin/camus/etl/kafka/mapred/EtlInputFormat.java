@@ -13,6 +13,9 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
+import kafka.message.Message;
+
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -34,6 +37,7 @@ import scala.actors.threadpool.Arrays;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.EtlZkClient;
@@ -60,7 +64,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
     public static final String KAFKA_MAX_PULL_MINUTES_PER_TASK = "kafka.max.pull.minutes.per.task";
     public static final String KAFKA_MAX_HISTORICAL_DAYS = "kafka.max.historical.days";
 
-    public static final String KAFKA_MESSAGE_DECODER_CLASS = "kafka.message.decoder.class";
+    public static final String CAMUS_MESSAGE_DECODER_CLASS = "camus.message.decoder.class";
     public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
     public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
@@ -124,15 +128,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 
             for (String topic : topicList) {
                 try {
-                    MessageDecoder<?, ?> decoder = (MessageDecoder<?, ?>) Class.forName(
-                            context.getConfiguration().get(KAFKA_MESSAGE_DECODER_CLASS)).newInstance();
-                    
-                    Properties props = new Properties();
-                    for (Entry<String, String> entry : context.getConfiguration()){
-                        props.put(entry.getKey(), entry.getValue());
-                    }
-                    
-                    decoder.init(props, topic);
+                   MessageDecoderFactory.createMessageDecoder(context, topic);
                 } catch (Exception e) {
                     log.debug("We cound not construct a decoder for topic '" + topic
                             + "', so that topic will be discarded.", e);
@@ -484,13 +480,13 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
     }
 
     public static void setMessageDecoderClass(JobContext job, Class<KafkaAvroMessageDecoder> cls) {
-        job.getConfiguration().setClass(KAFKA_MESSAGE_DECODER_CLASS, cls,
+        job.getConfiguration().setClass(CAMUS_MESSAGE_DECODER_CLASS, cls,
                 KafkaAvroMessageDecoder.class);
     }
 
     public static Class<KafkaAvroMessageDecoder> getMessageDecoderClass(JobContext job) {
         return (Class<KafkaAvroMessageDecoder>) job.getConfiguration().getClass(
-                KAFKA_MESSAGE_DECODER_CLASS, KafkaAvroMessageDecoder.class);
+                CAMUS_MESSAGE_DECODER_CLASS, KafkaAvroMessageDecoder.class);
     }
 
     private class OffsetFileFilter implements PathFilter {

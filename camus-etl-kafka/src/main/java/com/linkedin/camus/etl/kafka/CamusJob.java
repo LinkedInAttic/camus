@@ -69,7 +69,7 @@ public class CamusJob extends Configured implements Tool {
     public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
     public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
     public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
-    public static final String KAFKA_MESSAGE_ENCODER_CLASS = "kafka.message.encoder.class";
+    public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
     public static final String BROKER_URI_FILE = "brokers.uri";
 
     private final Properties props;

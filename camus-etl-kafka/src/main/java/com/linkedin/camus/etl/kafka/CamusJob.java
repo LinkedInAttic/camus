@@ -74,6 +74,10 @@ public class CamusJob extends Configured implements Tool {
 
     private final Properties props;
 
+    public CamusJob() {
+        this.props = new Properties();
+    }
+    
     public CamusJob(Properties props) throws IOException {
         this.props = props;
     }
@@ -501,14 +505,8 @@ public class CamusJob extends Configured implements Tool {
         }
     }
 
-    public static Properties getDefaultProps() throws IOException {
-        Properties props = new Properties();
-        props.load(ClassLoader.getSystemClassLoader().getResourceAsStream("camus.properties"));
-        return props;
-    }
-
     public static void main(String[] args) throws Exception {
-        CamusJob job = new CamusJob(getDefaultProps());
+        CamusJob job = new CamusJob();
         ToolRunner.run(job, args);
     }
 

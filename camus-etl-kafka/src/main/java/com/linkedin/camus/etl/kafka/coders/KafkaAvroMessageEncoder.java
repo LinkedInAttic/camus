@@ -22,6 +22,7 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.log4j.Logger;
 
+import com.linkedin.camus.coders.MessageEncoderException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
@@ -48,7 +49,7 @@ public class KafkaAvroMessageEncoder implements Configurable {
 					.getConstructor(Configuration.class);
 			client = (SchemaRegistry<Schema>) constructor.newInstance(conf);
 		} catch (Exception e) {
-			throw new KafkaMessageEncoderException(e);
+			throw new MessageEncoderException(e);
 		}
 	}
 
@@ -91,7 +92,7 @@ public class KafkaAvroMessageEncoder implements Configurable {
 			System.err.println(out.toByteArray().length);
 			return new Message(out.toByteArray());
 		} catch (IOException e) {
-			throw new KafkaMessageEncoderException(e);
+			throw new MessageEncoderException(e);
 		}
 	}
 

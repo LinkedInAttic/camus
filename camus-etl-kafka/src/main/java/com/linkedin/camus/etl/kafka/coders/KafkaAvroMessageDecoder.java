@@ -1,8 +1,8 @@
 package com.linkedin.camus.etl.kafka.coders;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
+import java.util.Properties;
 
 import kafka.message.Message;
 
@@ -11,41 +11,35 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DecoderFactory;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 
-public class KafkaAvroMessageDecoder implements Configurable {
-	protected Configuration conf;
-	protected String topicName;
-	protected final DecoderFactory decoderFactory;
-	protected final SchemaRegistry<Schema> registry;
+public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
+	protected DecoderFactory decoderFactory;
+	protected SchemaRegistry<Schema> registry;
+	private Schema latestSchema;
+	
+	@Override
+	public void init(Properties props, String topicName) {
+	    super.init(props, topicName);
+	    try {
+            SchemaRegistry<Schema> registry = (SchemaRegistry<Schema>) Class
+                    .forName(
+                            props.getProperty(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS)).newInstance();
+            
+            registry.init(props);
+            
+            this.registry = new CachedSchemaRegistry<Schema>(registry);
+            this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
+        } catch (Exception e) {
+            throw new MessageDecoderException(e);
+        }
 
-	@SuppressWarnings("unchecked")
-	public KafkaAvroMessageDecoder(Configuration conf, String topicName) {
-		this.conf = conf;
-		this.topicName = topicName;
-
-		try {
-			Constructor<?> constructor = Class
-					.forName(
-							conf.get(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS))
-					.getConstructor(Configuration.class);
-			SchemaRegistry<Schema> registry = (SchemaRegistry<Schema>) constructor
-					.newInstance(conf);
-			
-			// The call below ensures the KafkaAvroMessageDecoder will fail to construct if
-			// its schema registry fails to provide a schema for the specified topicName.
-			registry.getLatestSchemaByTopic(topicName); 
-			
-			this.registry = new CachedSchemaRegistry<Schema>(registry);
-		} catch (Exception e) {
-			throw new KafkaMessageDecoderException(e);
-		}
-
-		decoderFactory = DecoderFactory.get();
+        decoderFactory = DecoderFactory.get();
 	}
 
 	private class MessageDecoderHelper {
@@ -104,13 +98,12 @@ public class KafkaAvroMessageDecoder implements Configurable {
 			length = buffer.limit() - 5;
 
 			// try to get a target schema, if any
-			targetSchema = registry.getLatestSchemaByTopic(topicName)
-					.getSchema();
+			targetSchema = latestSchema;
 			return this;
 		}
 	}
 
-	public CamusWrapper decode(Message message) {
+	public CamusWrapper<Record> decode(Message message) {
 		try {
 			MessageDecoderHelper helper = new MessageDecoderHelper(registry,
 					topicName, message).invoke();
@@ -118,22 +111,53 @@ public class KafkaAvroMessageDecoder implements Configurable {
 					helper.getSchema()) : new GenericDatumReader<Record>(
 					helper.getSchema(), helper.getTargetSchema());
 
-			return new CamusWrapper(reader.read(null, decoderFactory
-					.binaryDecoder(helper.getBuffer().array(),
-							helper.getStart(), helper.getLength(), null)));
+			return new CamusAvroWrapper(reader.read(null, decoderFactory
+                    .binaryDecoder(helper.getBuffer().array(),
+                            helper.getStart(), helper.getLength(), null)));
+	
 		} catch (IOException e) {
-			throw new KafkaMessageDecoderException(e);
+			throw new MessageDecoderException(e);
 		}
 	}
 
-	@Override
-	public Configuration getConf() {
-		return conf;
-	}
+	public static class CamusAvroWrapper extends CamusWrapper<Record> {
 
-	@Override
-	public void setConf(Configuration conf) {
-		this.conf = conf;
+	    public CamusAvroWrapper(Record record) {
+            super(record);
+        }
+	    
+	    @Override
+	    public long getTimestamp() {
+	        Record header = (Record) super.getRecord().get("header");
+
+	        if (header != null && header.get("time") != null) {
+	            return (Long) header.get("time");
+	        } else if (super.getRecord().get("timestamp") != null) {
+	            return (Long) super.getRecord().get("timestamp");
+	        } else {
+	            return System.currentTimeMillis();
+	        }
+	    }
+
+	    @Override
+	    public String getServer() {
+	        Record header = (Record) super.getRecord().get("header");
+	        if (header != null && header.get("server") != null) {
+	            return header.get("server").toString();
+	        } else {
+	            return "unknown_server";
+	        }
+	    }
+
+	    @Override
+	    public String getService() {
+	        Record header = (Record) super.getRecord().get("header");
+	        if (header != null && header.get("service") != null) {
+	            return header.get("service").toString();
+	        } else {
+	            return "unknown_service";
+	        }
+	    }
 	}
 
 }

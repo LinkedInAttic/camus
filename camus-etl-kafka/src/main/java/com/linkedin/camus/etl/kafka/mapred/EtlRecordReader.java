@@ -5,10 +5,13 @@ import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 
 import kafka.message.Message;
 
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
@@ -21,8 +24,9 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.joda.time.DateTime;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.CamusWrapper;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
@@ -39,7 +43,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private long readBytes = 0;
 
     private boolean skipSchemaErrors = false;
-    private KafkaAvroMessageDecoder decoder;
+    private MessageDecoder<Message, Record> decoder;
     private final BytesWritable msgValue = new BytesWritable();
     private final EtlKey key = new EtlKey();
     private AvroWrapper<Object> value = new AvroWrapper<Object>(new Object());
@@ -218,12 +222,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             EtlInputFormat.getKafkaClientBufferSize(mapperContext));
 
                     try {
-                        Constructor<?> constructor = Class.forName(
-                                context.getConfiguration().get(
-                                        EtlInputFormat.KAFKA_MESSAGE_DECODER_CLASS))
-                                .getConstructor(Configuration.class, String.class);
-                        decoder = (KafkaAvroMessageDecoder) constructor.newInstance(
-                                context.getConfiguration(), key.getTopic());
+                        decoder = (MessageDecoder<Message, Record>) EtlInputFormat.getMessageDecoderClass(context).newInstance();
+                       
+                        Properties props = new Properties();
+                        for (Entry<String, String> entry : context.getConfiguration()){
+                            props.put(entry.getKey(), entry.getValue());
+                        }
+                        
+                        decoder.init(props, key.getTopic());
                     } catch (Exception e1) {
                         throw new RuntimeException(e1);
                     }
@@ -259,7 +265,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         continue;
                     }
 
-                    long timeStamp = wrapper.getTimeStamp();
+                    long timeStamp = wrapper.getTimestamp();
                     try {
                         key.setTime(timeStamp);
                         key.setServer(wrapper.getServer());

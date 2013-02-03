@@ -7,16 +7,13 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.hadoop.conf.Configuration;
 
+import com.linkedin.camus.coders.CamusWrapper;
+
 public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 {
 
-	public LatestSchemaKafkaAvroMessageDecoder(Configuration conf, String topic)
-	{
-		super(conf, topic);
-	}
-
 	@Override
-	public CamusWrapper decode(Message message)
+	public CamusWrapper<Record> decode(Message message)
 	{
 		try
 		{
@@ -26,17 +23,17 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 			
 			reader.setSchema(schema);
 			
-			return new CamusWrapper(reader.read(
-					null, 
-					decoderFactory.jsonDecoder(
-							schema, 
-							new String(
-									message.payload().array(), 
-									Message.payloadOffset(message.magic()),
-									message.payloadSize()
-							)
-					)
-			));
+			return new CamusWrapper<Record>(reader.read(
+                    null, 
+                    decoderFactory.jsonDecoder(
+                            schema, 
+                            new String(
+                                    message.payload().array(), 
+                                    Message.payloadOffset(message.magic()),
+                                    message.payloadSize()
+                            )
+                    )
+            ));
 		}
 		catch (Exception e)
 		{

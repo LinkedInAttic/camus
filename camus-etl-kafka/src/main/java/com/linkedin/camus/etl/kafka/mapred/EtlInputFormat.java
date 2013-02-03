@@ -1,7 +1,6 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -10,10 +9,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.avro.mapred.AvroWrapper;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
+import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -123,11 +124,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 
             for (String topic : topicList) {
                 try {
-                    Constructor<?> constructor = Class.forName(
-                            context.getConfiguration().get(KAFKA_MESSAGE_DECODER_CLASS))
-                            .getConstructor(Configuration.class, String.class);
-                    KafkaAvroMessageDecoder decoder = (KafkaAvroMessageDecoder) constructor
-                            .newInstance(context.getConfiguration(), topic);
+                    MessageDecoder<?, ?> decoder = (MessageDecoder<?, ?>) Class.forName(
+                            context.getConfiguration().get(KAFKA_MESSAGE_DECODER_CLASS)).newInstance();
+                    
+                    Properties props = new Properties();
+                    for (Entry<String, String> entry : context.getConfiguration()){
+                        props.put(entry.getKey(), entry.getValue());
+                    }
+                    
+                    decoder.init(props, topic);
                 } catch (Exception e) {
                     log.debug("We cound not construct a decoder for topic '" + topic
                             + "', so that topic will be discarded.", e);

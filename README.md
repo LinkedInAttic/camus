@@ -95,10 +95,10 @@ Here is an abbreviated list of commonly used parameters.
  * kafka.max.pull.hrs=1
 * Events with a timestamp older than this will be discarded. 
  * kafka.max.historical.days=3
-* Max bytes pull for a topic-partition in a single run
- * kafka.max.pull.megabytes.per.topic=4096
+* Max minutes for each mapper to pull messages
+ * kafka.max.pull.minutes.per.task=-1
 * Decoder class for Kafka Messages to Avro Records
- * kafka.message.decoder.class=
+ * camus.message.decoder.class=
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
  * kafka.blacklist.topics=
  * kafka.whitelist.topics=

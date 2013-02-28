@@ -4,6 +4,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import com.linkedin.camus.etl.IEtlKey;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.WritableComparable;
 
@@ -11,7 +12,7 @@ import org.apache.hadoop.io.WritableComparable;
  * The key for the mapreduce job to pull kafka. Contains offsets and the
  * checksum.
  */
-public class EtlKey implements WritableComparable<EtlKey> {
+public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	public static EtlKey DUMMY_KEY = new EtlKey();
 
 	private String nodeId = "";

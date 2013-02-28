@@ -16,6 +16,7 @@ import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -258,8 +259,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     long timeStamp = wrapper.getTimestamp();
                     try {
                         key.setTime(timeStamp);
-                        key.setServer(wrapper.getServer());
-                        key.setService(wrapper.getService());
+                        key.setPartition(wrapper.getPartitionMap());
                     } catch (Exception e) {
                         mapperContext.write(key, new ExceptionWritable(e));
                         continue;

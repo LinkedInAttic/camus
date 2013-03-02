@@ -143,6 +143,8 @@ public class CamusJob extends Configured implements Tool {
         for (Object key : props.keySet()) {
             job.getConfiguration().set(key.toString(), props.getProperty(key.toString()));
         }
+        // Set the default partitioner
+        job.getConfiguration().set(EtlMultiOutputFormat.ETL_DEFAULT_PARTITIONER_CLASS, "com.linkedin.camus.etl.kafka.coders.DefaultPartitioner");
 
         FileSystem fs = FileSystem.get(job.getConfiguration());
 

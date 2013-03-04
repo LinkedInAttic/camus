@@ -53,6 +53,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
     public static final String KAFKA_MONITOR_TIME_GRANULARITY_MS = "kafka.monitor.time.granularity";
     public static final String ETL_DEFAULT_PARTITIONER_CLASS = "etl.partitioner.class";
+    public static final String ETL_OUTPUT_CODEC = "etl.output.codec";
+    public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
 
     public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
             .getDateTimeFormatter("YYYYMMddHH");
@@ -83,8 +85,12 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 new SpecificDatumWriter<Object>());
 
         if (FileOutputFormat.getCompressOutput(context)) {
-            int level = getEtlDeflateLevel(context);
-            writer.setCodec(CodecFactory.deflateCodec(level));
+            if ("snappy".equals(getEtlOutputCodec(context))) {
+                writer.setCodec(CodecFactory.snappyCodec());
+            } else {
+                int level = getEtlDeflateLevel(context);
+                writer.setCodec(CodecFactory.deflateCodec(level));
+            }
         }
 
         Path path = committer.getWorkPath();
@@ -159,7 +165,15 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static void setEtlDeflateLevel(JobContext job, int val) {
         job.getConfiguration().setInt(ETL_DEFLATE_LEVEL, val);
     }
+    
+    public static void setEtlOutputCodec(JobContext job, String codec) {
+        job.getConfiguration().set(ETL_OUTPUT_CODEC, codec);
+    }
 
+    public static String getEtlOutputCodec(JobContext job) {
+        return job.getConfiguration().get(ETL_OUTPUT_CODEC, ETL_DEFAULT_OUTPUT_CODEC);
+
+    }
     public static int getEtlDeflateLevel(JobContext job) {
         return job.getConfiguration().getInt(ETL_DEFLATE_LEVEL, 6);
     }

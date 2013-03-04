@@ -86,6 +86,17 @@ public class EtlMultiOutputCommitterTest implements Partitioner {
         assertTrue(EtlMultiOutputFormat.getPartitioner(taskAttemptContext, "test-topic") instanceof EtlMultiOutputCommitterTest);
     }
 
+    @Test
+    public void testDefaultOutputCodecIsDeflate() {
+        assertEquals("deflate", EtlMultiOutputFormat.getEtlOutputCodec(taskAttemptContext));
+    }
+    
+    @Test
+    public void testSetOutputCodec() {
+        EtlMultiOutputFormat.setEtlOutputCodec(taskAttemptContext, "snappy");
+        assertEquals("snappy", EtlMultiOutputFormat.getEtlOutputCodec(taskAttemptContext));
+    }
+
     public long convertTime(long time) {
         long outfilePartitionMs = EtlMultiOutputFormat.getEtlOutputFileTimePartitionMins(taskAttemptContext) * 60000L;
         return DateUtils.getPartition(outfilePartitionMs, time);

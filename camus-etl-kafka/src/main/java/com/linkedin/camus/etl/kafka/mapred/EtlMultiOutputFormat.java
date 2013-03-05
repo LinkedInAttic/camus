@@ -2,7 +2,12 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import com.linkedin.camus.coders.Partitioner;
 import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
@@ -22,10 +27,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.joda.time.DateTime;
-import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -49,21 +52,20 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_OUTPUT_FILE_TIME_PARTITION_MINS = "etl.output.file.time.partition.mins";
 
     public static final String KAFKA_MONITOR_TIME_GRANULARITY_MS = "kafka.monitor.time.granularity";
+    public static final String ETL_DEFAULT_PARTITIONER_CLASS = "etl.partitioner.class";
 
     public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
             .getDateTimeFormatter("YYYYMMddHH");
-    public static final DateTimeFormatter OUTPUT_DATE_FORMAT = DateUtils
-            .getDateTimeFormatter("YYYY/MM/dd/HH");
     public final static String EXT = ".avro";
     public static final String OFFSET_PREFIX = "offsets";
     public static final String ERRORS_PREFIX = "errors";
     public static final String COUNTS_PREFIX = "counts";
-    public static final String REQUESTS_FILE = "requests.previous";
 
+    public static final String REQUESTS_FILE = "requests.previous";
     private static EtlMultiOutputCommitter committer = null;
+    private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
 
     private long granularityMs;
-    private long outfilePartitionMs;
 
     @Override
     public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context)
@@ -71,7 +73,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         if (committer == null)
             committer = new EtlMultiOutputCommitter(getOutputPath(context), context);
         granularityMs = getMonitorTimeGranularityMins(context) * 60000L;
-        outfilePartitionMs = getEtlOutputFileTimePartitionMins(context) * 60000L;
         return new MultiEtlRecordWriter(context);
     }
 
@@ -187,6 +188,36 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         job.getConfiguration().setBoolean(ETL_RUN_TRACKING_POST, value);
     }
 
+    public String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
+        Partitioner partitioner = getPartitioner(context, key.getTopic());
+        return "data." + key.getTopic().replaceAll("\\.", "_") + "." + key.getNodeId() + "." + key.getPartition() + "." + partitioner.encodePartition(context, key);
+    }
+
+    public static Partitioner getDefaultPartitioner(JobContext job) {
+        if(partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS) == null) {
+            List<Partitioner> partitioners = job.getConfiguration().getInstances(ETL_DEFAULT_PARTITIONER_CLASS, com.linkedin.camus.coders.Partitioner.class);
+            partitionersByTopic.put(ETL_DEFAULT_PARTITIONER_CLASS, partitioners.get(0));
+        }
+        return partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS);
+    }
+
+    public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
+        String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
+        if(partitionersByTopic.get(customPartitionerProperty) == null) {
+            List<Partitioner> partitioners = job.getConfiguration().getInstances(customPartitionerProperty, com.linkedin.camus.coders.Partitioner.class);
+            if(partitioners.isEmpty()) {
+                return getDefaultPartitioner(job);
+            } else {
+                partitionersByTopic.put(customPartitionerProperty, partitioners.get(0));
+            }
+        }
+        return partitionersByTopic.get(customPartitionerProperty);
+    }
+
+    public static void resetPartitioners() {
+        partitionersByTopic = new HashMap<String, Partitioner>();
+    }
+
     class MultiEtlRecordWriter extends RecordWriter<EtlKey, Object> {
         private TaskAttemptContext context;
         private Writer errorWriter = null;
@@ -238,14 +269,14 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
                     committer.addCounts(key);
                     AvroWrapper<Object> value = (AvroWrapper<Object>) val;
-                    String name = generateFileNameForKey(key);
-                    if (!dataWriters.containsKey(name)) {
+                    String workingFileName = getWorkingFileName(context, key);
+                    if (!dataWriters.containsKey(workingFileName)) {
                         dataWriters.put(
-                                name,
-                                getDataRecordWriter(context, "data." + name,
+                                workingFileName,
+                                getDataRecordWriter(context, workingFileName,
                                         ((GenericRecord) value.datum()).getSchema().toString()));
                     }
-                    dataWriters.get(name).write(key, value);
+                    dataWriters.get(workingFileName).write(key, value);
                 }
             } else if (val instanceof ExceptionWritable) {
                 committer.addOffset(key);
@@ -256,26 +287,20 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         }
     }
 
-    private MutableDateTime fileDate = new MutableDateTime();
-
-    private String generateFileNameForKey(EtlKey key) {
-        fileDate.setMillis(key.getTime());
-        return key.getTopic() + "." + key.getNodeId() + "." + key.getPartition() + "."
-                + DateUtils.getPartition(outfilePartitionMs, key.getTime());
-    }
-
     public class EtlMultiOutputCommitter extends FileOutputCommitter {
+        Pattern workingFileMetadataPattern = Pattern.compile("data\\.([^\\.]+)\\.(\\d+)\\.(\\d+)\\.([^\\.]+)-m-\\d+.avro");
+
         HashMap<String, EtlCounts> counts = new HashMap<String, EtlCounts>();
         HashMap<String, EtlKey> offsets = new HashMap<String, EtlKey>();
 
         TaskAttemptContext context;
 
-        public void addCounts(EtlKey key) {
-            String name = generateFileNameForKey(key);
-            if (!counts.containsKey(name))
-                counts.put(name, new EtlCounts(context.getConfiguration(), key.getTopic(),
+        public void addCounts(EtlKey key) throws IOException {
+            String workingFileName = getWorkingFileName(context, key);
+            if (!counts.containsKey(workingFileName))
+                counts.put(workingFileName, new EtlCounts(context.getConfiguration(), key.getTopic(),
                         granularityMs));
-            counts.get(name).incrementMonitorCount(key);
+            counts.get(workingFileName).incrementMonitorCount(key);
             addOffset(key);
         }
 
@@ -300,35 +325,23 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 for (FileStatus f : fs.listStatus(workPath)) {
                     String file = f.getPath().getName();
                     if (file.startsWith("data")) {
-                        String[] nameParts = file.split("\\.");
-                        String baseFileName = nameParts[1] + "." + nameParts[2] + "."
-                                + nameParts[3] + "."
-                                + nameParts[4].substring(0, nameParts[4].indexOf('-'));
+                        String workingFileName = file.substring(0, file.indexOf("-m"));
+                        EtlCounts count = counts.get(workingFileName);
 
-                        EtlCounts count = counts.get(baseFileName);
+                        String partitionedFile = getPartitionedPath(context, file,
+                                count.getEventCount(), count.getLastOffsetKey().getOffset());
 
-                        StringBuilder sb = new StringBuilder();
-                        sb.append(nameParts[1]);
-                        sb.append("/").append(getDestPathTopicSubDir(context)).append("/");
+                        Path dest = new Path(baseOutDir, partitionedFile);
 
-                        DateTime bucket = new DateTime(Long.valueOf(nameParts[4].substring(0,
-                                nameParts[4].indexOf('-'))));
-                        sb.append(bucket.toString(OUTPUT_DATE_FORMAT)).append("/");
-
-                        sb.append(baseFileName).append(".");
-                        sb.append(count.getEventCount()).append(".");
-                        sb.append(count.getLastOffsetKey().getOffset());
-
-                        Path dest = new Path(baseOutDir, sb.toString() + EXT);
-
-                        if (!fs.exists(dest.getParent()))
-                            fs.mkdirs(dest.getParent());
+                        if (!fs.exists(dest.getParent())) {
+                                fs.mkdirs(dest.getParent());
+                            }
 
                         fs.rename(f.getPath(), dest);
 
                         if (isRunTrackingPost(context)) {
-                            count.writeCountsToHDFS(fs, new Path(workPath, COUNTS_PREFIX + "."
-                                    + dest.getName().replace(EXT, "")));
+                                count.writeCountsToHDFS(fs, new Path(workPath, COUNTS_PREFIX + "."
+                                        + dest.getName().replace(EXT, "")));
                         }
                     }
                 }
@@ -343,6 +356,26 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
             }
             offsetWriter.close();
             super.commitTask(context);
+        }
+
+        public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {
+            Matcher m = workingFileMetadataPattern.matcher(file);
+            if(! m.find()) {
+                throw new IOException("Could not extract metadata from working filename '" + file + "'");
+            }
+            String topic = m.group(1);
+            String nodeId = m.group(2);
+            String partition = m.group(3);
+            String encodedPartition = m.group(4);
+
+            String partitionedPath =
+                        getPartitioner(context, topic).generatePartitionedPath(context, topic, Integer.parseInt(nodeId),
+                                Integer.parseInt(partition), encodedPartition);
+
+            return partitionedPath +
+                        "/" + topic + "." + nodeId + "." + partition +
+                        "." + count+
+                        "." + offset + EXT;
         }
     }
 }

@@ -17,6 +17,7 @@ import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
+import org.apache.hadoop.io.Text;
 
 public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 	protected DecoderFactory decoderFactory;
@@ -124,6 +125,15 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 
 	    public CamusAvroWrapper(Record record) {
             super(record);
+            Record header = (Record) super.getRecord().get("header");
+   	        if (header != null) {
+               if (header.get("server") != null) {
+                   put(new Text("server"), new Text(header.get("server").toString()));
+               }
+               if (header.get("service") != null) {
+                   put(new Text("service"), new Text(header.get("service").toString()));
+               }
+            }
         }
 	    
 	    @Override
@@ -138,26 +148,5 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 	            return System.currentTimeMillis();
 	        }
 	    }
-
-	    @Override
-	    public String getServer() {
-	        Record header = (Record) super.getRecord().get("header");
-	        if (header != null && header.get("server") != null) {
-	            return header.get("server").toString();
-	        } else {
-	            return "unknown_server";
-	        }
-	    }
-
-	    @Override
-	    public String getService() {
-	        Record header = (Record) super.getRecord().get("header");
-	        if (header != null && header.get("service") != null) {
-	            return header.get("service").toString();
-	        } else {
-	            return "unknown_service";
-	        }
-	    }
 	}
-
 }

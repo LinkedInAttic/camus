@@ -1,5 +1,9 @@
 package com.linkedin.camus.coders;
 
+import org.apache.hadoop.io.MapWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
+
 /**
  * Container for messages.  Enables the use of a custom message decoder with knowledge
  * of where these values are stored in the message schema
@@ -11,24 +15,22 @@ package com.linkedin.camus.coders;
 public class CamusWrapper<R> {
     private R record;
     private long timestamp;
-    private String server = "unknown_server";
-    private String service = "unknown_service";
+    private MapWritable partitionMap;
 
     public CamusWrapper(R record) {
-        this.record = record;
-        this.timestamp = System.currentTimeMillis();
+        this(record, System.currentTimeMillis());
     }
     
     public CamusWrapper(R record, long timestamp) {
-        this.record = record;
-        this.timestamp = timestamp;
+        this(record, timestamp, "unknown_server", "unknown_service");
     }
     
     public CamusWrapper(R record, long timestamp, String server, String service) {
         this.record = record;
         this.timestamp = timestamp;
-        this.server = server;
-        this.service = service;
+        this.partitionMap = new MapWritable();
+        partitionMap.put(new Text("server"), new Text(server));
+        partitionMap.put(new Text("service"), new Text(service));
     }
 
     /**
@@ -48,19 +50,25 @@ public class CamusWrapper<R> {
     }
 
     /**
-     * Returns the producing server of this message
-     * @return
+     * Add a value for partitions
      */
-    public String getServer() {
-        return server;
+    public void put(Writable key, Writable value) {
+        partitionMap.put(key, value);
     }
 
     /**
-     * Returns the producing service of this message
-     * @return
+     * Get a value for partitions
+     * @returns the value for the given key
      */
-    public String getService() {
-        return service;
+    public Writable get(Writable key) {
+        return partitionMap.get(key);
+    }
+
+    /**
+     * Get all the parititon key/partitionMap
+     */
+    public MapWritable getPartitionMap() {
+        return partitionMap;
     }
 
 }

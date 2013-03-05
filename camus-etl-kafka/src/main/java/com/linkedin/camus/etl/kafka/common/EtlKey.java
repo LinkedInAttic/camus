@@ -3,16 +3,23 @@ package com.linkedin.camus.etl.kafka.common;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
 
+import com.linkedin.camus.etl.IEtlKey;
+import org.apache.hadoop.io.MapWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.UTF8;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
 
 /**
  * The key for the mapreduce job to pull kafka. Contains offsets and the
  * checksum.
  */
-public class EtlKey implements WritableComparable<EtlKey> {
-	public static EtlKey DUMMY_KEY = new EtlKey();
+public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
+    public static final Text SERVER = new Text("server");
+    public static final Text SERVICE = new Text("service");
+    public static EtlKey DUMMY_KEY = new EtlKey();
 
 	private String nodeId = "";
 	private int partition = 0;
@@ -23,6 +30,8 @@ public class EtlKey implements WritableComparable<EtlKey> {
 	private long time = 0;
 	private String server = "";
 	private String service = "";
+    private MapWritable partitionMap = new MapWritable();
+
 
 	/**
 	 * dummy empty constructor
@@ -41,6 +50,7 @@ public class EtlKey implements WritableComparable<EtlKey> {
 		this.time = other.time;
 		this.server = other.server;
 		this.service = other.service;
+        this.partitionMap = new MapWritable(other.partitionMap);
 	}
 
 	public EtlKey(String topic, String nodeId, int partition) {
@@ -77,22 +87,23 @@ public class EtlKey implements WritableComparable<EtlKey> {
 		time = 0;
 		server = "";
 		service = "";
+        partitionMap = new MapWritable();
 	}
 
 	public String getServer() {
-		return server;
+        return partitionMap.get(SERVER).toString();
 	}
 
-	public void setServer(String server) {
-		this.server = server;
+	public void setServer(String newServer) {
+        partitionMap.put(SERVER, new Text(newServer));
 	}
 
 	public String getService() {
-		return service;
+        return partitionMap.get(SERVICE).toString();
 	}
 
-	public void setService(String service) {
-		this.service = service;
+	public void setService(String newService) {
+        partitionMap.put(SERVICE, new Text(newService));
 	}
 
 	public long getTime() {
@@ -131,6 +142,18 @@ public class EtlKey implements WritableComparable<EtlKey> {
 		return this.checksum;
 	}
 
+    public void put(Writable key, Writable value) {
+        this.partitionMap.put(key, value);
+    }
+
+    public void setPartition(MapWritable partitionMap) {
+        this.partitionMap = partitionMap;
+    }
+
+    public MapWritable getPartitionMap() {
+        return partitionMap;
+    }
+
 	@Override
 	public void readFields(DataInput in) throws IOException {
 		this.nodeId = UTF8.readString(in);
@@ -140,9 +163,16 @@ public class EtlKey implements WritableComparable<EtlKey> {
 		this.checksum = in.readLong();
 		this.topic = in.readUTF();
 		this.time = in.readLong();
-		this.server = in.readUTF();
-		this.service = in.readUTF();
-	}
+		this.server = in.readUTF(); // left for legacy
+		this.service = in.readUTF(); // left for legacy
+        this.partitionMap = new MapWritable();
+        try {
+            this.partitionMap.readFields(in);
+        } catch (IOException e) {
+            this.setServer(this.server);
+            this.setService(this.service);
+        }
+    }
 
 	@Override
 	public void write(DataOutput out) throws IOException {
@@ -153,8 +183,9 @@ public class EtlKey implements WritableComparable<EtlKey> {
 		out.writeLong(this.checksum);
 		out.writeUTF(this.topic);
 		out.writeLong(this.time);
-		out.writeUTF(this.server);
-		out.writeUTF(this.service);
+		out.writeUTF(this.server); // left for legacy
+		out.writeUTF(this.service); // left for legacy
+        this.partitionMap.write(out);
 	}
 
 	@Override
@@ -180,8 +211,33 @@ public class EtlKey implements WritableComparable<EtlKey> {
 
 	@Override
 	public String toString() {
-		return " topic=" + topic + " partition=" + partition + " nodeId=" + nodeId + " server=" + server + " service=" + service + " beginOffset="
-				+ beginOffset + " offset=" + offset + " checksum=" + checksum + " time=" + time;
+        StringBuilder builder = new StringBuilder();
+        builder.append("topic=");
+        builder.append(topic);
+        builder.append(" partition=");
+        builder.append(partition);
+        builder.append(" nodeId=");
+        builder.append(nodeId);
+        builder.append(" server");
+        builder.append(server);
+        builder.append(" service=");
+        builder.append(service);
+        builder.append(" beginOffset=");
+        builder.append(beginOffset);
+        builder.append(" offset=");
+        builder.append(offset);
+        builder.append(" server=");
+        builder.append(server);
+        builder.append(" checksum=");
+        builder.append(checksum);
+        builder.append(" time=");
+        builder.append(time);
 
+        for (Map.Entry<Writable, Writable> e: partitionMap.entrySet()) {
+            builder.append(" " + e.getKey() + "=");
+            builder.append(e.getValue().toString());
+        }
+
+        return builder.toString();
 	}
 }

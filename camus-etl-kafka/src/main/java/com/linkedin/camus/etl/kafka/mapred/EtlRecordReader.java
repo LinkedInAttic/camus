@@ -19,6 +19,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -36,6 +37,7 @@ import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
 
 public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
+    private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
     private TaskAttemptContext context;
 
     private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
@@ -51,6 +53,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private AvroWrapper<Object> value = new AvroWrapper<Object>(new Object());
 
     private int maxPullHours = 0;
+    private int exceptionCount = 0;
     private long maxPullTime = 0;
     private long beginTimeStamp = 0;
     private long endTimeStamp = 0;
@@ -246,7 +249,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     try {
                         wrapper = getWrappedRecord(key.getTopic(), message);
                     } catch (Exception e) {
-                        mapperContext.write(key, new ExceptionWritable(e));
+                        if(exceptionCount < getMaximumDecoderExceptionsToPrint(context))
+				{
+					mapperContext.write(key, new ExceptionWritable(e));
+					exceptionCount++;
+				} else
+				if(exceptionCount == getMaximumDecoderExceptionsToPrint(context))
+				{
+					exceptionCount = Integer.MAX_VALUE; //Any random value
+					System.out.println("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");	
+				}
                         continue;
                     }
 
@@ -317,5 +329,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                 reader = null;
             }
         }
+    }
+
+   public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
+    	return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
     }
 }

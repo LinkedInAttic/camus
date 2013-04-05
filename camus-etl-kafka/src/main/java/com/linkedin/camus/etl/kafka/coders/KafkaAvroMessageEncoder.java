@@ -27,7 +27,7 @@ import com.linkedin.camus.coders.MessageEncoderException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
-public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Message> {
+public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[]> {
     public static final String KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS = "kafka.message.coder.schema.registry.class";
 
     private static final byte MAGIC_BYTE = 0x0;
@@ -57,7 +57,7 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
 
     }
 
-    public Message toMessage(IndexedRecord record) {
+    public byte[] toBytes(IndexedRecord record) {
         try {
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -90,7 +90,8 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
             writer.write(record, encoder);
 
             System.err.println(out.toByteArray().length);
-            return new Message(out.toByteArray());
+            return out.toByteArray();
+            //return new Message(out.toByteArray());
         } catch (IOException e) {
             throw new MessageEncoderException(e);
         }

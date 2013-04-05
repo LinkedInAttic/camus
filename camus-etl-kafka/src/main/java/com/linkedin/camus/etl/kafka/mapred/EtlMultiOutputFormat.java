@@ -339,7 +339,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 for (FileStatus f : fs.listStatus(workPath)) {
                     String file = f.getPath().getName();
                     if (file.startsWith("data")) {
-                        String workingFileName = file.substring(0, file.indexOf("-m"));
+                        String workingFileName = file.substring(0, file.lastIndexOf("-m"));
                         EtlCounts count = counts.get(workingFileName);
 
                         String partitionedFile = getPartitionedPath(context, file,

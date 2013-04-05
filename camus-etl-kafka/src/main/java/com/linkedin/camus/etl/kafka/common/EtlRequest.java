@@ -5,11 +5,20 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import kafka.api.OffsetRequest;
+import java.util.HashMap;
+import java.util.Map;
+
+import kafka.api.PartitionOffsetRequestInfo;
+import kafka.common.TopicAndPartition;
+import kafka.javaapi.OffsetRequest;
+import kafka.javaapi.OffsetResponse;
 import kafka.javaapi.consumer.SimpleConsumer;
 
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapreduce.JobContext;
+
+import com.linkedin.camus.etl.kafka.CamusJob;
 
 /**
  * A class that represents the kafka pull request.
@@ -20,249 +29,268 @@ import org.apache.hadoop.io.Writable;
  * @author Richard Park
  */
 public class EtlRequest implements Writable {
-	private static final long DEFAULT_OFFSET = 0;
+    private JobContext context = null;
+    private static final long DEFAULT_OFFSET = 0;
 
-	private String topic = "";
-	private String nodeId = "";
-	private int partition = 0;
+    private String topic = "";
+    private String nodeId = "";
+    private int partition = 0;
 
-	private URI uri = null;
-	private long offset = DEFAULT_OFFSET;
-	private long latestOffset = -1;
-	private long earliestOffset = -2;
+    private URI uri = null;
+    private long offset = DEFAULT_OFFSET;
+    private long latestOffset = -1;
+    private long earliestOffset = -2;
 
-	public EtlRequest() {
-	}
-	
-	public EtlRequest(EtlRequest other) {
-		this.topic = other.topic;
-		this.nodeId = other.nodeId;
-		this.partition = other.partition;
-		this.uri = other.uri;
-		this.offset = other.offset;
-		this.latestOffset = other.latestOffset;
-		this.earliestOffset = other.earliestOffset;
-	}
+    public EtlRequest() {
+    }
 
-	/**
-	 * Constructor for a KafkaETLRequest with the uri set to null and offset set
-	 * to -1. Both of these attributes can be set later. These attributes are
-	 * sufficient to ensure uniqueness.
-	 * 
-	 * @param topic
-	 *            The topic name
-	 * @param nodeId
-	 *            The kafka broker node id
-	 * @param partition
-	 *            The partition to pull
-	 */
-	public EtlRequest(String topic, String nodeId, int partition) {
-		this(topic, nodeId, partition, null, DEFAULT_OFFSET);
-	}
+    public EtlRequest(EtlRequest other) {
+        this.topic = other.topic;
+        this.nodeId = other.nodeId;
+        this.partition = other.partition;
+        this.uri = other.uri;
+        this.offset = other.offset;
+        this.latestOffset = other.latestOffset;
+        this.earliestOffset = other.earliestOffset;
+    }
 
-	/**
-	 * Constructor for the KafkaETLRequest with the offset to -1.
-	 * 
-	 * @param topic
-	 *            The topic name
-	 * @param nodeId
-	 *            The kafka broker node id
-	 * @param partition
-	 *            The partition to pull
-	 * @param brokerUri
-	 *            The uri for the broker.
-	 */
-	public EtlRequest(String topic, String nodeId, int partition, URI brokerUri) {
-		this(topic, nodeId, partition, brokerUri, DEFAULT_OFFSET);
-	}
+    /**
+     * Constructor for a KafkaETLRequest with the uri set to null and offset set
+     * to -1. Both of these attributes can be set later. These attributes are
+     * sufficient to ensure uniqueness.
+     * 
+     * @param topic
+     *            The topic name
+     * @param nodeId
+     *            The kafka broker node id
+     * @param partition
+     *            The partition to pull
+     */
+    public EtlRequest(JobContext context, String topic, String nodeId, int partition) {
+        this(context, topic, nodeId, partition, null, DEFAULT_OFFSET);
+    }
 
-	/**
-	 * Constructor for the full kafka pull job. Neither the brokerUri nor offset
-	 * are used to ensure uniqueness.
-	 * 
-	 * @param topic
-	 *            The topic name
-	 * @param nodeId
-	 *            The kafka broker node id
-	 * @param partition
-	 *            The partition to pull
-	 * @param brokerUri
-	 *            The uri for the broker
-	 * @param offset
-	 */
-	public EtlRequest(String topic, String nodeId, int partition, URI brokerUri, long offset) {
-		this.topic = topic;
-		this.nodeId = nodeId;
-		this.uri = brokerUri;
-		this.partition = partition;
-		setOffset(offset);
-	}
+    /**
+     * Constructor for the KafkaETLRequest with the offset to -1.
+     * 
+     * @param topic
+     *            The topic name
+     * @param nodeId
+     *            The kafka broker node id
+     * @param partition
+     *            The partition to pull
+     * @param brokerUri
+     *            The uri for the broker.
+     */
+    public EtlRequest(JobContext context, String topic, String nodeId, int partition, URI brokerUri) {
+        this(context, topic, nodeId, partition, brokerUri, DEFAULT_OFFSET);
+    }
 
-	/**
-	 * Sets the starting offset used by the kafka pull mapper.
-	 * 
-	 * @param offset
-	 */
-	public void setOffset(long offset) {
-		this.offset = offset;
-	}
+    /**
+     * Constructor for the full kafka pull job. Neither the brokerUri nor offset
+     * are used to ensure uniqueness.
+     * 
+     * @param topic
+     *            The topic name
+     * @param nodeId
+     *            The kafka broker node id
+     * @param partition
+     *            The partition to pull
+     * @param brokerUri
+     *            The uri for the broker
+     * @param offset
+     */
+    public EtlRequest(JobContext context, String topic, String nodeId, int partition,
+            URI brokerUri, long offset) {
+        this.context = context;
+        this.topic = topic;
+        this.nodeId = nodeId;
+        this.uri = brokerUri;
+        this.partition = partition;
+        setOffset(offset);
+    }
 
-	/**
-	 * Sets the broker uri for this request
-	 * 
-	 * @param uri
-	 */
-	public void setURI(URI uri) {
-		this.uri = uri;
-	}
+    /**
+     * Sets the starting offset used by the kafka pull mapper.
+     * 
+     * @param offset
+     */
+    public void setOffset(long offset) {
+        this.offset = offset;
+    }
 
-	/**
-	 * Retrieve the broker node id.
-	 * 
-	 * @return
-	 */
-	public String getNodeId() {
-		return this.nodeId;
-	}
+    /**
+     * Sets the broker uri for this request
+     * 
+     * @param uri
+     */
+    public void setURI(URI uri) {
+        this.uri = uri;
+    }
 
-	/**
-	 * Retrieve the topic
-	 * 
-	 * @return
-	 */
-	public String getTopic() {
-		return this.topic;
-	}
+    /**
+     * Retrieve the broker node id.
+     * 
+     * @return
+     */
+    public String getNodeId() {
+        return this.nodeId;
+    }
 
-	/**
-	 * Retrieves the uri if set. The default is null.
-	 * 
-	 * @return
-	 */
-	public URI getURI() {
-		return this.uri;
-	}
+    /**
+     * Retrieve the topic
+     * 
+     * @return
+     */
+    public String getTopic() {
+        return this.topic;
+    }
 
-	/**
-	 * Retrieves the partition number
-	 * 
-	 * @return
-	 */
-	public int getPartition() {
-		return this.partition;
-	}
+    /**
+     * Retrieves the uri if set. The default is null.
+     * 
+     * @return
+     */
+    public URI getURI() {
+        return this.uri;
+    }
 
-	/**
-	 * Retrieves the offset
-	 * 
-	 * @return
-	 */
-	public long getOffset() {
-		return this.offset;
-	}
+    /**
+     * Retrieves the partition number
+     * 
+     * @return
+     */
+    public int getPartition() {
+        return this.partition;
+    }
 
-	/**
-	 * Returns true if the offset is valid (>= to earliest offset && <= to last offset)
-	 * 
-	 * @return
-	 */
-	public boolean isValidOffset() {
-		return this.offset >= 0;
-	}
+    /**
+     * Retrieves the offset
+     * 
+     * @return
+     */
+    public long getOffset() {
+        return this.offset;
+    }
 
-	@Override
-	public String toString() {
-		return topic + "\turi:" + (uri != null ? uri.toString() : "") + "\tnode:" + nodeId + "\tpartition:" + partition + "\toffset:" + offset
-				+ "\tlatest_offset:" + getLastOffset();
-	}
+    /**
+     * Returns true if the offset is valid (>= to earliest offset && <= to last
+     * offset)
+     * 
+     * @return
+     */
+    public boolean isValidOffset() {
+        return this.offset >= 0;
+    }
 
-	@Override
-	public int hashCode() {
-		return (partition + nodeId + topic).hashCode();
-	}
+    @Override
+    public String toString() {
+        return topic + "\turi:" + (uri != null ? uri.toString() : "") + "\tnode:" + nodeId
+                + "\tpartition:" + partition + "\toffset:" + offset + "\tlatest_offset:"
+                + getLastOffset();
+    }
 
-	@Override
-	public boolean equals(Object other) {
-		return this.hashCode() == other.hashCode();
-	}
+    @Override
+    public int hashCode() {
+        return (partition + nodeId + topic).hashCode();
+    }
 
-	/**
-	 * Returns the copy of KafkaETLRequest
-	 */
-	@Override
-	public EtlRequest clone() {
-		return new EtlRequest(topic, nodeId, partition, uri, offset);
-	}
+    @Override
+    public boolean equals(Object other) {
+        return this.hashCode() == other.hashCode();
+    }
 
-	public long getEarliestOffset() {
-		if (this.earliestOffset == -2 && uri != null){
-			SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 30000, 1024 * 1024);
-			long[] endOffset = consumer.getOffsetsBefore(topic, partition, OffsetRequest.EarliestTime(), 1);
-			consumer.close();
-			this.earliestOffset = endOffset[0];
-			return endOffset[0];
-		} else {
-			return this.earliestOffset;
-		}
-	}
+    /**
+     * Returns the copy of KafkaETLRequest
+     */
+    @Override
+    public EtlRequest clone() {
+        return new EtlRequest(context, topic, nodeId, partition, uri, offset);
+    }
 
-	public long getLastOffset() {
-		if (this.latestOffset == -1 && uri != null)
-			return getLastOffset(OffsetRequest.LatestTime());
-		else
-			return this.latestOffset;
-	}
+    public long getEarliestOffset() {
+        if (this.earliestOffset == -2 && uri != null) {
+            // TODO : Make the hardcoded paramters configurable
+            SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 60000,
+                    1024 * 1024, "hadoop-etl");
+            Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
+            offsetInfo.put(new TopicAndPartition(topic, partition), new PartitionOffsetRequestInfo(
+                    kafka.api.OffsetRequest.EarliestTime(), 1));
+            OffsetResponse response = consumer
+                    .getOffsetsBefore(new OffsetRequest(offsetInfo, kafka.api.OffsetRequest
+                            .CurrentVersion(), "hadoop-etl"));
+            long[] endOffset = response.offsets(topic, partition);
+            consumer.close();
+            this.earliestOffset = endOffset[0];
+            return endOffset[0];
+        } else {
+            return this.earliestOffset;
+        }
+    }
 
-	public long getLastOffset(long time) {
-		SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 30000, 1024 * 1024);
-		long[] endOffset = consumer.getOffsetsBefore(topic, partition, time, 1);
-		consumer.close();
+    public long getLastOffset() {
+        if (this.latestOffset == -1 && uri != null)
+            return getLastOffset(kafka.api.OffsetRequest.LatestTime());
+        else
+            return this.latestOffset;
+    }
 
-		this.latestOffset = endOffset[0];
-		return endOffset[0];
-	}
+    public long getLastOffset(long time) {
+        //TODO : Make the hardcoded values configurable
+        SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 60000,
+                1024 * 1024, "hadoop-etl");
+        Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
+        offsetInfo.put(new TopicAndPartition(topic, partition), new PartitionOffsetRequestInfo(
+                time, 1));
+        OffsetResponse response = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
+                kafka.api.OffsetRequest.CurrentVersion(),"hadoop-etl"));
+        long[] endOffset = response.offsets(topic, partition);
+        consumer.close();
+        this.latestOffset = endOffset[0];
+        return endOffset[0];
+    }
 
-	public long estimateDataSize() {
-		long endOffset = getLastOffset();
-		return endOffset - offset;
-	}
+    public long estimateDataSize() {
+        long endOffset = getLastOffset();
+        return endOffset - offset;
+    }
 
-	/**
-	 * Estimates the request size in bytes by connecting to the broker and
-	 * querying for the offset that bets matches the endTime.
-	 * 
-	 * @param endTime
-	 *            The time in millisec
-	 */
-	public long estimateDataSize(long endTime) {
-		long endOffset = getLastOffset(endTime);
-		return endOffset - offset;
-	}
+    /**
+     * Estimates the request size in bytes by connecting to the broker and
+     * querying for the offset that bets matches the endTime.
+     * 
+     * @param endTime
+     *            The time in millisec
+     */
+    public long estimateDataSize(long endTime) {
+        long endOffset = getLastOffset(endTime);
+        return endOffset - offset;
+    }
 
-	@Override
-	public void readFields(DataInput in) throws IOException {
-		topic = UTF8.readString(in);
-		nodeId = UTF8.readString(in);
-		String str = UTF8.readString(in);
-		if (!str.isEmpty())
-			try {
-				uri = new URI(str);
-			} catch (URISyntaxException e) {
-				throw new RuntimeException(e);
-			}
-		partition = in.readInt();
-		offset = in.readLong();
-	}
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        topic = UTF8.readString(in);
+        nodeId = UTF8.readString(in);
+        String str = UTF8.readString(in);
+        if (!str.isEmpty())
+            try {
+                uri = new URI(str);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        partition = in.readInt();
+        offset = in.readLong();
+    }
 
-	@Override
-	public void write(DataOutput out) throws IOException {
-		UTF8.writeString(out, topic);
-		UTF8.writeString(out, nodeId);
-		if (uri != null)
-			UTF8.writeString(out, uri.toString());
-		else
-			UTF8.writeString(out, "");
-		out.writeInt(partition);
-		out.writeLong(offset);
-	}
+    @Override
+    public void write(DataOutput out) throws IOException {
+        UTF8.writeString(out, topic);
+        UTF8.writeString(out, nodeId);
+        if (uri != null)
+            UTF8.writeString(out, uri.toString());
+        else
+            UTF8.writeString(out, "");
+        out.writeInt(partition);
+        out.writeLong(offset);
+    }
 }

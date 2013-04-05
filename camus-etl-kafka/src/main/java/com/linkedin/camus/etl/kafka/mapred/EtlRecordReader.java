@@ -47,7 +47,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private long readBytes = 0;
 
     private boolean skipSchemaErrors = false;
-    private MessageDecoder<Message, Record> decoder;
+    private MessageDecoder<byte[], Record> decoder;
     private final BytesWritable msgValue = new BytesWritable();
     private final EtlKey key = new EtlKey();
     private AvroWrapper<Object> value = new AvroWrapper<Object>(new Object());
@@ -111,8 +111,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
         }
 
         this.totalBytes = this.split.getLength();
-
-        System.out.println("Finished executing the initialize part");
     }
 
     @Override
@@ -122,10 +120,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
         }
     }
 
-    private CamusWrapper getWrappedRecord(String topicName, Message msg) throws IOException {
+    private CamusWrapper getWrappedRecord(String topicName, byte[] payload) throws IOException {
         CamusWrapper r = null;
         try {
-            r = decoder.decode(msg);
+            r = decoder.decode(payload);
         } catch (Exception e) {
             if (!skipSchemaErrors) {
                 throw new IOException(e);
@@ -188,6 +186,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
         // rescheduled in the next
         // run.
         if (System.currentTimeMillis() > maxPullTime) {
+            System.out.println("Max pull time reached");
             if (reader != null) {
                 closeReader();
             }
@@ -222,14 +221,15 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     if (reader != null) {
                         closeReader();
                     }
-                    reader = new KafkaReader(request,
-                            EtlInputFormat.getKafkaClientTimeout(mapperContext),
-                            EtlInputFormat.getKafkaClientBufferSize(mapperContext));
+                    reader = new KafkaReader(context, request,
+                            CamusJob.getKafkaTimeoutValue(mapperContext),
+                            CamusJob.getKafkaBufferSize(mapperContext));
 
-                    decoder = (MessageDecoder<Message, Record>) MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+                    decoder = (MessageDecoder<byte[], Record>) MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
                 }
-
+                int count = 0;
                 while (reader.getNext(key, msgValue)) {
+                    count++;
                     context.progress();
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
                     mapperContext.getCounter("total", "event-count").increment(1);
@@ -247,7 +247,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     long tempTime = System.currentTimeMillis();
                     CamusWrapper wrapper;
                     try {
-                        wrapper = getWrappedRecord(key.getTopic(), message);
+                        wrapper = getWrappedRecord(key.getTopic(), bytes);
                     } catch (Exception e) {
                         if(exceptionCount < getMaximumDecoderExceptionsToPrint(context))
 				{
@@ -286,6 +286,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         System.out.println(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
+                        if(timeStamp > endTimeStamp)
+                        System.out.println("KafkaMax history max hours reached");
+                        if(System.currentTimeMillis() > maxPullTime)
+                            System.out.println("Kafka pull time limit reached");
                         statusMsg += " max read at " + new DateTime(timeStamp).toString();
                         context.setStatus(statusMsg);
                         System.out.println(key.getTopic() + " max read at "
@@ -307,6 +311,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     }
                     return true;
                 }
+                System.out.println("Records read : " + count);
+                count = 0;
                 reader = null;
             } catch (Throwable t) {
                 Exception e = new Exception(t.getLocalizedMessage(), t);

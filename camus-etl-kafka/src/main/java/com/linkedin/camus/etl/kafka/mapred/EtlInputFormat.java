@@ -1,7 +1,10 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -13,6 +16,11 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
+import kafka.common.ErrorMapping;
+import kafka.javaapi.PartitionMetadata;
+import kafka.javaapi.TopicMetadata;
+import kafka.javaapi.TopicMetadataRequest;
+import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.message.Message;
 
 import org.apache.avro.generic.GenericData.Record;
@@ -32,15 +40,12 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.log4j.Logger;
 
-import scala.actors.threadpool.Arrays;
-
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
-import com.linkedin.camus.etl.kafka.common.EtlZkClient;
 
 /**
  * Input format for a Kafka pull job.
@@ -83,52 +88,52 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         List<EtlRequest> requests;
         try {
             // Create the zkClient for kafka.
-            String zkHosts = getZkHosts(context);
-            String zkTopicPath = getZkTopicPath(context);
-            String zkBrokerPath = getZkBrokerPath(context);
-            int zkSessionTimeout = getZkSessionTimeout(context);
-            int zkConnectionTimeout = getZkConnectionTimeout(context);
+            ArrayList<String> topicList = new ArrayList<String>();
+            List<String> whiteListTopicsList = Arrays.asList(getKafkaWhitelistTopic(context));
+            List<String> blackListTopicsList = Arrays.asList(getKafkaBlacklistTopic(context));
+            Set<String> whiteListTopics = new HashSet<String>(whiteListTopicsList);
+            Set<String> blackListTopics = new HashSet<String>(blackListTopicsList);
+            System.out.println("Whitelist topics : " + whiteListTopicsList);
+            System.out.println("Blacklist Topics : " + blackListTopicsList);
 
-            log.info("Stuff passed into the EtlZkClient constructor:\n\tzkHosts: " + zkHosts
-                    + "\n\tzkTopicPath: " + zkTopicPath + "\n\tzkBrokerPath: " + zkBrokerPath
-                    + "\n\tzkSessionTimeout: " + zkSessionTimeout + "\n\tzkConnectionTimeout: "
-                    + zkConnectionTimeout);
+            if (!whiteListTopics.isEmpty()) {
+                topicList.addAll(whiteListTopics);
+            }
+            CamusJob.startTiming("kafkaSetupTime");
+            List<TopicMetadata> topicMetadataList = null;//KafkaClient.getMetadata(topicList);
+            
+            
+            SimpleConsumer consumer = null;
+            try {
+                consumer = new SimpleConsumer(CamusJob.getKafkaHostUrl(context), CamusJob.getKafkaHostPort(context),
+                        CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
+                topicMetadataList = (consumer.send(new TopicMetadataRequest(topicList)))
+                        .topicsMetadata();
+            } catch (Exception e) {
+                System.out.println("Error while querying Kafka for Metadata");
+                System.out.println("Kafka Host Details : " + "\nHost : "
+                        + CamusJob.getKafkaHostUrl(context) + "\nPort : " + CamusJob.getKafkaHostPort(context)
+                        + "\n");
+                throw new RuntimeException("Unable to fetch metadata from Kafka", e);
+            } finally {
+                if (consumer != null)
+                    consumer.close();
+            }
+            CamusJob.stopTiming("kafkaSetupTime");
 
-            EtlZkClient zkClient = new EtlZkClient(zkHosts, zkSessionTimeout, zkConnectionTimeout,
-                    zkTopicPath, zkBrokerPath);
-
-            log.info("zkClient.toString(): " + zkClient.toString());
-
-            List<String> topicList = null;
-
-            Set<String> whiteListTopics = new HashSet<String>(
-                    Arrays.asList(getKafkaWhitelistTopic(context)));
-
-            log.info("whiteListTopics: " + whiteListTopics);
-
-            Set<String> blackListTopics = new HashSet<String>(
-                    Arrays.asList(getKafkaBlacklistTopic(context)));
-
-            log.info("blackListTopics: " + blackListTopics);
-
-            if (whiteListTopics.isEmpty()) {
-                CamusJob.startTiming("kafkaSetupTime");
-                topicList = zkClient.getTopics(blackListTopics);
-                CamusJob.stopTiming("kafkaSetupTime");
-            } else {
-                CamusJob.startTiming("kafkaSetupTime");
-                topicList = zkClient.getTopics(whiteListTopics, blackListTopics);
-                CamusJob.stopTiming("kafkaSetupTime");
+            ArrayList<String> topicsToDiscard = new ArrayList<String>();
+            for (TopicMetadata topicMetadata : topicMetadataList) {
+                if (blackListTopics.contains(topicMetadata.topic())
+                        || !createMessageDecoder(context, topicMetadata.topic())) {
+                    topicsToDiscard.add(topicMetadata.topic());
+                }
             }
 
             // Initialize a decoder for each topic so we can discard the topics
             // for which we cannot construct a decoder
-
-            List<String> topicsToDiscard = new ArrayList<String>();
-
             for (String topic : topicList) {
                 try {
-                   MessageDecoderFactory.createMessageDecoder(context, topic);
+                    MessageDecoderFactory.createMessageDecoder(context, topic);
                 } catch (Exception e) {
                     log.debug("We cound not construct a decoder for topic '" + topic
                             + "', so that topic will be discarded.", e);
@@ -147,13 +152,53 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
             log.info("The following topicList will be pulled from Kafka and written to HDFS: "
                     + topicList);
 
-            log.info("Number of topics pulled from Zookeeper: " + topicList.size());
             requests = new ArrayList<EtlRequest>();
 
-            for (String topic : topicList) {
-                CamusJob.startTiming("kafkaSetupTime");
-                requests.addAll(zkClient.getKafkaRequest(topic));
-                CamusJob.stopTiming("kafkaSetupTime");
+            HashMap<String, List<EtlRequest>> partitionInfo = new HashMap<String, List<EtlRequest>>();//KafkaClient.createEtlRequests(
+                    //topicMetadataList, topicsToDiscard);
+            
+            
+            for (TopicMetadata topicMetadata : topicMetadataList) {
+                if (topicsToDiscard.contains(topicMetadata.topic())) {
+                    continue;
+                }
+
+                List<PartitionMetadata> partitionsMetadata = topicMetadata.partitionsMetadata();
+                List<EtlRequest> tempEtlRequests = new ArrayList<EtlRequest>();
+
+                for (PartitionMetadata partitionMetadata : partitionsMetadata) {
+                    if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
+                        System.out.println("Skipping the creation of ETL request for Topic : "
+                                + topicMetadata.topic() + " and Partition : "
+                                + partitionMetadata.partitionId() + " Exception : "
+                                + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
+                        // In case of a temporary error, next run should process
+                        // this
+                        continue;
+                    } else {
+                        try {
+                            EtlRequest etlRequest = new EtlRequest(context, topicMetadata.topic(),
+                                    Integer.toString(partitionMetadata.leader().id()),
+                                    partitionMetadata.partitionId(), new URI("tcp://"
+                                            + partitionMetadata.leader().getConnectionString()));
+                            tempEtlRequests.add(etlRequest);
+                        } catch (URISyntaxException e) {
+                            System.out.println("Skipping the creation of ETL request for Topic : "
+                                    + topicMetadata.topic() + " and Partition : "
+                                    + partitionMetadata.partitionId() + " Exception : "
+                                    + e.getMessage());
+                            continue;
+                        }
+                    }
+                }
+                if (tempEtlRequests.size() != 0) {
+                    
+                    partitionInfo.put(topicMetadata.topic(), tempEtlRequests);
+                }
+            }
+            requests = new ArrayList<EtlRequest>();
+            for (String topic : partitionInfo.keySet()) {
+                requests.addAll(partitionInfo.get(topic));
             }
         } catch (Exception e) {
             log.error("Unable to pull requests from zookeeper, using previous requests", e);
@@ -208,6 +253,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         }
 
         return topics;
+    }
+
+    private boolean createMessageDecoder(JobContext context, String topic) {
+
+        try {
+            MessageDecoderFactory.createMessageDecoder(context, topic);
+            return true;
+        } catch (Exception e) {
+            log.debug("We cound not construct a decoder for topic '" + topic
+                    + "', so that topic will be discarded.", e);
+            return false;
+        }
     }
 
     private List<InputSplit> allocateWork(List<EtlRequest> requests, JobContext context)
@@ -327,7 +384,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                         context.getConfiguration());
                 EtlKey key = new EtlKey();
                 while (reader.next(key, NullWritable.get())) {
-                    EtlRequest request = new EtlRequest(key.getTopic(), key.getNodeId(),
+                    EtlRequest request = new EtlRequest(context, key.getTopic(), key.getNodeId(),
                             key.getPartition());
 
                     if (offsetKeysMap.containsKey(request)) {
@@ -449,18 +506,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         job.getConfiguration().setInt(ZK_SESSION_TIMEOUT, val);
     }
 
-    public static int getZkSessionTimeout(JobContext job) {
-        return job.getConfiguration().getInt(ZK_SESSION_TIMEOUT,
-                EtlZkClient.DEFAULT_ZOOKEEPER_TIMEOUT);
-    }
-
     public static void setZkConnectionTimeout(JobContext job, int val) {
         job.getConfiguration().setInt(ZK_CONNECTION_TIMEOUT, val);
-    }
-
-    public static int getZkConnectionTimeout(JobContext job) {
-        return job.getConfiguration().getInt(ZK_CONNECTION_TIMEOUT,
-                EtlZkClient.DEFAULT_ZOOKEEPER_TIMEOUT);
     }
 
     public static void setEtlIgnoreSchemaErrors(JobContext job, boolean val) {

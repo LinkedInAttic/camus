@@ -399,7 +399,6 @@ public class EtlCounts {
 				KeyedMessage keyedMessage = new KeyedMessage(
 						"TrackingMonitoringEvent", message);
 				producer.send(keyedMessage);
-				break;
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

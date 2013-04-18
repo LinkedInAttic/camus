@@ -54,9 +54,8 @@ public class KafkaReader {
     private long lastFetchTime = 0;
 
     private int fetchBufferSize;
-
-    private long processedOffset = 0;
-
+    
+ 
     /**
      * Construct using the json represention of the kafka request
      */
@@ -87,13 +86,17 @@ public class KafkaReader {
         simpleConsumer = new SimpleConsumer(uri.getHost(), uri.getPort(),
                 CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
                 CamusJob.getKafkaClientName(context));
-        fetch();
         System.out.println("Connected to node " + uri + " beginning reading at offset "
                 + beginOffset + " latest offset=" + lastOffset);
+        fetch();       
     }
 
     public boolean hasNext() throws IOException {
-        return (messageIter != null && messageIter.hasNext()) || fetch();
+        if(messageIter != null && messageIter.hasNext())
+            return true;
+        else
+            return fetch();
+    
     }
 
     /**
@@ -109,10 +112,6 @@ public class KafkaReader {
         if (hasNext()) {
 
             MessageAndOffset msgAndOffset = messageIter.next();
-            if (processedOffset == 0) {
-                System.out.println("Starting processing offset : " + msgAndOffset.offset());
-            }
-            processedOffset = msgAndOffset.offset();
             Message message = msgAndOffset.message();
 
             ByteBuffer buf = message.payload();
@@ -130,7 +129,6 @@ public class KafkaReader {
 
             return true;
         } else {
-            System.out.println("ProcessedOffset till = " + processedOffset);
             return false;
         }
     }
@@ -141,17 +139,15 @@ public class KafkaReader {
      * @return false if there's no more fetches
      * @throws IOException
      */
+    
     public boolean fetch() throws IOException {
-        if (currentOffset >= lastOffset) {
+        if (currentOffset + 1 >= lastOffset) {
             return false;
         }
         long tempTime = System.currentTimeMillis();
-        // FetchResponse fetchResponse =
-        System.out.println("ProcessedOffset till : " + processedOffset);
-        processedOffset = 0;
         TopicAndPartition topicAndPartition = new TopicAndPartition(kafkaRequest.getTopic(),
                 kafkaRequest.getPartition());
-        System.out.println("Asking for data from offset : " + currentOffset + 1);
+        System.out.println("\nAsking for offset --->" + (currentOffset + 1));
         PartitionFetchInfo partitionFetchInfo = new PartitionFetchInfo(currentOffset + 1,
                 fetchBufferSize);
 
@@ -173,28 +169,29 @@ public class KafkaReader {
         ByteBufferMessageSet messageBuffer = fetchResponse.messageSet(kafkaRequest.getTopic(),
                 kafkaRequest.getPartition());
         lastFetchTime = (System.currentTimeMillis() - tempTime);
+        System.out.println("The fetch request took --> " + (lastFetchTime /1000) + " seconds");
+        int skipped = 0;
         totalFetchTime += lastFetchTime;
         if (!hasError(fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition()))) {
             messageIter = messageBuffer.iterator();
             boolean flag = false;
-            boolean debug = true;
             Iterator<MessageAndOffset> messageIter2 = messageBuffer.iterator();
+            MessageAndOffset message = null;
             while (messageIter2.hasNext()) {
-                MessageAndOffset message = messageIter2.next();
+                message = messageIter2.next();
+                System.out.println("Receieved the message buffer starting with offset --> " + message.offset());
                 if (message.offset() < currentOffset) {
-                    flag = true;
-                    if (debug) {
-                        debug = false;
-                        System.out.println("Skipping offsets from : " + message.offset());
-                    }
+                    flag = true;  
+                    skipped++;
                 } else {
-                    System.out.println("Skipped offsets till : " + message.offset());
+                    System.out.println("Skipped offsets till --> " + message.offset() + "\n");
                     break;
                 }
             }
+            System.out.println("Skipped Offsets --> " + skipped);
             if (!messageIter2.hasNext()) {
                 System.out.println("No more data left to process. Returning false");
-                messageIter = messageIter2;
+                messageIter = null;
                 return false;
             }
             if (flag) {
@@ -260,6 +257,7 @@ public class KafkaReader {
                     .topicsMetadata().get(0);
             consumer.close();
             List<PartitionMetadata> partitionsMetadata = topicMetadata.partitionsMetadata();
+            
             for (PartitionMetadata partitionMetadata : partitionsMetadata) {
                 if (partitionMetadata.partitionId() == kafkaRequest.getPartition()) {
                     URI partitionURI = new URI("tcp://"
@@ -293,7 +291,7 @@ public class KafkaReader {
                         long newLeaderLatestOffset = endOffset[0];
                         if (newLeaderLatestOffset < kafkaRequest.getOffset()) {
                             System.out
-                                    .println("Modified the request to start from the new partition : "
+                                    .println("Modified the request to start from the new partition and start reading from the offset : "
                                             + newLeaderLatestOffset);
                             kafkaRequest.setOffset(newLeaderLatestOffset);
                         }
@@ -329,7 +327,7 @@ public class KafkaReader {
 
     /**
      * Returns the number of events that have been read
-     * 
+     * r
      * @return
      */
     public long getCount() {

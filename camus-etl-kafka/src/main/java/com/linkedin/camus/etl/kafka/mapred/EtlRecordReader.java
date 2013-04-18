@@ -209,7 +209,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             request.getOffset(), request.getOffset(), 0);
                     value = new AvroWrapper<Object>(new Object());
 
-                    System.out.println("topic:" + request.getTopic() + " partition:"
+                    System.out.println("\n\ntopic:" + request.getTopic() + " partition:"
                             + request.getPartition() + " beginOffset:" + request.getOffset()
                             + " estimatedLastOffset:" + request.getLastOffset());
 
@@ -287,7 +287,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
                         if(timeStamp > endTimeStamp)
-                        System.out.println("KafkaMax history max hours reached");
+                        System.out.println("Kafka Max history hours reached");
                         if(System.currentTimeMillis() > maxPullTime)
                             System.out.println("Kafka pull time limit reached");
                         statusMsg += " max read at " + new DateTime(timeStamp).toString();

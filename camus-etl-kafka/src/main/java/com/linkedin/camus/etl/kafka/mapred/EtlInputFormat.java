@@ -84,41 +84,29 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
     @Override
     public List<InputSplit> getSplits(JobContext context) throws IOException, InterruptedException {
         CamusJob.startTiming("getSplits");
-
         List<EtlRequest> requests;
         try {
-            // Create the zkClient for kafka.
+
             ArrayList<String> topicList = new ArrayList<String>();
-            List<String> whiteListTopicsList = Arrays.asList(getKafkaWhitelistTopic(context));
-            List<String> blackListTopicsList = Arrays.asList(getKafkaBlacklistTopic(context));
-            Set<String> whiteListTopics = new HashSet<String>(whiteListTopicsList);
-            Set<String> blackListTopics = new HashSet<String>(blackListTopicsList);
-            System.out.println("Whitelist topics : " + whiteListTopicsList);
-            System.out.println("Blacklist Topics : " + blackListTopicsList);
+            HashSet<String> whiteListTopics = new HashSet<String>( 
+                    Arrays.asList(getKafkaWhitelistTopic(context)));
+            HashSet<String> blackListTopics = new HashSet<String>(
+                    Arrays.asList(getKafkaBlacklistTopic(context)));
+            System.out.println("Whitelist topics : " + whiteListTopics);
+            System.out.println("Blacklist Topics : " + blackListTopics);
 
             if (!whiteListTopics.isEmpty()) {
                 topicList.addAll(whiteListTopics);
             }
             CamusJob.startTiming("kafkaSetupTime");
-            List<TopicMetadata> topicMetadataList = null;//KafkaClient.getMetadata(topicList);
-            
-            
+            List<TopicMetadata> topicMetadataList = null;// KafkaClient.getMetadata(topicList);
             SimpleConsumer consumer = null;
-            try {
-                consumer = new SimpleConsumer(CamusJob.getKafkaHostUrl(context), CamusJob.getKafkaHostPort(context),
-                        CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
-                topicMetadataList = (consumer.send(new TopicMetadataRequest(topicList)))
-                        .topicsMetadata();
-            } catch (Exception e) {
-                System.out.println("Error while querying Kafka for Metadata");
-                System.out.println("Kafka Host Details : " + "\nHost : "
-                        + CamusJob.getKafkaHostUrl(context) + "\nPort : " + CamusJob.getKafkaHostPort(context)
-                        + "\n");
-                throw new RuntimeException("Unable to fetch metadata from Kafka", e);
-            } finally {
-                if (consumer != null)
-                    consumer.close();
-            }
+            consumer = new SimpleConsumer(CamusJob.getKafkaHostUrl(context),
+                    CamusJob.getKafkaHostPort(context), CamusJob.getKafkaTimeoutValue(context),
+                    CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
+            topicMetadataList = (consumer.send(new TopicMetadataRequest(topicList)))
+                    .topicsMetadata();
+
             CamusJob.stopTiming("kafkaSetupTime");
 
             ArrayList<String> topicsToDiscard = new ArrayList<String>();
@@ -126,18 +114,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 if (blackListTopics.contains(topicMetadata.topic())
                         || !createMessageDecoder(context, topicMetadata.topic())) {
                     topicsToDiscard.add(topicMetadata.topic());
-                }
-            }
-
-            // Initialize a decoder for each topic so we can discard the topics
-            // for which we cannot construct a decoder
-            for (String topic : topicList) {
-                try {
-                    MessageDecoderFactory.createMessageDecoder(context, topic);
-                } catch (Exception e) {
-                    log.debug("We cound not construct a decoder for topic '" + topic
-                            + "', so that topic will be discarded.", e);
-                    topicsToDiscard.add(topic);
                 }
             }
 
@@ -153,27 +129,20 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                     + topicList);
 
             requests = new ArrayList<EtlRequest>();
+            HashMap<String, List<EtlRequest>> partitionInfo = new HashMap<String, List<EtlRequest>>();
 
-            HashMap<String, List<EtlRequest>> partitionInfo = new HashMap<String, List<EtlRequest>>();//KafkaClient.createEtlRequests(
-                    //topicMetadataList, topicsToDiscard);
-            
-            
             for (TopicMetadata topicMetadata : topicMetadataList) {
                 if (topicsToDiscard.contains(topicMetadata.topic())) {
                     continue;
                 }
-
+                ArrayList<EtlRequest> tempEtlRequests = new ArrayList<EtlRequest>();
                 List<PartitionMetadata> partitionsMetadata = topicMetadata.partitionsMetadata();
-                List<EtlRequest> tempEtlRequests = new ArrayList<EtlRequest>();
-
                 for (PartitionMetadata partitionMetadata : partitionsMetadata) {
                     if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
-                        System.out.println("Skipping the creation of ETL request for Topic : "
+                        log.info("Skipping the creation of ETL request for Topic : "
                                 + topicMetadata.topic() + " and Partition : "
                                 + partitionMetadata.partitionId() + " Exception : "
                                 + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
-                        // In case of a temporary error, next run should process
-                        // this
                         continue;
                     } else {
                         try {
@@ -183,7 +152,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                                             + partitionMetadata.leader().getConnectionString()));
                             tempEtlRequests.add(etlRequest);
                         } catch (URISyntaxException e) {
-                            System.out.println("Skipping the creation of ETL request for Topic : "
+                            log.info("Skipping the creation of ETL request for Topic : "
                                     + topicMetadata.topic() + " and Partition : "
                                     + partitionMetadata.partitionId() + " Exception : "
                                     + e.getMessage());
@@ -192,17 +161,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                     }
                 }
                 if (tempEtlRequests.size() != 0) {
-                    
                     partitionInfo.put(topicMetadata.topic(), tempEtlRequests);
                 }
+                // tempEtlRequests.clear();
             }
             requests = new ArrayList<EtlRequest>();
             for (String topic : partitionInfo.keySet()) {
                 requests.addAll(partitionInfo.get(topic));
             }
         } catch (Exception e) {
-            log.error("Unable to pull requests from zookeeper, using previous requests", e);
-            requests = getPreviousRequests(context);
+            log.error("Unable to pull requests from Kafka brokers. Exiting the program", e);
+            return null;
         }
 
         // writing request to output directory so next Camus run can use them if
@@ -211,33 +180,40 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 
         Map<EtlRequest, EtlKey> offsetKeys = getPreviousOffsets(
                 FileInputFormat.getInputPaths(context), context);
+        //System.out.println("The size of previous offsets read is " + offsetKeys.size() + " and the requests size is " + requests.size());
         Set<String> moveLatest = getMoveToLatestTopicsSet(context);
-
+        
         for (EtlRequest request : requests) {
             if (moveLatest.contains(request.getTopic()) || moveLatest.contains("all")) {
                 offsetKeys.put(request,
                         new EtlKey(request.getTopic(), request.getNodeId(), request.getPartition(),
                                 0, request.getLastOffset()));
             }
-
+            
             EtlKey key = offsetKeys.get(request);
+//            if(key == null)
+//            {
+//                System.out.println("Not able to locate the previous offset. ");
+//            }
             if (key != null) {
+//                System.out.println("The leader in the key is --> " + key.getNodeId());
+//                System.out.println("NOTE : The offset has been changed to read from this offset ---> " + key.getOffset());
                 request.setOffset(key.getOffset());
             }
 
             if (request.getEarliestOffset() > request.getOffset()) {
+//                System.out.println("NOTE : The offset has been changed to read from the EARLIEST offset ---> " + key.getOffset());
                 request.setOffset(request.getEarliestOffset());
             }
-
+           
             log.info(request);
         }
-
+      
         writePrevious(offsetKeys.values(), context);
 
         CamusJob.stopTiming("getSplits");
         CamusJob.startTiming("hadoop");
         CamusJob.setTime("hadoop_start");
-
         return allocateWork(requests, context);
     }
 
@@ -356,22 +332,22 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         writer.close();
     }
 
-    private List<EtlRequest> getPreviousRequests(JobContext context) throws IOException {
-        List<EtlRequest> requests = new ArrayList<EtlRequest>();
-        FileSystem fs = FileSystem.get(context.getConfiguration());
-        Path input = FileInputFormat.getInputPaths(context)[0];
-
-        input = new Path(input, EtlMultiOutputFormat.REQUESTS_FILE);
-        SequenceFile.Reader reader = new SequenceFile.Reader(fs, input, context.getConfiguration());
-
-        EtlRequest request = new EtlRequest();
-        while (reader.next(request, NullWritable.get())) {
-            requests.add(new EtlRequest(request));
-        }
-
-        reader.close();
-        return requests;
-    }
+//    private List<EtlRequest> getPreviousRequests(JobContext context) throws IOException {
+//        List<EtlRequest> requests = new ArrayList<EtlRequest>();
+//        FileSystem fs = FileSystem.get(context.getConfiguration());
+//        Path input = FileInputFormat.getInputPaths(context)[0];
+//
+//        input = new Path(input, EtlMultiOutputFormat.REQUESTS_FILE);
+//        SequenceFile.Reader reader = new SequenceFile.Reader(fs, input, context.getConfiguration());
+//
+//        EtlRequest request = new EtlRequest();
+//        while (reader.next(request, NullWritable.get())) {
+//            requests.add(new EtlRequest(request));
+//        }
+//
+//        reader.close();
+//        return requests;
+//    }
 
     private Map<EtlRequest, EtlKey> getPreviousOffsets(Path[] inputs, JobContext context)
             throws IOException {
@@ -383,12 +359,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(),
                         context.getConfiguration());
                 EtlKey key = new EtlKey();
-                while (reader.next(key, NullWritable.get())) {
+                while (reader.next(key, NullWritable.get())) {                
                     EtlRequest request = new EtlRequest(context, key.getTopic(), key.getNodeId(),
                             key.getPartition());
-
                     if (offsetKeysMap.containsKey(request)) {
-                        EtlKey oldKey = offsetKeysMap.get(request);
+                        
+                        EtlKey oldKey = offsetKeysMap.get(request);                      
                         if (oldKey.getOffset() < key.getOffset()) {
                             offsetKeysMap.put(request, key);
                         }
@@ -400,7 +376,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 reader.close();
             }
         }
-
+        System.out.println("Final Size : " + offsetKeysMap.size());
         return offsetKeysMap;
     }
 

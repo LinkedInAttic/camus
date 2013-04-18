@@ -20,8 +20,8 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     public static final Text SERVER = new Text("server");
     public static final Text SERVICE = new Text("service");
     public static EtlKey DUMMY_KEY = new EtlKey();
-
-	private String nodeId = "";
+    
+    private String nodeId = "";
 	private int partition = 0;
 	private long beginOffset = 0;
 	private long offset = 0;
@@ -37,11 +37,11 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	 * dummy empty constructor
 	 */
 	public EtlKey() {
-		this("dummy", "0", 0, 0, 0, 0);
+		this("dummy","0", 0, 0, 0, 0);
 	}
 
 	public EtlKey(EtlKey other) {
-		this.nodeId = other.nodeId;
+		
 		this.partition = other.partition;
 		this.beginOffset = other.beginOffset;
 		this.offset = other.offset;
@@ -61,7 +61,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 		this.set(topic, nodeId, partition, beginOffset, offset, 0);
 	}
 
-	public EtlKey(String topic, String nodeId, int partition, long beginOffset, long offset, long checksum) {
+	public EtlKey(String topic, String nodeId,  int partition, long beginOffset, long offset, long checksum) {
 		this.set(topic, nodeId, partition, beginOffset, offset, checksum);
 	}
 

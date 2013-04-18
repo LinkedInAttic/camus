@@ -173,6 +173,11 @@ public class EtlRequest implements Writable {
         return this.offset;
     }
 
+    
+    public void setNodeId(String nodeId) {
+        this.nodeId = nodeId;
+    }
+    
     /**
      * Returns true if the offset is valid (>= to earliest offset && <= to last
      * offset)
@@ -192,7 +197,7 @@ public class EtlRequest implements Writable {
 
     @Override
     public int hashCode() {
-        return (partition + nodeId + topic).hashCode();
+        return (partition + topic).hashCode();
     }
 
     @Override
@@ -237,6 +242,7 @@ public class EtlRequest implements Writable {
 
     public long getLastOffset(long time) {
         //TODO : Make the hardcoded values configurable
+    	
         SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 60000,
                 1024 * 1024, "hadoop-etl");
         Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
@@ -246,6 +252,10 @@ public class EtlRequest implements Writable {
                 kafka.api.OffsetRequest.CurrentVersion(),"hadoop-etl"));
         long[] endOffset = response.offsets(topic, partition);
         consumer.close();
+        if(endOffset.length == 0)
+        {
+        	System.out.println("The exception is thrown because the latest offset retunred zero for topic : " + topic + " and partition " + partition);
+        }
         this.latestOffset = endOffset[0];
         return endOffset[0];
     }

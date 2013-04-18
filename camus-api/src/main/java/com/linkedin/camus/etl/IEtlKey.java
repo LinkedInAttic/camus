@@ -12,7 +12,7 @@ public interface IEtlKey {
 
     String getTopic();
 
-    String getNodeId();
+    //String getNodeId();
 
     int getPartition();
 

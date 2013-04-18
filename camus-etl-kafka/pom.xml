@@ -36,13 +36,14 @@
 			<groupId>kafka</groupId>
 			<artifactId>kafka</artifactId>
 		</dependency>
-<!-- 		<dependency> -->
-<!-- 				<groupId>com.linkedin</groupId> -->
-<!-- 				<artifactId>kafka</artifactId> -->
-<!-- 				<version>0.8.0_0.18_c5462864aab05b9815-SNAPSHOT</version> -->
-<!-- 			</dependency> -->
-		
-		
+		<dependency>
+			<groupId>org.scala-lang</groupId>
+			<artifactId>scala-library</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.xerial.snappy</groupId>
+			<artifactId>snappy-java</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>com.github.sgroschupf</groupId>
 			<artifactId>zkclient</artifactId>

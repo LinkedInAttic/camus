@@ -50,6 +50,8 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -81,6 +83,8 @@ public class CamusJob extends Configured implements Tool {
     public static final String KAFKA_HOST_URL = "kafka.host.url";
     public static final String KAFKA_HOST_PORT = "kafka.host.port";
     public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
+    
+    private final Logger log = Logger.getLogger(getClass());
     
     
    
@@ -149,8 +153,10 @@ public class CamusJob extends Configured implements Tool {
 
     private Job createJob(Properties props) throws IOException {
         //Job job = new Job(getConf());
+    	
     	Job job = new Job();
         job.setJarByClass(CamusJob.class);
+        log.setLevel(Level.DEBUG);
         job.setJobName("Camus Job");
 
         // Set the default partitioner

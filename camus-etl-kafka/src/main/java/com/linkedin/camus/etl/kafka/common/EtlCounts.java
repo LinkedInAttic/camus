@@ -28,6 +28,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -67,6 +69,8 @@ public class EtlCounts {
 	private EtlKey lastKey;
 	private int eventCount = 0;
 
+	private final Logger log = Logger.getLogger(getClass());
+	
 	private final HashMap<Source, Long> trackingCount = new HashMap<Source, Long>();
 
 	// Used to decrease memory usage, we intern the string so it'll use the same
@@ -319,8 +323,8 @@ public class EtlCounts {
 
 	public void postTrackingCountToKafka(String tier, URI brokerURI) {
 		MessageEncoder<IndexedRecord, byte[]> encoder;
-
 		try {
+			log.setLevel(Level.DEBUG);
 			encoder = (MessageEncoder<IndexedRecord, byte[]>) Class.forName(
 					conf.get(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS))
 					.newInstance();
@@ -368,7 +372,7 @@ public class EtlCounts {
 			byte[] message = encoder.toBytes(trackingRecord);
 			monitorSet.add(message);
 
-			if (monitorSet.size() >= 1000) {
+			if (monitorSet.size() >= 2000) {
 				counts += monitorSet.size();
 				produceCount(brokerURI, monitorSet);
 				monitorSet.clear();
@@ -389,7 +393,7 @@ public class EtlCounts {
 		Properties props = new Properties();
 		props.put("broker.list",
 				brokerURI.getHost() + ":" + brokerURI.getPort());
-		props.put("buffer.size", 524288);
+		props.put("buffer.size", "31457280");
 		props.put("producer.type", "async");
 		System.out.println("Host " + brokerURI.getHost() + " port "
 				+ brokerURI.getPort());

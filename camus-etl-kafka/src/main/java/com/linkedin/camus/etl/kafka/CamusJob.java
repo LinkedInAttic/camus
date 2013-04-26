@@ -50,6 +50,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.hadoop.util.VersionInfo;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
@@ -83,17 +84,15 @@ public class CamusJob extends Configured implements Tool {
     public static final String KAFKA_HOST_URL = "kafka.host.url";
     public static final String KAFKA_HOST_PORT = "kafka.host.port";
     public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
-    
+
     private final Logger log = Logger.getLogger(getClass());
-    
-    
-   
- private final Properties props;
+
+    private final Properties props;
 
     public CamusJob() {
         this.props = new Properties();
     }
-    
+
     public CamusJob(Properties props) throws IOException {
         this.props = props;
     }
@@ -134,29 +133,10 @@ public class CamusJob extends Configured implements Tool {
         writer.close();
     }
 
-//    private List<URI> readBrokers(FileSystem fs, Job job) throws IOException, URISyntaxException {
-//        ArrayList<URI> brokerURI = new ArrayList<URI>();
-//        Path input = new Path(FileInputFormat.getInputPaths(job)[0], BROKER_URI_FILE);
-//
-//        BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(input)));
-//
-//        String str;
-//
-//        while ((str = reader.readLine()) != null) {
-//            brokerURI.add(new URI(str));
-//        }
-//
-//        reader.close();
-//
-//        return brokerURI;
-//    }
-
     private Job createJob(Properties props) throws IOException {
-        //Job job = new Job(getConf());
-    	
+    	//Job job = new Job(getConf());
     	Job job = new Job();
         job.setJarByClass(CamusJob.class);
-        log.setLevel(Level.DEBUG);
         job.setJobName("Camus Job");
 
         // Set the default partitioner
@@ -204,7 +184,7 @@ public class CamusJob extends Configured implements Tool {
     public void run() throws Exception {
         startTiming("pre-setup");
         startTiming("total");
-        
+
         Job job = createJob(props);
         FileSystem fs = FileSystem.get(job.getConfiguration());
 
@@ -320,11 +300,11 @@ public class CamusJob extends Configured implements Tool {
                 }
             }
 
-        URI brokerURI = new URI("tcp://" + getKafkaHostUrl(job) + ":" + getKafkaHostPort(job));
-	    if(getPostTrackingCountsToKafka(job)) {
-            	for (EtlCounts count : countsMap.values()) {
-            		count.postTrackingCountToKafka(props.getProperty(KAFKA_MONITOR_TIER), brokerURI);
-           	 }
+            URI brokerURI = new URI("tcp://" + getKafkaHostUrl(job) + ":" + getKafkaHostPort(job));
+            if (getPostTrackingCountsToKafka(job)) {
+                for (EtlCounts count : countsMap.values()) {
+                    count.postTrackingCountToKafka(props.getProperty(KAFKA_MONITOR_TIER), brokerURI);
+                }
             }
 
         }
@@ -359,7 +339,7 @@ public class CamusJob extends Configured implements Tool {
         stopTiming("commit");
 
         stopTiming("total");
-        createReport(job, timingMap);
+        //createReport(job, timingMap);
 
         // the hadoop job should never fail, since all errors in the hadoop
         // tasks should be
@@ -552,54 +532,45 @@ public class CamusJob extends Configured implements Tool {
         return 0;
     }
 
-    
-    //Temporarily adding all Kafka parameters here 
-    public static boolean getPostTrackingCountsToKafka(Job job){
-    	return job.getConfiguration().getBoolean(POST_TRACKING_COUNTS_TO_KAFKA, true);
+    // Temporarily adding all Kafka parameters here
+    public static boolean getPostTrackingCountsToKafka(Job job) {
+        return job.getConfiguration().getBoolean(POST_TRACKING_COUNTS_TO_KAFKA, true);
     }
-    
-    public static int getKafkaFetchRequestMinBytes(JobContext context){
+
+    public static int getKafkaFetchRequestMinBytes(JobContext context) {
         return context.getConfiguration().getInt(KAFKA_FETCH_REQUEST_MIN_BYTES, 1024);
     }
-    
-    public static int getKafkaFetchRequestMaxWait(JobContext job)
-    {
+
+    public static int getKafkaFetchRequestMaxWait(JobContext job) {
         return job.getConfiguration().getInt(KAFKA_FETCH_REQUEST_MAX_WAIT, 1000);
     }
-    
-    public static String getKafkaHostUrl(JobContext job)
-    {
+
+    public static String getKafkaHostUrl(JobContext job) {
         return job.getConfiguration().get(KAFKA_HOST_URL);
     }
-    
-    public static int getKafkaHostPort(JobContext job)
-    {
+
+    public static int getKafkaHostPort(JobContext job) {
         return job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
     }
-    
-    public static int getKafkaFetchRequestCorrelationId(JobContext job)
-    {
+
+    public static int getKafkaFetchRequestCorrelationId(JobContext job) {
         return job.getConfiguration().getInt(KAFKA_FETCH_REQUEST_CORRELATION_ID, -1);
     }
-    
-    public static String getKafkaClientName(JobContext job)
-    {
+
+    public static String getKafkaClientName(JobContext job) {
         return job.getConfiguration().get(KAFKA_CLIENT_NAME);
     }
-    
-    public static String getKafkaFetchRequestBufferSize(JobContext job)
-    {
+
+    public static String getKafkaFetchRequestBufferSize(JobContext job) {
         return job.getConfiguration().get(KAFKA_FETCH_BUFFER_SIZE);
     }
-    
-    public static int getKafkaTimeoutValue(JobContext job)
-    {
+
+    public static int getKafkaTimeoutValue(JobContext job) {
         int timeOut = job.getConfiguration().getInt(KAFKA_TIMEOUT_VALUE, 30000);
         return timeOut;
     }
-   
-    public static int getKafkaBufferSize(JobContext job)
-    {
-        return job.getConfiguration().getInt(KAFKA_FETCH_BUFFER_SIZE, 1024*1024);
+
+    public static int getKafkaBufferSize(JobContext job) {
+        return job.getConfiguration().getInt(KAFKA_FETCH_BUFFER_SIZE, 1024 * 1024);
     }
 }

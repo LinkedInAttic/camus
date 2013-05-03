@@ -205,7 +205,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         endTimeStamp = 0;
                     }
 
-                    key.set(request.getTopic(), request.getNodeId(), request.getPartition(),
+                    key.set(request.getTopic(), request.getLeaderId(), request.getPartition(),
                             request.getOffset(), request.getOffset(), 0);
                     value = new AvroWrapper<Object>(new Object());
 
@@ -214,7 +214,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             + " estimatedLastOffset:" + request.getLastOffset());
 
                     statusMsg += statusMsg.length() > 0 ? "; " : "";
-                    statusMsg += request.getTopic() + ":" + request.getNodeId() + ":"
+                    statusMsg += request.getTopic() + ":" + request.getLeaderId() + ":"
                             + request.getPartition();
                     context.setStatus(statusMsg);
 

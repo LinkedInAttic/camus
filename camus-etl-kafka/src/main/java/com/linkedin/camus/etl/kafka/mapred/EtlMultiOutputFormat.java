@@ -206,7 +206,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
     public String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
         Partitioner partitioner = getPartitioner(context, key.getTopic());
-        return "data." + key.getTopic().replaceAll("\\.", "_") + "." + key.getNodeId() + "." + key.getPartition() + "." + partitioner.encodePartition(context, key);
+        return "data." + key.getTopic().replaceAll("\\.", "_") + "." + key.getLeaderId() + "." + key.getPartition() + "." + partitioner.encodePartition(context, key);
     }
 
     public static Partitioner getDefaultPartitioner(JobContext job) {
@@ -323,7 +323,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         }
 
         public void addOffset(EtlKey key) {
-            String topicPart = key.getTopic() + "-" + key.getNodeId() + "-" + key.getPartition();
+            String topicPart = key.getTopic() + "-" + key.getLeaderId() + "-" + key.getPartition();
             offsets.put(topicPart, new EtlKey(key));
         }
 
@@ -382,16 +382,16 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 throw new IOException("Could not extract metadata from working filename '" + file + "'");
             }
             String topic = m.group(1);
-            String nodeId = m.group(2);
+            String leaderId = m.group(2);
             String partition = m.group(3);
             String encodedPartition = m.group(4);
 
             String partitionedPath =
-                        getPartitioner(context, topic).generatePartitionedPath(context, topic, Integer.parseInt(nodeId),
+                        getPartitioner(context, topic).generatePartitionedPath(context, topic, Integer.parseInt(leaderId),
                                 Integer.parseInt(partition), encodedPartition);
 
             return partitionedPath +
-                        "/" + topic + "." + nodeId + "." + partition +
+                        "/" + topic + "." + leaderId + "." + partition +
                         "." + count+
                         "." + offset + EXT;
         }

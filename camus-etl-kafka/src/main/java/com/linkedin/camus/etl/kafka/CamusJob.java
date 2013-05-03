@@ -1,14 +1,11 @@
 package com.linkedin.camus.etl.kafka;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,13 +42,10 @@ import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.hadoop.util.VersionInfo;
-import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -84,8 +78,6 @@ public class CamusJob extends Configured implements Tool {
     public static final String KAFKA_HOST_URL = "kafka.host.url";
     public static final String KAFKA_HOST_PORT = "kafka.host.port";
     public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
-
-    private final Logger log = Logger.getLogger(getClass());
 
     private final Properties props;
 
@@ -339,7 +331,7 @@ public class CamusJob extends Configured implements Tool {
         stopTiming("commit");
 
         stopTiming("total");
-        //createReport(job, timingMap);
+        createReport(job, timingMap);
 
         // the hadoop job should never fail, since all errors in the hadoop
         // tasks should be

@@ -23,7 +23,7 @@ import com.linkedin.camus.etl.kafka.CamusJob;
 /**
  * A class that represents the kafka pull request.
  * 
- * The class is a container for topic, nodeId, partition, uri and offset. It is
+ * The class is a container for topic, leaderId, partition, uri and offset. It is
  * used in reading and writing the sequence files used for the extraction job.
  * 
  * @author Richard Park
@@ -33,7 +33,7 @@ public class EtlRequest implements Writable {
     private static final long DEFAULT_OFFSET = 0;
 
     private String topic = "";
-    private String nodeId = "";
+    private String leaderId = "";
     private int partition = 0;
 
     private URI uri = null;
@@ -46,7 +46,7 @@ public class EtlRequest implements Writable {
 
     public EtlRequest(EtlRequest other) {
         this.topic = other.topic;
-        this.nodeId = other.nodeId;
+        this.leaderId = other.leaderId;
         this.partition = other.partition;
         this.uri = other.uri;
         this.offset = other.offset;
@@ -61,13 +61,13 @@ public class EtlRequest implements Writable {
      * 
      * @param topic
      *            The topic name
-     * @param nodeId
-     *            The kafka broker node id
+     * @param leaderId
+     *            The leader broker for this partition and topic
      * @param partition
      *            The partition to pull
      */
-    public EtlRequest(JobContext context, String topic, String nodeId, int partition) {
-        this(context, topic, nodeId, partition, null, DEFAULT_OFFSET);
+    public EtlRequest(JobContext context, String topic, String leaderId, int partition) {
+        this(context, topic, leaderId, partition, null, DEFAULT_OFFSET);
     }
 
     /**
@@ -75,15 +75,15 @@ public class EtlRequest implements Writable {
      * 
      * @param topic
      *            The topic name
-     * @param nodeId
-     *            The kafka broker node id
+     * @param leaderId
+     *            The leader broker for this topic and partition
      * @param partition
      *            The partition to pull
      * @param brokerUri
      *            The uri for the broker.
      */
-    public EtlRequest(JobContext context, String topic, String nodeId, int partition, URI brokerUri) {
-        this(context, topic, nodeId, partition, brokerUri, DEFAULT_OFFSET);
+    public EtlRequest(JobContext context, String topic, String leaderId, int partition, URI brokerUri) {
+        this(context, topic, leaderId, partition, brokerUri, DEFAULT_OFFSET);
     }
 
     /**
@@ -92,19 +92,19 @@ public class EtlRequest implements Writable {
      * 
      * @param topic
      *            The topic name
-     * @param nodeId
-     *            The kafka broker node id
+     * @param leaderId
+     *            The leader broker for this topic and partition
      * @param partition
      *            The partition to pull
      * @param brokerUri
      *            The uri for the broker
      * @param offset
      */
-    public EtlRequest(JobContext context, String topic, String nodeId, int partition,
+    public EtlRequest(JobContext context, String topic, String leaderId, int partition,
             URI brokerUri, long offset) {
         this.context = context;
         this.topic = topic;
-        this.nodeId = nodeId;
+        this.leaderId = leaderId;
         this.uri = brokerUri;
         this.partition = partition;
         setOffset(offset);
@@ -133,8 +133,8 @@ public class EtlRequest implements Writable {
      * 
      * @return
      */
-    public String getNodeId() {
-        return this.nodeId;
+    public String getLeaderId() {
+        return this.leaderId;
     }
 
     /**
@@ -174,8 +174,8 @@ public class EtlRequest implements Writable {
     }
 
     
-    public void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
+    public void setLeaderId(String leaderId) {
+        this.leaderId = leaderId;
     }
     
     /**
@@ -190,7 +190,7 @@ public class EtlRequest implements Writable {
 
     @Override
     public String toString() {
-        return topic + "\turi:" + (uri != null ? uri.toString() : "") + "\tnode:" + nodeId
+        return topic + "\turi:" + (uri != null ? uri.toString() : "") + "\tleader:" + leaderId
                 + "\tpartition:" + partition + "\toffset:" + offset + "\tlatest_offset:"
                 + getLastOffset();
     }
@@ -210,7 +210,7 @@ public class EtlRequest implements Writable {
      */
     @Override
     public EtlRequest clone() {
-        return new EtlRequest(context, topic, nodeId, partition, uri, offset);
+        return new EtlRequest(context, topic, leaderId, partition, uri, offset);
     }
 
     public long getEarliestOffset() {
@@ -280,7 +280,7 @@ public class EtlRequest implements Writable {
     @Override
     public void readFields(DataInput in) throws IOException {
         topic = UTF8.readString(in);
-        nodeId = UTF8.readString(in);
+        leaderId = UTF8.readString(in);
         String str = UTF8.readString(in);
         if (!str.isEmpty())
             try {
@@ -295,7 +295,7 @@ public class EtlRequest implements Writable {
     @Override
     public void write(DataOutput out) throws IOException {
         UTF8.writeString(out, topic);
-        UTF8.writeString(out, nodeId);
+        UTF8.writeString(out, leaderId);
         if (uri != null)
             UTF8.writeString(out, uri.toString());
         else

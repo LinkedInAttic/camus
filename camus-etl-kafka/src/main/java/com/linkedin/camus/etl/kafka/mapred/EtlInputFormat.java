@@ -51,11 +51,6 @@ import com.linkedin.camus.etl.kafka.common.EtlRequest;
  * Input format for a Kafka pull job.
  */
 public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
-    public static final String ZK_HOSTS = "zookeeper.hosts";
-    public static final String ZK_TOPIC_PATH = "zookeeper.broker.topics";
-    public static final String ZK_BROKER_PATH = "zookeeper.broker.nodes";
-    public static final String ZK_SESSION_TIMEOUT = "zookeeper.session.timeout";
-    public static final String ZK_CONNECTION_TIMEOUT = "zookeeper.connection.timeout";
 
     public static final String KAFKA_BLACKLIST_TOPIC = "kafka.blacklist.topics";
     public static final String KAFKA_WHITELIST_TOPIC = "kafka.whitelist.topics";
@@ -186,7 +181,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         for (EtlRequest request : requests) {
             if (moveLatest.contains(request.getTopic()) || moveLatest.contains("all")) {
                 offsetKeys.put(request,
-                        new EtlKey(request.getTopic(), request.getNodeId(), request.getPartition(),
+                        new EtlKey(request.getTopic(), request.getLeaderId(), request.getPartition(),
                                 0, request.getLastOffset()));
             }
             
@@ -196,7 +191,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 //                System.out.println("Not able to locate the previous offset. ");
 //            }
             if (key != null) {
-//                System.out.println("The leader in the key is --> " + key.getNodeId());
+//                System.out.println("The leader in the key is --> " + key.getleaderId());
 //                System.out.println("NOTE : The offset has been changed to read from this offset ---> " + key.getOffset());
                 request.setOffset(key.getOffset());
             }
@@ -360,7 +355,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                         context.getConfiguration());
                 EtlKey key = new EtlKey();
                 while (reader.next(key, NullWritable.get())) {                
-                    EtlRequest request = new EtlRequest(context, key.getTopic(), key.getNodeId(),
+                    EtlRequest request = new EtlRequest(context, key.getTopic(), key.getLeaderId(),
                             key.getPartition());
                     if (offsetKeysMap.containsKey(request)) {
                         
@@ -376,7 +371,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 reader.close();
             }
         }
-        System.out.println("Final Size : " + offsetKeysMap.size());
         return offsetKeysMap;
     }
 
@@ -452,38 +446,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
         } else {
             return new String[] {};
         }
-    }
-
-    public static void setZkHosts(JobContext job, String val) {
-        job.getConfiguration().set(ZK_HOSTS, val);
-    }
-
-    public static String getZkHosts(JobContext job) {
-        return job.getConfiguration().get(ZK_HOSTS);
-    }
-
-    public static void setZkTopicPath(JobContext job, String val) {
-        job.getConfiguration().set(ZK_TOPIC_PATH, val);
-    }
-
-    public static String getZkTopicPath(JobContext job) {
-        return job.getConfiguration().get(ZK_TOPIC_PATH);
-    }
-
-    public static void setZkBrokerPath(JobContext job, String val) {
-        job.getConfiguration().set(ZK_BROKER_PATH, val);
-    }
-
-    public static String getZkBrokerPath(JobContext job) {
-        return job.getConfiguration().get(ZK_BROKER_PATH);
-    }
-
-    public static void setZkSessionTimeout(JobContext job, int val) {
-        job.getConfiguration().setInt(ZK_SESSION_TIMEOUT, val);
-    }
-
-    public static void setZkConnectionTimeout(JobContext job, int val) {
-        job.getConfiguration().setInt(ZK_CONNECTION_TIMEOUT, val);
     }
 
     public static void setEtlIgnoreSchemaErrors(JobContext job, boolean val) {

@@ -393,8 +393,8 @@ public class EtlCounts {
 		Properties props = new Properties();
 		props.put("broker.list",
 				brokerURI.getHost() + ":" + brokerURI.getPort());
-		props.put("buffer.size", "31457280");
 		props.put("producer.type", "async");
+		props.put("request.required.acks", "-1");
 		System.out.println("Host " + brokerURI.getHost() + " port "
 				+ brokerURI.getPort());
 		Producer producer = new Producer(new ProducerConfig(props));

@@ -27,7 +27,7 @@ public class EtlKeyTest {
         in.reset(out.getData(), out.getLength());
 
         newKey.readFields(in);
-        assertEquals("nodeId", newKey.getNodeId());
+        assertEquals("leaderId", newKey.getLeaderId());
         assertEquals(1, newKey.getPartition());
         assertEquals(2, newKey.getBeginOffset());
         assertEquals(3, newKey.getOffset());
@@ -39,7 +39,7 @@ public class EtlKeyTest {
     }
 
     public static class OldEtlKey implements WritableComparable<OldEtlKey> {
-        private String nodeId = "nodeId";
+        private String leaderId = "leaderId";
        	private int partition = 1;
        	private long beginOffset = 2;
        	private long offset = 3;
@@ -54,7 +54,7 @@ public class EtlKeyTest {
         }
 
         public void write(DataOutput out) throws IOException {
-            UTF8.writeString(out, this.nodeId);
+            UTF8.writeString(out, this.leaderId);
             out.writeInt(this.partition);
             out.writeLong(this.beginOffset);
             out.writeLong(this.offset);

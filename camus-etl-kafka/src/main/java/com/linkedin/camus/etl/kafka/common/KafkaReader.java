@@ -83,7 +83,7 @@ public class KafkaReader {
 				CamusJob.getKafkaTimeoutValue(context),
 				CamusJob.getKafkaBufferSize(context),
 				CamusJob.getKafkaClientName(context));
-		System.out.println("Connected to node " + uri
+		System.out.println("Connected to leader " + uri
 				+ " beginning reading at offset " + beginOffset
 				+ " latest offset=" + lastOffset);
 		fetch();
@@ -119,7 +119,7 @@ public class KafkaReader {
 			value.set(bytes, 0, origSize);
 
 			key.clear();
-			key.set(kafkaRequest.getTopic(), kafkaRequest.getNodeId(),
+			key.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(),
 					kafkaRequest.getPartition(), currentOffset,
 					msgAndOffset.offset(), message.checksum());
 
@@ -189,7 +189,7 @@ public class KafkaReader {
 						skipped++;
 					} else {
 						System.out.println("Skipped offsets till : "
-								+ message.offset() + "\n");
+								+ message.offset());
 						break;
 					}
 				}

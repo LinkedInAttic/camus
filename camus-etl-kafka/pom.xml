@@ -12,11 +12,11 @@
 	<name>Camus ETL to move data from Kafka to Hadoop.</name>
 	<packaging>jar</packaging>
 	<dependencies>
-		<dependency>
+	<!--<dependency>
 			<groupId>com.linkedin.camus8</groupId>
 			<artifactId>camus-internal</artifactId>
 			<version>0.1.0-SNAPSHOT</version>
-		</dependency>
+		</dependency> -->
 		<dependency>
 			<groupId>com.linkedin.camus</groupId>
 			<artifactId>camus-api</artifactId>
@@ -77,11 +77,11 @@
 				<artifactId>avro-maven-plugin</artifactId>
 				<version>1.7.0</version>
 				<executions>
-					<!-- <execution> <id>schemas</id> <phase>generate-sources</phase> <goals> 
+					 <execution> <id>schemas</id> <phase>generate-sources</phase> <goals> 
 						<goal>schema</goal> <goal>protocol</goal> <goal>idl-protocol</goal> </goals> 
 						<configuration> <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory> 
 						<outputDirectory>${project.basedir}/src/main/java/</outputDirectory> </configuration> 
-						</execution> -->
+						</execution> 
 				</executions>
 			</plugin>
 		</plugins>

@@ -40,7 +40,7 @@ public class EtlRequest implements Writable {
     private long offset = DEFAULT_OFFSET;
     private long latestOffset = -1;
     private long earliestOffset = -2;
-
+    
     public EtlRequest() {
     }
 
@@ -54,6 +54,14 @@ public class EtlRequest implements Writable {
         this.earliestOffset = other.earliestOffset;
     }
 
+    public void setLatestOffset(long latestOffset) {
+		this.latestOffset = latestOffset;
+	}
+    
+    public void setEarliestOffset(long earliestOffset) {
+		this.earliestOffset = earliestOffset;
+	}
+    
     /**
      * Constructor for a KafkaETLRequest with the uri set to null and offset set
      * to -1. Both of these attributes can be set later. These attributes are
@@ -237,12 +245,12 @@ public class EtlRequest implements Writable {
         if (this.latestOffset == -1 && uri != null)
             return getLastOffset(kafka.api.OffsetRequest.LatestTime());
         else
-            return this.latestOffset;
+        {           
+        	return this.latestOffset;
+        }
     }
 
     public long getLastOffset(long time) {
-        //TODO : Make the hardcoded values configurable
-    	
         SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 60000,
                 1024 * 1024, "hadoop-etl");
         Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
@@ -290,6 +298,7 @@ public class EtlRequest implements Writable {
             }
         partition = in.readInt();
         offset = in.readLong();
+        latestOffset = in.readLong();
     }
 
     @Override
@@ -302,5 +311,6 @@ public class EtlRequest implements Writable {
             UTF8.writeString(out, "");
         out.writeInt(partition);
         out.writeLong(offset);
+        out.writeLong(latestOffset);
     }
 }

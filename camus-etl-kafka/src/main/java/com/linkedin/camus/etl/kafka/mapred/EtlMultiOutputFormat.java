@@ -1,6 +1,8 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +29,7 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -316,7 +319,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         public void addCounts(EtlKey key) throws IOException {
             String workingFileName = getWorkingFileName(context, key);
             if (!counts.containsKey(workingFileName))
-                counts.put(workingFileName, new EtlCounts(context.getConfiguration(), key.getTopic(),
+                counts.put(workingFileName, new EtlCounts(key.getTopic(),
                         granularityMs));
             counts.get(workingFileName).incrementMonitorCount(key);
             addOffset(key);
@@ -335,11 +338,12 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
         @Override
         public void commitTask(TaskAttemptContext context) throws IOException {
+        	
+        	ArrayList<Map<String,Object>> allCountObject = new ArrayList<Map<String,Object>>();
             FileSystem fs = FileSystem.get(context.getConfiguration());
             if (isRunMoveData(context)) {
                 Path workPath = super.getWorkPath();
                 Path baseOutDir = getDestinationPath(context);
-
                 for (FileStatus f : fs.listStatus(workPath)) {
                     String file = f.getPath().getName();
                     if (file.startsWith("data")) {
@@ -347,7 +351,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                         EtlCounts count = counts.get(workingFileName);
 
                         String partitionedFile = getPartitionedPath(context, file,
-                                count.getEventCount(), count.getLastOffsetKey().getOffset());
+                                count.getEventCount(), count.getLastKey().getOffset());
 
                         Path dest = new Path(baseOutDir, partitionedFile);
 
@@ -358,11 +362,19 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                         fs.rename(f.getPath(), dest);
 
                         if (isRunTrackingPost(context)) {
-                                count.writeCountsToHDFS(fs, new Path(workPath, COUNTS_PREFIX + "."
+                                count.writeCountsToHDFS(allCountObject, fs, new Path(workPath, COUNTS_PREFIX + "."
                                         + dest.getName().replace(EXT, "")));
                         }
                     }
                 }
+             
+                Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
+                OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
+                ObjectMapper mapper= new ObjectMapper();
+                System.out.println("Writing counts to : " + tempPath.toString());
+                long time = System.currentTimeMillis();
+                mapper.writeValue(outputStream, allCountObject);
+                System.out.println("Time taken : " + (System.currentTimeMillis() - time)/1000);
             }
 
             SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs,

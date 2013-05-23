@@ -1,18 +1,18 @@
 package com.linkedin.camus.etl.kafka;
 
-import java.io.BufferedWriter;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.io.InputStreamReader;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
 
@@ -26,6 +26,7 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -46,7 +47,7 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import org.apache.log4j.Logger;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -55,8 +56,11 @@ import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.type.TypeReference;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -112,18 +116,6 @@ public class CamusJob extends Configured implements Tool {
                         + System.currentTimeMillis());
     }
 
-    private void writeBrokers(FileSystem fs, Job job, List<URI> brokerURI) throws IOException {
-        Path output = new Path(FileOutputFormat.getOutputPath(job), BROKER_URI_FILE);
-
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fs.create(output)));
-
-        for (URI u : brokerURI) {
-            writer.write(u.toString());
-            writer.newLine();
-        }
-
-        writer.close();
-    }
 
     private Job createJob(Properties props) throws IOException {
     	//Job job = new Job(getConf());
@@ -165,7 +157,7 @@ public class CamusJob extends Configured implements Tool {
         if (externalJarList != null) {
             String[] jarFiles = externalJarList.split(",");
             for (String jarFile : jarFiles) {
-                System.out.println("Adding extenral jar File:" + jarFile);
+                System.out.println("Adding external jar File:" + jarFile);
                 DistributedCache.addFileToClassPath(new Path(jarFile), job.getConfiguration(), fs);
             }
         }
@@ -208,7 +200,6 @@ public class CamusJob extends Configured implements Tool {
         long currentCount = content.getFileCount() + content.getDirectoryCount();
 
         FileStatus[] executions = fs.listStatus(execHistory);
-        Iterator<FileStatus> iter = Arrays.asList(fs.listStatus(execHistory)).iterator();
 
         // removes oldest directory until we get under required % of count
         // quota. Won't delete the most recent directory.
@@ -262,86 +253,22 @@ public class CamusJob extends Configured implements Tool {
             }
         }
 
-        stopTiming("hadoop");
+       stopTiming("hadoop");
+       startTiming("commit");
+       
+       //Send Tracking counts to Kafka
+       sendTrackingCounts(job, fs,newExecutionOutput);
+       
+       //Print any potentail errors encountered
+       printErrors(fs, newExecutionOutput);
+       
+       fs.rename(newExecutionOutput, execHistory);
+       
+       System.out.println("Job finished");
+       stopTiming("commit");
+       stopTiming("total");
+       createReport(job, timingMap);
 
-        startTiming("commit");
-
-        // this is for kafka-audit. currently that is only semi-open sourced,
-        // but you can find more info
-        // at https://issues.apache.org/jira/browse/KAFKA-260. For now, we
-        // disable this section.
-        if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
-            HashMap<String, EtlCounts> countsMap = new HashMap<String, EtlCounts>();
-
-            for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
-                    EtlMultiOutputFormat.COUNTS_PREFIX))) {
-                String topic = f.getPath().getName().split("\\.")[1];
-
-                if (!countsMap.containsKey(topic)) {
-                    countsMap.put(topic, new EtlCounts(job.getConfiguration(), topic,
-                            EtlMultiOutputFormat.getMonitorTimeGranularityMins(job) * 60 * 1000L));
-                }
-
-                countsMap.get(topic).loadStreamingCountsFromDir(fs, f.getPath(), true);
-
-                if (props.getProperty(ETL_KEEP_COUNT_FILES, "false").equals("true")) {
-                    fs.rename(f.getPath(), new Path(props.getProperty(ETL_COUNTS_PATH), f.getPath()
-                            .getName()));
-                } else {
-                    fs.delete(f.getPath(), true);
-                }
-            }
-
-            URI brokerURI = new URI("tcp://" + getKafkaHostUrl(job) + ":" + getKafkaHostPort(job));
-            if (getPostTrackingCountsToKafka(job)) {
-                for (EtlCounts count : countsMap.values()) {
-                    count.postTrackingCountToKafka(props.getProperty(KAFKA_MONITOR_TIER), brokerURI);
-                }
-            }
-
-        }
-
-        // echo any errors in the error files. hopefully there are none
-        // TODO: we might want to add an option that throws an exception if
-        // there
-        // any errors recorded in these files, if the option is enabled
-        for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
-                EtlMultiOutputFormat.ERRORS_PREFIX))) {
-            SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(), fs.getConf());
-
-            EtlKey key = new EtlKey();
-            ExceptionWritable value = new ExceptionWritable();
-
-            while (reader.next(key, value)) {
-                System.err.println(key.toString());
-                System.err.println(value.toString());
-            }
-            reader.close();
-        }
-
-        // committing this job to the history directory. below we check if the
-        // job failed,
-        // but even a failed job will have some successfully completed work. Any
-        // output in
-        // the current execution dir can be safely committed to the history dir.
-        fs.rename(newExecutionOutput, execHistory);
-
-        System.out.println("Job finished");
-
-        stopTiming("commit");
-
-        stopTiming("total");
-        createReport(job, timingMap);
-
-        // the hadoop job should never fail, since all errors in the hadoop
-        // tasks should be
-        // isolated and logged in the error files. The downside is if a task
-        // does fail, then
-        // the OutputCommitter doesn't commit the error files, since failed
-        // tasks don't commit
-        // any files as rule. In this case, we have this block of code to to
-        // echo any errors
-        // we may have encountered.
         if (!job.isSuccessful()) {
             JobClient client = new JobClient(new JobConf(job.getConfiguration()));
 
@@ -358,6 +285,113 @@ public class CamusJob extends Configured implements Tool {
         }
     }
 
+    public void printErrors(FileSystem fs, Path newExecutionOutput) throws IOException
+    {
+    	for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
+                EtlMultiOutputFormat.ERRORS_PREFIX))) {
+            SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(), fs.getConf());
+
+            EtlKey key = new EtlKey();
+            ExceptionWritable value = new ExceptionWritable();
+
+            while (reader.next(key, value)) {
+                System.err.println(key.toString());
+                System.err.println(value.toString());
+            }
+            reader.close();
+        }
+    }
+    
+    //Posts the tracking counts to Kafka
+    public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput) throws IOException, URISyntaxException
+    {
+    	 if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
+ 			FileStatus[] gstatuses = fs.listStatus(newExecutionOutput,
+ 					new PrefixFilter("counts"));
+ 			HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
+ 			for (FileStatus gfileStatus : gstatuses) {
+ 				FSDataInputStream fdsis = fs.open(gfileStatus.getPath());
+
+ 				BufferedReader br = new BufferedReader(new InputStreamReader(
+ 						fdsis), 1048576);
+ 				StringBuffer buffer = new StringBuffer();
+ 				String temp = "";
+ 				while ((temp = br.readLine()) != null) {
+ 					buffer.append(temp);
+ 				}
+ 				ObjectMapper mapper = new ObjectMapper();
+ 				mapper.configure(
+ 						DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES,
+ 						false);
+ 				ArrayList<EtlCounts> countsObjects = mapper.readValue(
+ 						buffer.toString(),
+ 						new TypeReference<ArrayList<EtlCounts>>() {
+ 						});
+
+ 				for (EtlCounts count : countsObjects) {
+ 					String topic = count.getTopic();
+ 					if (allCounts.containsKey(topic)) {
+ 						EtlCounts existingCounts = allCounts.get(topic);
+ 						existingCounts
+ 								.setEndTime(Math.max(
+ 										existingCounts.getEndTime(),
+ 										count.getEndTime()));
+ 						existingCounts.setLastTimestamp(Math.max(
+ 								existingCounts.getLastTimestamp(),
+ 								count.getLastTimestamp()));
+ 						existingCounts.setStartTime(Math.min(
+ 								existingCounts.getStartTime(),
+ 								count.getStartTime()));
+ 						existingCounts.setFirstTimestamp(Math.min(
+ 								existingCounts.getFirstTimestamp(),
+ 								count.getFirstTimestamp()));
+ 						existingCounts.setErrorCount(existingCounts
+ 								.getErrorCount() + count.getErrorCount());
+ 						existingCounts.setGranularity(count.getGranularity());
+ 						existingCounts.setTopic(count.getTopic());
+ 						for (Entry<String, Source> entry : count.getCounts()
+ 								.entrySet()) {
+ 							Source source = entry.getValue();
+ 							if (existingCounts.getCounts().containsKey(
+ 									source.toString())) {
+ 								Source old = existingCounts.getCounts().get(
+ 										source.toString());
+ 								old.setCount(old.getCount() + source.getCount());
+ 								existingCounts.getCounts().put(old.toString(),
+ 										old);
+ 							} else {
+ 								existingCounts.getCounts().put(
+ 										source.toString(), source);
+ 							}
+ 							allCounts.put(topic, existingCounts);
+ 						}
+ 					} else {
+ 						allCounts.put(topic, count);
+ 					}
+ 				}
+ 			}
+
+ 			for (FileStatus countFile : fs.listStatus(newExecutionOutput,
+ 					new PrefixFilter("counts"))) {
+ 				if (props.getProperty(ETL_KEEP_COUNT_FILES, "false").equals(
+ 						"true")) {
+ 					fs.rename(countFile.getPath(),
+ 							new Path(props.getProperty(ETL_COUNTS_PATH),
+ 									countFile.getPath().getName()));
+ 				} else {
+ 					fs.delete(countFile.getPath(), true);
+ 				}
+ 			}
+
+ 			URI brokerURI = new URI("tcp://" + getKafkaHostUrl(job) + ":"
+ 					+ getKafkaHostPort(job));
+ 			for (EtlCounts finalCounts : allCounts.values()) {
+ 				finalCounts.postTrackingCountToKafka(job.getConfiguration(),
+ 						props.getProperty(KAFKA_MONITOR_TIER), brokerURI);
+ 			}
+ 		}
+    }
+    
     /**
      * Creates a diagnostic report mostly focused on timing breakdowns. Useful
      * for determining where to optimize.

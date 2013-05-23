@@ -3,23 +3,13 @@ package com.linkedin.camus.etl.kafka.common;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 import kafka.api.PartitionFetchInfo;
-import kafka.api.PartitionOffsetRequestInfo;
-import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
 import kafka.javaapi.FetchRequest;
 import kafka.javaapi.FetchResponse;
-import kafka.javaapi.OffsetRequest;
-import kafka.javaapi.OffsetResponse;
-import kafka.javaapi.PartitionMetadata;
-import kafka.javaapi.TopicMetadata;
-import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.javaapi.message.ByteBufferMessageSet;
 import kafka.message.Message;
@@ -140,7 +130,7 @@ public class KafkaReader {
 	 */
 
 	public boolean fetch() throws IOException {
-		if (currentOffset + 1 >= lastOffset) {
+		if (currentOffset +1 >= lastOffset) {
 			return false;
 		}
 		long tempTime = System.currentTimeMillis();
@@ -223,106 +213,6 @@ public class KafkaReader {
 			simpleConsumer.close();
 		}
 	}
-
-	/**
-	 * Called by the default implementation of {@link #map} to check error code
-	 * to determine whether to continue.
-	 */
-//	private boolean hasError(Short errorCode) throws IOException {
-//
-//		if (errorCode == ErrorMapping.OffsetOutOfRangeCode()) {
-//			// offset cannot cross the maximum offset (guaranteed by Kafka
-//			// protocol).
-//			// Kafka server may delete old files from time to time
-//			if (currentOffset != kafkaRequest.getEarliestOffset()) {
-//				// get the current offset range
-//				currentOffset = kafkaRequest.getEarliestOffset();
-//				return false;
-//			}
-//			throw new IOException(kafkaRequest + " earliest offset="
-//					+ currentOffset + " : invalid offset.");
-//		} else if (errorCode == ErrorMapping.InvalidMessageCode()) {
-//			throw new IOException(kafkaRequest + " current offset="
-//					+ currentOffset + " : invalid offset.");
-//		} else if (errorCode != ErrorMapping.NoError()) {
-//			throw new IOException(kafkaRequest + " current offset="
-//					+ currentOffset + " error:"
-//					+ ErrorMapping.exceptionFor(errorCode));
-//		} else {
-//			return false;
-//		}
-//	}
-
-	/**
-     * 
-     */
-	// public void checkMetadataAndOffset() {
-	// try {
-	// SimpleConsumer consumer = new
-	// SimpleConsumer(CamusJob.getKafkaHostUrl(context),
-	// CamusJob.getKafkaHostPort(context),
-	// CamusJob.getKafkaTimeoutValue(context),
-	// CamusJob.getKafkaBufferSize(context),
-	// CamusJob.getKafkaClientName(context));
-	// List<String> topic = new ArrayList<String>();
-	// topic.add(kafkaRequest.getTopic());
-	// TopicMetadata topicMetadata = (consumer.send(new
-	// TopicMetadataRequest(topic)))
-	// .topicsMetadata().get(0);
-	// consumer.close();
-	// List<PartitionMetadata> partitionsMetadata =
-	// topicMetadata.partitionsMetadata();
-	//
-	// for (PartitionMetadata partitionMetadata : partitionsMetadata) {
-	// if (partitionMetadata.partitionId() == kafkaRequest.getPartition()) {
-	// URI partitionURI = new URI("tcp://"
-	// + partitionMetadata.leader().getConnectionString());
-	// System.out.println("Old and new leader : " + partitionURI.toString() +
-	// "   "
-	// + kafkaRequest.getURI().toString());
-	// if (partitionURI.equals(kafkaRequest.getURI()))
-	// return;
-	// else {
-	// kafkaRequest.setURI(partitionURI);
-	// // TODO : Change the EtlRequest getLastOffset to work
-	// // for this too
-	// System.out.println("Changing leader to new connection parameters : "
-	// + partitionURI.toString());
-	// consumer = new SimpleConsumer(kafkaRequest.getURI().getHost(),
-	// kafkaRequest
-	// .getURI().getPort(), CamusJob.getKafkaTimeoutValue(context),
-	// CamusJob.getKafkaBufferSize(context),
-	// CamusJob.getKafkaClientName(context));
-	// // TODO : maxNumOffets value? What needs to be put here?
-	// Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo = new
-	// HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
-	// offsetInfo.put(
-	// new TopicAndPartition(kafkaRequest.getTopic(), kafkaRequest
-	// .getPartition()), new PartitionOffsetRequestInfo(
-	// kafka.api.OffsetRequest.LatestTime(), 1));
-	// OffsetResponse response = consumer.getOffsetsBefore(new OffsetRequest(
-	// offsetInfo, kafka.api.OffsetRequest.CurrentVersion(), CamusJob
-	// .getKafkaClientName(context)));
-	// long[] endOffset = response.offsets(kafkaRequest.getTopic(),
-	// kafkaRequest.getPartition());
-	// consumer.close();
-	// long newLeaderLatestOffset = endOffset[0];
-	// if (newLeaderLatestOffset < kafkaRequest.getOffset()) {
-	// System.out
-	// .println("Modified the request to start from the new partition and start reading from the offset : "
-	// + newLeaderLatestOffset);
-	// kafkaRequest.setOffset(newLeaderLatestOffset);
-	// }
-	// }
-	// }
-	// }
-	// } catch (Exception e) {
-	// System.out.println("Exception generated while checking the metadata in KafkaReader. "
-	// + e.getLocalizedMessage());
-	// return;
-	// }
-	//
-	// }
 
 	/**
 	 * Returns the total bytes that will be fetched. This is calculated by

@@ -1,5 +1,25 @@
 .classpath
 .project
+dist
+target
+*iml
+*.ipr
+*.iws
+*.tar.gz
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+**/.classpath
+**/.project
+**/.settings/
+.settings/*
+*.jar
+**/bin/
+**/test-output/
+**/.idea
+.idea
 
 # target dirs
 camus-api/target/

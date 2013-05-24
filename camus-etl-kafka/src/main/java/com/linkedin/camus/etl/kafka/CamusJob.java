@@ -118,8 +118,8 @@ public class CamusJob extends Configured implements Tool {
 
 
     private Job createJob(Properties props) throws IOException {
-    	//Job job = new Job(getConf());
-    	Job job = new Job();
+    	Job job = new Job(getConf());
+    	//Job job = new Job();
         job.setJarByClass(CamusJob.class);
         job.setJobName("Camus Job");
 

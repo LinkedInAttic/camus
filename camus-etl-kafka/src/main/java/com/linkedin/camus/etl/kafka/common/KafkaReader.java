@@ -92,11 +92,12 @@ public class KafkaReader {
 	 * value
 	 * 
 	 * @param key
-	 * @param value
+	 * @param payload
+	 * @param pKey
 	 * @return true if there exists more events
 	 * @throws IOException
 	 */
-	public boolean getNext(EtlKey key, BytesWritable value) throws IOException {
+	public boolean getNext(EtlKey key, BytesWritable payload ,BytesWritable pKey) throws IOException {
 		if (hasNext()) {
 
 			MessageAndOffset msgAndOffset = messageIter.next();
@@ -106,7 +107,15 @@ public class KafkaReader {
 			int origSize = buf.remaining();
 			byte[] bytes = new byte[origSize];
 			buf.get(bytes, buf.position(), origSize);
-			value.set(bytes, 0, origSize);
+			payload.set(bytes, 0, origSize);
+			
+			buf = message.key();
+			if(buf != null){
+				origSize = buf.remaining();
+				bytes = new byte[origSize];
+				buf.get(bytes, buf.position(), origSize);
+				pKey.set(bytes, 0, origSize);
+			}
 
 			key.clear();
 			key.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(),

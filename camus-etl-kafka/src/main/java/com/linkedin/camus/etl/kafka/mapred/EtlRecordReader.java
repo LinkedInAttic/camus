@@ -49,6 +49,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private boolean skipSchemaErrors = false;
     private MessageDecoder<byte[], Record> decoder;
     private final BytesWritable msgValue = new BytesWritable();
+    private final BytesWritable msgKey = new BytesWritable();
     private final EtlKey key = new EtlKey();
     private AvroWrapper<Object> value = new AvroWrapper<Object>(new Object());
 
@@ -182,6 +183,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     @Override
     public boolean nextKeyValue() throws IOException, InterruptedException {
 
+		Message message = null ;
+
         // we only pull for a specified time. unfinished work will be
         // rescheduled in the next
         // run.
@@ -228,15 +231,20 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     decoder = (MessageDecoder<byte[], Record>) MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
                 }
                 int count = 0;
-                while (reader.getNext(key, msgValue)) {
+                while (reader.getNext(key, msgValue , msgKey)) {
                     count++;
                     context.progress();
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
                     mapperContext.getCounter("total", "event-count").increment(1);
                     byte[] bytes = getBytes(msgValue);
-
-                    // check the checksum of message
-                    Message message = new Message(bytes);
+					byte[] keyBytes = getBytes(msgKey);
+					// check the checksum of message.
+					// If message has partiion key, need to construct it with Key for checkSum to match
+					if(keyBytes.length == 0){
+						message = new Message(bytes);
+					}else{
+						message = new Message(bytes,keyBytes);
+					}
                     long checksum = key.getChecksum();
                     if (checksum != message.checksum()) {
                         throw new ChecksumException("Invalid message checksum "

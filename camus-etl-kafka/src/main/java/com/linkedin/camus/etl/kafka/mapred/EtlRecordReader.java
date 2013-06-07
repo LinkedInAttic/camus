@@ -237,14 +237,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
                     mapperContext.getCounter("total", "event-count").increment(1);
                     byte[] bytes = getBytes(msgValue);
-					byte[] keyBytes = getBytes(msgKey);
-					// check the checksum of message.
-					// If message has partiion key, need to construct it with Key for checkSum to match
-					if(keyBytes.length == 0){
-						message = new Message(bytes);
-					}else{
-						message = new Message(bytes,keyBytes);
-					}
+		    byte[] keyBytes = getBytes(msgKey);
+		    // check the checksum of message.
+		    // If message has partiion key, need to construct it with Key for checkSum to match
+		    if(keyBytes.length == 0){
+			message = new Message(bytes);
+		    }else{
+			message = new Message(bytes,keyBytes);
+		    }
                     long checksum = key.getChecksum();
                     if (checksum != message.checksum()) {
                         throw new ChecksumException("Invalid message checksum "

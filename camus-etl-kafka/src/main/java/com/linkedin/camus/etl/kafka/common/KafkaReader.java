@@ -139,15 +139,15 @@ public class KafkaReader {
 	 */
 
 	public boolean fetch() throws IOException {
-		if (currentOffset +1 >= lastOffset) {
+		if (currentOffset >= lastOffset) {
 			return false;
 		}
 		long tempTime = System.currentTimeMillis();
 		TopicAndPartition topicAndPartition = new TopicAndPartition(
 				kafkaRequest.getTopic(), kafkaRequest.getPartition());
-		System.out.println("\nAsking for offset : " + (currentOffset + 1));
+		System.out.println("\nAsking for offset : " + (currentOffset+1));
 		PartitionFetchInfo partitionFetchInfo = new PartitionFetchInfo(
-				currentOffset + 1, fetchBufferSize);
+				currentOffset+1, fetchBufferSize);
 
 		HashMap<TopicAndPartition, PartitionFetchInfo> fetchInfo = new HashMap<TopicAndPartition, PartitionFetchInfo>();
 		fetchInfo.put(topicAndPartition, partitionFetchInfo);
@@ -174,17 +174,18 @@ public class KafkaReader {
 				lastFetchTime = (System.currentTimeMillis() - tempTime);
 				System.out.println("Time taken to fetch : "
 						+ (lastFetchTime / 1000) + " seconds");
+				System.out.println("The size of the ByteBufferMessageSet returned is : " + messageBuffer.sizeInBytes());
 				int skipped = 0;
 				totalFetchTime += lastFetchTime;
 				messageIter = messageBuffer.iterator();
-				boolean flag = false;
+				//boolean flag = false;
 				Iterator<MessageAndOffset> messageIter2 = messageBuffer
 						.iterator();
 				MessageAndOffset message = null;
 				while (messageIter2.hasNext()) {
 					message = messageIter2.next();
 					if (message.offset() < currentOffset) {
-						flag = true;
+						//flag = true;
 						skipped++;
 					} else {
 						System.out.println("Skipped offsets till : "
@@ -192,16 +193,21 @@ public class KafkaReader {
 						break;
 					}
 				}
-				System.out.println("Number of skipped offsets : " + skipped);
-				if (!messageIter2.hasNext()) {
+				System.out.println("Number of offsets to be skipped: " + skipped);
+				while(skipped !=0 )
+				{
+					MessageAndOffset skippedMessage = messageIter.next();
+					System.out.println("Skipping offset : " + skippedMessage.offset());
+					skipped --;
+				}
+				
+				if (!messageIter.hasNext()) {
 					System.out
 							.println("No more data left to process. Returning false");
 					messageIter = null;
 					return false;
 				}
-				if (flag) {
-					messageIter = messageIter2;
-				}
+				
 				return true;
 			}
 		} catch (Exception e) {

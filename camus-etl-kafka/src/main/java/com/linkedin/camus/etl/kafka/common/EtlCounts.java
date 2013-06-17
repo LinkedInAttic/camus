@@ -271,7 +271,8 @@ public class EtlCounts {
 		props.put("broker.list",
 				brokerURI.getHost() + ":" + brokerURI.getPort());
 		props.put("producer.type", "async");
-		props.put("request.required.acks", "-1");
+		props.put("request.required.acks", "1");
+		props.put("request.timeout.ms", "30000");
 		System.out.println("Host " + brokerURI.getHost() + " port "
 				+ brokerURI.getPort());
 		Producer producer = new Producer(new ProducerConfig(props));

@@ -119,6 +119,36 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 		}
 		return regex;
 	}
+	
+	
+	public List<TopicMetadata> filterWhitelistTopics(List<TopicMetadata> topicMetadataList, HashSet<String> whiteListTopics)
+	{
+		ArrayList<TopicMetadata> filteredTopics = new ArrayList<TopicMetadata>();
+		String regex = "";
+		StringBuilder stringbuilder = new StringBuilder();
+		for (String whiteList : whiteListTopics) {
+			stringbuilder.append(whiteList);
+			stringbuilder.append("|");
+		}
+		regex = "("
+				+ stringbuilder.substring(0, stringbuilder.length() - 1)
+				+ ")";
+		Pattern.compile(regex);
+		System.out.println(regex);
+		for(TopicMetadata topicMetadata : topicMetadataList)
+		{
+			if(Pattern.matches(regex, topicMetadata.topic()))
+			{
+				filteredTopics.add(topicMetadata);
+			}
+			else
+			{
+				System.out.println("Discrading topic : " + topicMetadata.topic());
+			}
+		}
+			return filteredTopics;	
+	}
+	
 
 	@Override
 	public List<InputSplit> getSplits(JobContext context) throws IOException,
@@ -127,6 +157,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 		ArrayList<EtlRequest> finalRequests = new ArrayList<EtlRequest>();
 		try {
 			List<TopicMetadata> topicMetadataList = getKafkaMetadata(context);
+			
+			HashSet<String> whiteListTopics = new HashSet<String>(
+					Arrays.asList(getKafkaWhitelistTopic(context)));
+			
+			if (!whiteListTopics.isEmpty()) {
+				topicMetadataList =  filterWhitelistTopics(topicMetadataList, whiteListTopics);
+				
+			}
+			
 			String regex = createBlackListRegex(context);
 			for (TopicMetadata topicMetadata : topicMetadataList) {
 				if (Pattern.matches(regex, topicMetadata.topic())) {

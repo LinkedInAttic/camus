@@ -79,15 +79,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 	 */
 	public List<TopicMetadata> getKafkaMetadata(JobContext context) {
 		ArrayList<String> metaRequestTopics = new ArrayList<String>();
-		HashSet<String> whiteListTopics = new HashSet<String>(
-				Arrays.asList(getKafkaWhitelistTopic(context)));
-		System.out.println("Whitelist topics : " + whiteListTopics);
-
-		// If there is a whitelist, get metadata only for those topics
-		// If the list is empty, metadata for all topics will be fetched
-		if (!whiteListTopics.isEmpty()) {
-			metaRequestTopics.addAll(whiteListTopics);
-		}
+//		HashSet<String> whiteListTopics = new HashSet<String>(
+//				Arrays.asList(getKafkaWhitelistTopic(context)));
+//		System.out.println("Whitelist topics : " + whiteListTopics);
+//
+//		// If there is a whitelist, get metadata only for those topics
+//		// If the list is empty, metadata for all topics will be fetched
+//		if (!whiteListTopics.isEmpty()) {
+//			metaRequestTopics.addAll(whiteListTopics);
+//		}
 
 		CamusJob.startTiming("kafkaSetupTime");
 		SimpleConsumer consumer = new SimpleConsumer(
@@ -101,32 +101,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 				.topicsMetadata();
 	}
 
-	public String createBlackListRegex(JobContext context) {
-		HashSet<String> blackListTopics = new HashSet<String>(
-				Arrays.asList(getKafkaBlacklistTopic(context)));
-		System.out.println("Blacklist Topics : " + blackListTopics);
-		String regex = "";
-		if (!blackListTopics.isEmpty()) {
-			StringBuilder stringbuilder = new StringBuilder();
-			for (String blackList : blackListTopics) {
-				stringbuilder.append(blackList);
-				stringbuilder.append("|");
-			}
-			regex = "("
-					+ stringbuilder.substring(0, stringbuilder.length() - 1)
-					+ ")";
-			Pattern.compile(regex);
-		}
-		return regex;
-	}
 	
-	
-	public List<TopicMetadata> filterWhitelistTopics(List<TopicMetadata> topicMetadataList, HashSet<String> whiteListTopics)
+	public String createTopicRegEx(HashSet<String> topicsSet)
 	{
-		ArrayList<TopicMetadata> filteredTopics = new ArrayList<TopicMetadata>();
 		String regex = "";
 		StringBuilder stringbuilder = new StringBuilder();
-		for (String whiteList : whiteListTopics) {
+		for (String whiteList : topicsSet) {
 			stringbuilder.append(whiteList);
 			stringbuilder.append("|");
 		}
@@ -134,7 +114,14 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 				+ stringbuilder.substring(0, stringbuilder.length() - 1)
 				+ ")";
 		Pattern.compile(regex);
-		System.out.println(regex);
+		return regex;
+	}
+	
+	
+	public List<TopicMetadata> filterWhitelistTopics(List<TopicMetadata> topicMetadataList, HashSet<String> whiteListTopics)
+	{
+		ArrayList<TopicMetadata> filteredTopics = new ArrayList<TopicMetadata>();
+		String regex = createTopicRegEx(whiteListTopics);
 		for(TopicMetadata topicMetadata : topicMetadataList)
 		{
 			if(Pattern.matches(regex, topicMetadata.topic()))
@@ -157,16 +144,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 		ArrayList<EtlRequest> finalRequests = new ArrayList<EtlRequest>();
 		try {
 			List<TopicMetadata> topicMetadataList = getKafkaMetadata(context);
-			
 			HashSet<String> whiteListTopics = new HashSet<String>(
 					Arrays.asList(getKafkaWhitelistTopic(context)));
-			
 			if (!whiteListTopics.isEmpty()) {
 				topicMetadataList =  filterWhitelistTopics(topicMetadataList, whiteListTopics);
-				
 			}
-			
-			String regex = createBlackListRegex(context);
+			HashSet<String> blackListTopics = new HashSet<String>(
+					Arrays.asList(getKafkaBlacklistTopic(context)));
+			String regex = "";
+			if(!blackListTopics.isEmpty())
+			{
+				regex = createTopicRegEx(blackListTopics);
+			}
 			for (TopicMetadata topicMetadata : topicMetadataList) {
 				if (Pattern.matches(regex, topicMetadata.topic())) {
 					System.out.println("Discarding topic (blacklisted): "

@@ -23,7 +23,7 @@ import com.linkedin.camus.etl.kafka.CamusJob;
 /**
  * Poorly named class that handles kafka pull events within each
  * KafkaRecordReader.
- * 
+ *
  * @author Richard Park
  */
 public class KafkaReader {
@@ -46,7 +46,7 @@ public class KafkaReader {
 	private int fetchBufferSize;
 
 	/**
-	 * Construct using the json represention of the kafka request
+	 * Construct using the json representation of the kafka request
 	 */
 	public KafkaReader(TaskAttemptContext context, EtlRequest request,
 			int clientTimeout, int fetchBufferSize) throws Exception {
@@ -90,7 +90,7 @@ public class KafkaReader {
 	/**
 	 * Fetches the next Kafka message and stuffs the results into the key and
 	 * value
-	 * 
+	 *
 	 * @param key
 	 * @param payload
 	 * @param pKey
@@ -108,7 +108,7 @@ public class KafkaReader {
 			byte[] bytes = new byte[origSize];
 			buf.get(bytes, buf.position(), origSize);
 			payload.set(bytes, 0, origSize);
-			
+
 			buf = message.key();
 			if(buf != null){
 				origSize = buf.remaining();
@@ -133,7 +133,7 @@ public class KafkaReader {
 
 	/**
 	 * Creates a fetch request.
-	 * 
+	 *
 	 * @return false if there's no more fetches
 	 * @throws IOException
 	 */
@@ -200,14 +200,14 @@ public class KafkaReader {
 					System.out.println("Skipping offset : " + skippedMessage.offset());
 					skipped --;
 				}
-				
+
 				if (!messageIter.hasNext()) {
 					System.out
 							.println("No more data left to process. Returning false");
 					messageIter = null;
 					return false;
 				}
-				
+
 				return true;
 			}
 		} catch (Exception e) {
@@ -220,7 +220,7 @@ public class KafkaReader {
 
 	/**
 	 * Closes this context
-	 * 
+	 *
 	 * @throws IOException
 	 */
 	public void close() throws IOException {
@@ -232,7 +232,7 @@ public class KafkaReader {
 	/**
 	 * Returns the total bytes that will be fetched. This is calculated by
 	 * taking the diffs of the offsets
-	 * 
+	 *
 	 * @return
 	 */
 	public long getTotalBytes() {
@@ -241,7 +241,7 @@ public class KafkaReader {
 
 	/**
 	 * Returns the total bytes that have been fetched so far
-	 * 
+	 *
 	 * @return
 	 */
 	public long getReadBytes() {
@@ -250,7 +250,7 @@ public class KafkaReader {
 
 	/**
 	 * Returns the number of events that have been read r
-	 * 
+	 *
 	 * @return
 	 */
 	public long getCount() {
@@ -259,7 +259,7 @@ public class KafkaReader {
 
 	/**
 	 * Returns the fetch time of the last fetch in ms
-	 * 
+	 *
 	 * @return
 	 */
 	public long getFetchTime() {
@@ -268,7 +268,7 @@ public class KafkaReader {
 
 	/**
 	 * Returns the totalFetchTime in ms
-	 * 
+	 *
 	 * @return
 	 */
 	public long getTotalFetchTime() {

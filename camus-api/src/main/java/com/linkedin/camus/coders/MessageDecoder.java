@@ -3,8 +3,8 @@ package com.linkedin.camus.coders;
 import java.util.Properties;
 
 /**
- * Decoder interface. Implemenations should return a CamusWrapper with timestamp
- * set at the very least.  Camus will instantiate a descendent of this class 
+ * Decoder interface. Implementations should return a CamusWrapper with timestamp
+ * set at the very least.  Camus will instantiate a descendent of this class
  * based on the property ccamus.message.decoder.class.
  * @author kgoodhop
  *
@@ -14,7 +14,7 @@ import java.util.Properties;
 public abstract class MessageDecoder<M,R> {
 	protected Properties props;
 	protected String topicName;
-	
+
 	public void init(Properties props, String topicName){
 	    this.props = props;
         this.topicName = topicName;

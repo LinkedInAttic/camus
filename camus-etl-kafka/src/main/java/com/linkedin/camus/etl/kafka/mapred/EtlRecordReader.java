@@ -1,22 +1,17 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.KafkaReader;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-
 import kafka.message.Message;
-
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.mapred.AvroWrapper;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
@@ -26,17 +21,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.joda.time.DateTime;
 
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.coders.MessageDecoder;
-import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
-import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.EtlRequest;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.KafkaReader;
-
-public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
+public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
     private TaskAttemptContext context;
 
@@ -47,11 +32,11 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private long readBytes = 0;
 
     private boolean skipSchemaErrors = false;
-    private MessageDecoder<byte[], Record> decoder;
+    private MessageDecoder decoder;
     private final BytesWritable msgValue = new BytesWritable();
     private final BytesWritable msgKey = new BytesWritable();
     private final EtlKey key = new EtlKey();
-    private AvroWrapper<Object> value = new AvroWrapper<Object>(new Object());
+    private CamusWrapper value;
 
     private int maxPullHours = 0;
     private int exceptionCount = 0;
@@ -65,10 +50,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
     /**
      * Record reader to fetch directly from Kafka
-     * 
+     *
      * @param split
-     * @param job
-     * @param reporter
      * @throws IOException
      * @throws InterruptedException
      */
@@ -77,7 +60,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
         initialize(split, context);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException,
             InterruptedException {
@@ -176,14 +159,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     }
 
     @Override
-    public AvroWrapper<Object> getCurrentValue() throws IOException, InterruptedException {
+    public CamusWrapper getCurrentValue() throws IOException, InterruptedException {
         return value;
     }
 
     @Override
     public boolean nextKeyValue() throws IOException, InterruptedException {
 
-		Message message = null ;
+        Message message = null;
 
         // we only pull for a specified time. unfinished work will be
         // rescheduled in the next
@@ -198,7 +181,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
         while (true) {
             try {
-                if (reader == null || reader.hasNext() == false) {
+                if (reader == null || !reader.hasNext()) {
                     EtlRequest request = split.popRequest();
                     if (request == null) {
                         return false;
@@ -210,8 +193,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
                     key.set(request.getTopic(), request.getLeaderId(), request.getPartition(),
                             request.getOffset(), request.getOffset(), 0);
-                    value = new AvroWrapper<Object>(new Object());
-
+                    value = null;
                     System.out.println("\n\ntopic:" + request.getTopic() + " partition:"
                             + request.getPartition() + " beginOffset:" + request.getOffset()
                             + " estimatedLastOffset:" + request.getLastOffset());
@@ -228,23 +210,23 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             CamusJob.getKafkaTimeoutValue(mapperContext),
                             CamusJob.getKafkaBufferSize(mapperContext));
 
-                    decoder = (MessageDecoder<byte[], Record>) MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+                    decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
                 }
                 int count = 0;
-                while (reader.getNext(key, msgValue , msgKey)) {
+                while (reader.getNext(key, msgValue, msgKey)) {
                     count++;
                     context.progress();
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
                     mapperContext.getCounter("total", "event-count").increment(1);
                     byte[] bytes = getBytes(msgValue);
-		    byte[] keyBytes = getBytes(msgKey);
-		    // check the checksum of message.
-		    // If message has partiion key, need to construct it with Key for checkSum to match
-		    if(keyBytes.length == 0){
-			message = new Message(bytes);
-		    }else{
-			message = new Message(bytes,keyBytes);
-		    }
+                    byte[] keyBytes = getBytes(msgKey);
+                    // check the checksum of message.
+                    // If message has partition key, need to construct it with Key for checkSum to match
+                    if (keyBytes.length == 0) {
+                        message = new Message(bytes);
+                    } else {
+                        message = new Message(bytes, keyBytes);
+                    }
                     long checksum = key.getChecksum();
                     if (checksum != message.checksum()) {
                         throw new ChecksumException("Invalid message checksum "
@@ -257,16 +239,13 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     try {
                         wrapper = getWrappedRecord(key.getTopic(), bytes);
                     } catch (Exception e) {
-                        if(exceptionCount < getMaximumDecoderExceptionsToPrint(context))
-				{
-					mapperContext.write(key, new ExceptionWritable(e));
-					exceptionCount++;
-				} else
-				if(exceptionCount == getMaximumDecoderExceptionsToPrint(context))
-				{
-					exceptionCount = Integer.MAX_VALUE; //Any random value
-					System.out.println("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");	
-				}
+                        if (exceptionCount < getMaximumDecoderExceptionsToPrint(context)) {
+                            mapperContext.write(key, new ExceptionWritable(e));
+                            exceptionCount++;
+                        } else if (exceptionCount == getMaximumDecoderExceptionsToPrint(context)) {
+                            exceptionCount = Integer.MAX_VALUE; //Any random value
+                            System.out.println("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");
+                        }
                         continue;
                     }
 
@@ -294,9 +273,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         System.out.println(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
-                        if(timeStamp > endTimeStamp)
-                        System.out.println("Kafka Max history hours reached");
-                        if(System.currentTimeMillis() > maxPullTime)
+                        if (timeStamp > endTimeStamp)
+                            System.out.println("Kafka Max history hours reached");
+                        if (System.currentTimeMillis() > maxPullTime)
                             System.out.println("Kafka pull time limit reached");
                         statusMsg += " max read at " + new DateTime(timeStamp).toString();
                         context.setStatus(statusMsg);
@@ -308,7 +287,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     }
 
                     long secondTime = System.currentTimeMillis();
-                    value.datum(wrapper.getRecord());
+                    value = wrapper;
                     long decodeTime = ((secondTime - tempTime));
 
                     mapperContext.getCounter("total", "decode-time(ms)").increment(decodeTime);
@@ -345,7 +324,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
         }
     }
 
-   public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
-    	return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
+    public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
+        return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
     }
 }

@@ -268,7 +268,7 @@ public class EtlCounts {
 		// Shuffle the broker
 
 		Properties props = new Properties();
-		props.put("broker.list",
+		props.put("metadata.broker.list",
 				brokerURI.getHost() + ":" + brokerURI.getPort());
 		props.put("producer.type", "async");
 		props.put("request.required.acks", "1");

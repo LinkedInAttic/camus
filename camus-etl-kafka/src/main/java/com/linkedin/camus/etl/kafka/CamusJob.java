@@ -1,5 +1,12 @@
 package com.linkedin.camus.etl.kafka;
 
+import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EtlCounts;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.Source;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,8 +22,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
-
-import org.apache.avro.mapred.AvroWrapper;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -47,20 +52,12 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.codehaus.jackson.map.DeserializationConfig;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
-
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlCounts;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.Source;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import org.codehaus.jackson.map.DeserializationConfig;
-import org.codehaus.jackson.type.TypeReference;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -234,9 +231,6 @@ public class CamusJob extends Configured implements Tool {
 
         job.setInputFormatClass(EtlInputFormat.class);
         job.setOutputFormatClass(EtlMultiOutputFormat.class);
-        job.setOutputKeyClass(EtlKey.class);
-        job.setOutputValueClass(AvroWrapper.class);
-
         job.setNumReduceTasks(0);
 
         stopTiming("pre-setup");
@@ -255,15 +249,15 @@ public class CamusJob extends Configured implements Tool {
 
        stopTiming("hadoop");
        startTiming("commit");
-       
+
        //Send Tracking counts to Kafka
        sendTrackingCounts(job, fs,newExecutionOutput);
-       
+
        //Print any potentail errors encountered
        printErrors(fs, newExecutionOutput);
-       
+
        fs.rename(newExecutionOutput, execHistory);
-       
+
        System.out.println("Job finished");
        stopTiming("commit");
        stopTiming("total");
@@ -301,7 +295,7 @@ public class CamusJob extends Configured implements Tool {
             reader.close();
         }
     }
-    
+
     //Posts the tracking counts to Kafka
     public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput) throws IOException, URISyntaxException
     {
@@ -391,11 +385,11 @@ public class CamusJob extends Configured implements Tool {
  			}
  		}
     }
-    
+
     /**
      * Creates a diagnostic report mostly focused on timing breakdowns. Useful
      * for determining where to optimize.
-     * 
+     *
      * @param job
      * @param timingMap
      * @throws IOException

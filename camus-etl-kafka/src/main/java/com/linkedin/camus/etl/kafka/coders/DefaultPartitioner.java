@@ -26,6 +26,5 @@ public class DefaultPartitioner implements Partitioner {
         DateTime bucket = new DateTime(Long.valueOf(encodedPartition));
         sb.append(bucket.toString(OUTPUT_DATE_FORMAT));
         return sb.toString();
-
     }
 }

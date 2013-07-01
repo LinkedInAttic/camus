@@ -1,5 +1,12 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -13,14 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-
 import kafka.common.ErrorMapping;
 import kafka.javaapi.PartitionMetadata;
 import kafka.javaapi.TopicMetadata;
 import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
-
-import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -36,16 +40,10 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.log4j.Logger;
 
-import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
-import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.EtlRequest;
-
 /**
  * Input format for a Kafka pull job.
  */
-public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
+public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 	public static final String KAFKA_BLACKLIST_TOPIC = "kafka.blacklist.topics";
 	public static final String KAFKA_WHITELIST_TOPIC = "kafka.whitelist.topics";
@@ -66,7 +64,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 	private final Logger log = Logger.getLogger(getClass());
 
 	@Override
-	public RecordReader<EtlKey, AvroWrapper<Object>> createRecordReader(
+	public RecordReader<EtlKey, CamusWrapper> createRecordReader(
 			InputSplit split, TaskAttemptContext context) throws IOException,
 			InterruptedException {
 		return new EtlRecordReader(split, context);
@@ -248,7 +246,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 	}
 
 	private boolean createMessageDecoder(JobContext context, String topic) {
-
 		try {
 			MessageDecoderFactory.createMessageDecoder(context, topic);
 			return true;
@@ -482,14 +479,13 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
 	}
 
 	public static void setMessageDecoderClass(JobContext job,
-			Class<KafkaAvroMessageDecoder> cls) {
-		job.getConfiguration().setClass(CAMUS_MESSAGE_DECODER_CLASS, cls,
-				KafkaAvroMessageDecoder.class);
+			Class<MessageDecoder> cls) {
+		job.getConfiguration().setClass(CAMUS_MESSAGE_DECODER_CLASS, cls, MessageDecoder.class);
 	}
 
-	public static Class<KafkaAvroMessageDecoder> getMessageDecoderClass(
+	public static Class<MessageDecoder> getMessageDecoderClass(
 			JobContext job) {
-		return (Class<KafkaAvroMessageDecoder>) job.getConfiguration()
+		return (Class<MessageDecoder>) job.getConfiguration()
 				.getClass(CAMUS_MESSAGE_DECODER_CLASS,
 						KafkaAvroMessageDecoder.class);
 	}

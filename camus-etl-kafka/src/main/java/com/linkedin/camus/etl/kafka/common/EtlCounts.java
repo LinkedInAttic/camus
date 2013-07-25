@@ -17,6 +17,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.log4j.Logger;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 import org.joda.time.DateTime;
 
@@ -29,6 +30,7 @@ import com.linkedin.camus.events.records.TrackingMonitoringEvent;
 @JsonIgnoreProperties({"trackingCount", "lastKey", "eventCount", "RANDOM"})
 public class EtlCounts {
 
+	private static Logger log = Logger.getLogger(EtlCounts.class);
 	private static final String TOPIC = "topic";
 	private static final String SERVER = "server";
 	private static final String SERVICE = "service";
@@ -261,7 +263,7 @@ public class EtlCounts {
 			produceCount(brokerURI, monitorSet);
 		}
 
-		System.out.println(topic + " sent " + counts + " counts");
+		log.info(topic + " sent " + counts + " counts");
 	}
 
 	private void produceCount(URI brokerURI, ArrayList<byte[]> monitorSet) {
@@ -273,7 +275,7 @@ public class EtlCounts {
 		props.put("producer.type", "async");
 		props.put("request.required.acks", "1");
 		props.put("request.timeout.ms", "30000");
-		System.out.println("Host " + brokerURI.getHost() + " port "
+		log.debug("Host " + brokerURI.getHost() + " port "
 				+ brokerURI.getPort());
 		Producer producer = new Producer(new ProducerConfig(props));
 		try {

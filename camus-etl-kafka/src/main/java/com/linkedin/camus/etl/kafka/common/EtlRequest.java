@@ -17,6 +17,7 @@ import kafka.javaapi.consumer.SimpleConsumer;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.log4j.Logger;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
 
@@ -29,6 +30,8 @@ import com.linkedin.camus.etl.kafka.CamusJob;
  * @author Richard Park
  */
 public class EtlRequest implements Writable {
+	
+	private static Logger log = Logger.getLogger(EtlRequest.class);
     private JobContext context = null;
     private static final long DEFAULT_OFFSET = 0;
 
@@ -262,7 +265,7 @@ public class EtlRequest implements Writable {
         consumer.close();
         if(endOffset.length == 0)
         {
-        	System.out.println("The exception is thrown because the latest offset retunred zero for topic : " + topic + " and partition " + partition);
+        	log.info("The exception is thrown because the latest offset retunred zero for topic : " + topic + " and partition " + partition);
         }
         this.latestOffset = endOffset[0];
         return endOffset[0];

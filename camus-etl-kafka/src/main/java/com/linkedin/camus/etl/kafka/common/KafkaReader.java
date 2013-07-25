@@ -17,6 +17,7 @@ import kafka.message.MessageAndOffset;
 
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
 
@@ -28,6 +29,7 @@ import com.linkedin.camus.etl.kafka.CamusJob;
  */
 public class KafkaReader {
 	// index of context
+	private static Logger log =  Logger.getLogger(KafkaReader.class);
 	private EtlRequest kafkaRequest = null;
 	private SimpleConsumer simpleConsumer = null;
 
@@ -53,8 +55,8 @@ public class KafkaReader {
 		this.fetchBufferSize = fetchBufferSize;
 		this.context = context;
 
-		System.out.println("bufferSize=" + fetchBufferSize);
-		System.out.println("timeout=" + clientTimeout);
+		log.info("bufferSize=" + fetchBufferSize);
+		log.info("timeout=" + clientTimeout);
 
 		// Create the kafka request from the json
 
@@ -73,7 +75,7 @@ public class KafkaReader {
 				CamusJob.getKafkaTimeoutValue(context),
 				CamusJob.getKafkaBufferSize(context),
 				CamusJob.getKafkaClientName(context));
-		System.out.println("Connected to leader " + uri
+		log.info("Connected to leader " + uri
 				+ " beginning reading at offset " + beginOffset
 				+ " latest offset=" + lastOffset);
 		fetch();
@@ -145,7 +147,7 @@ public class KafkaReader {
 		long tempTime = System.currentTimeMillis();
 		TopicAndPartition topicAndPartition = new TopicAndPartition(
 				kafkaRequest.getTopic(), kafkaRequest.getPartition());
-		System.out.println("\nAsking for offset : " + (currentOffset+1));
+		log.debug("\nAsking for offset : " + (currentOffset+1));
 		PartitionFetchInfo partitionFetchInfo = new PartitionFetchInfo(
 				currentOffset+1, fetchBufferSize);
 
@@ -162,9 +164,8 @@ public class KafkaReader {
 		try {
 			fetchResponse = simpleConsumer.fetch(fetchRequest);
 			if (fetchResponse.hasError()) {
-				System.out
-						.println("Error encountered during a fetch request from Kafka");
-				System.out.println("Error Code generated : "
+				log.info("Error encountered during a fetch request from Kafka");
+				log.info("Error Code generated : "
 						+ fetchResponse.errorCode(kafkaRequest.getTopic(),
 								kafkaRequest.getPartition()));
 				return false;
@@ -172,9 +173,9 @@ public class KafkaReader {
 				ByteBufferMessageSet messageBuffer = fetchResponse.messageSet(
 						kafkaRequest.getTopic(), kafkaRequest.getPartition());
 				lastFetchTime = (System.currentTimeMillis() - tempTime);
-				System.out.println("Time taken to fetch : "
+				log.debug("Time taken to fetch : "
 						+ (lastFetchTime / 1000) + " seconds");
-				System.out.println("The size of the ByteBufferMessageSet returned is : " + messageBuffer.sizeInBytes());
+				log.debug("The size of the ByteBufferMessageSet returned is : " + messageBuffer.sizeInBytes());
 				int skipped = 0;
 				totalFetchTime += lastFetchTime;
 				messageIter = messageBuffer.iterator();
@@ -188,16 +189,16 @@ public class KafkaReader {
 						//flag = true;
 						skipped++;
 					} else {
-						System.out.println("Skipped offsets till : "
+						log.debug("Skipped offsets till : "
 								+ message.offset());
 						break;
 					}
 				}
-				System.out.println("Number of offsets to be skipped: " + skipped);
+				log.debug("Number of offsets to be skipped: " + skipped);
 				while(skipped !=0 )
 				{
 					MessageAndOffset skippedMessage = messageIter.next();
-					System.out.println("Skipping offset : " + skippedMessage.offset());
+					log.debug("Skipping offset : " + skippedMessage.offset());
 					skipped --;
 				}
 
@@ -211,7 +212,7 @@ public class KafkaReader {
 				return true;
 			}
 		} catch (Exception e) {
-			System.out.println("Exception generated during fetch");
+			log.info("Exception generated during fetch");
 			e.printStackTrace();
 			return false;
 		}

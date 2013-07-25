@@ -31,6 +31,7 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -69,6 +70,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
 
     private long granularityMs;
+    private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
     @Override
     public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context)
@@ -364,10 +366,10 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
                 OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
                 ObjectMapper mapper= new ObjectMapper();
-                System.out.println("Writing counts to : " + tempPath.toString());
+                log.info("Writing counts to : " + tempPath.toString());
                 long time = System.currentTimeMillis();
                 mapper.writeValue(outputStream, allCountObject);
-                System.out.println("Time taken : " + (System.currentTimeMillis() - time)/1000);
+                log.debug("Time taken : " + (System.currentTimeMillis() - time)/1000);
             }
 
             SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs,

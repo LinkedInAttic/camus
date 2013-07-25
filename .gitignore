@@ -1,7 +1,10 @@
 .classpath
 .project
+*.iml
+.idea
 
 # target dirs
+target
 camus-api/target/
 camus-etl-kafka/target/
 camus-example/target/

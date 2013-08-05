@@ -7,7 +7,7 @@ import com.linkedin.camus.etl.kafka.coders.DefaultPartitioner;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapred.TaskAttemptID;
+import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.junit.After;
@@ -15,6 +15,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -27,10 +29,19 @@ public class EtlMultiOutputCommitterTest implements Partitioner {
     Configuration configuration;
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         configuration = new Configuration();
         configuration.set(EtlMultiOutputFormat.ETL_DEFAULT_PARTITIONER_CLASS, "com.linkedin.camus.etl.kafka.coders.DefaultPartitioner");
-        taskAttemptContext = new TaskAttemptContext(configuration, new TaskAttemptID());
+
+        Constructor taskAttemptContextConstructor;
+        Class taskAttemptClass = Class.forName("org.apache.hadoop.mapreduce.TaskAttemptContext");
+        if (taskAttemptClass.isInterface()) {
+            Class taskAttamptImplClass = Class.forName("org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl");
+            taskAttemptContextConstructor = taskAttamptImplClass.getConstructor(Configuration.class, TaskAttemptID.class);
+        } else
+            taskAttemptContextConstructor = taskAttemptClass.getConstructor(Configuration.class, TaskAttemptID.class);
+
+        taskAttemptContext = (TaskAttemptContext) taskAttemptContextConstructor.newInstance(configuration, new TaskAttemptID());
         etlMultiOutputFormat = new EtlMultiOutputFormat();
         committer = (EtlMultiOutputFormat.EtlMultiOutputCommitter) etlMultiOutputFormat.getOutputCommitter(taskAttemptContext);
     }

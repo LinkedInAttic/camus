@@ -148,6 +148,11 @@ public class CamusJob extends Configured implements Tool {
             job.getConfiguration().set(key.toString(), props.getProperty(key.toString()));
         }
 
+        // For reasons not clear, just setting the property is not enough.
+        if(props.containsKey("fs.defaultFS")) {
+            FileSystem.setDefaultUri(job.getConfiguration(), props.get("fs.defaultFS").toString());
+        }
+
         FileSystem fs = FileSystem.get(job.getConfiguration());
 
         String hadoopCacheJarDir = job.getConfiguration().get("hdfs.default.classpath.dir", null);

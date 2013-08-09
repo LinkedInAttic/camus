@@ -31,7 +31,7 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
                                     payload, 
                                     //Message.payloadOffset(message.magic()),
                                     Message.MagicOffset(),
-                                    payload.length
+                                    payload.length - Message.MagicOffset()
                             )
                     )
             ));

@@ -200,7 +200,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         return "data." + key.getTopic().replaceAll("\\.", "_") + "." + key.getLeaderId() + "." + key.getPartition() + "." + partitioner.encodePartition(context, key);
     }
 
-    public static Partitioner getDefaultPartitioner(JobContext job) {
+/*    public static Partitioner getDefaultPartitioner(JobContext job) {
         if(partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS) == null) {
             //List<Partitioner> partitioners = job.getConfiguration().getInstances(ETL_DEFAULT_PARTITIONER_CLASS, com.linkedin.camus.coders.Partitioner.class);
             List<Partitioner> partitioners = new ArrayList<Partitioner>();
@@ -208,7 +208,15 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
             partitionersByTopic.put(ETL_DEFAULT_PARTITIONER_CLASS, partitioners.get(0));
         }
         return partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS);
-    }
+    }*/
+    
+    public static Partitioner getDefaultPartitioner(JobContext job) {
+        if(partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS) == null) {
+            List<Partitioner> partitioners = job.getConfiguration().getInstances(ETL_DEFAULT_PARTITIONER_CLASS, com.linkedin.camus.coders.Partitioner.class);
+            partitionersByTopic.put(ETL_DEFAULT_PARTITIONER_CLASS, partitioners.get(0));
+        }
+        return partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS);
+    }    
 
     public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
         String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;

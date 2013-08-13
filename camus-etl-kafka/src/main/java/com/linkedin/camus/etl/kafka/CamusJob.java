@@ -51,6 +51,7 @@ import org.apache.hadoop.util.ToolRunner;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.DateTimeFormat;
 
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
@@ -187,6 +188,20 @@ public class CamusJob extends Configured implements Tool {
 
         return job;
     }
+  
+    public static int getLatestOffsetIndex(FileStatus[] executions){
+        DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd-HH-mm-ss");
+        int maxOffsetIndex = -1;
+        DateTime latestOffset = null;
+        for (int i=0; i<executions.length; i++ ){
+            DateTime o = fmt.parseDateTime(executions[i].getPath().getName());
+            if ( maxOffsetIndex == -1 || o.compareTo(latestOffset) > 0){
+                maxOffsetIndex = i;
+                latestOffset = o;
+            }
+        }
+        return maxOffsetIndex;
+    }
 
     public void run() throws Exception {
         startTiming("pre-setup");
@@ -228,22 +243,24 @@ public class CamusJob extends Configured implements Tool {
         long currentCount = content.getFileCount() + content.getDirectoryCount();
 
         FileStatus[] executions = fs.listStatus(execHistory);
-        Iterator<FileStatus> iter = Arrays.asList(fs.listStatus(execHistory)).iterator();
+        int latestOffsetIndex = getLatestOffsetIndex(executions);
 
         // removes oldest directory until we get under required % of count
         // quota. Won't delete the most recent directory.
         for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
             FileStatus stat = executions[i];
-            System.out.println("removing old execution: " + stat.getPath().getName());
-            ContentSummary execContent = fs.getContentSummary(stat.getPath());
-            currentCount -= execContent.getFileCount() - execContent.getDirectoryCount();
-            fs.delete(stat.getPath(), true);
+            if ( i != latestOffsetIndex) {
+                System.out.println("removing old execution: " + stat.getPath().getName());
+                ContentSummary execContent = fs.getContentSummary(stat.getPath());
+                currentCount -= execContent.getFileCount() - execContent.getDirectoryCount();
+                fs.delete(stat.getPath(), true);
+            }
         }
 
         // determining most recent execution and using as the starting point for
         // this execution
         if (executions.length > 0) {
-            Path previous = executions[executions.length - 1].getPath();
+            Path previous = executions[latestOffsetIndex].getPath();
             FileInputFormat.setInputPaths(job, previous);
             System.out.println("Previous execution: " + previous.toString());
         } else {

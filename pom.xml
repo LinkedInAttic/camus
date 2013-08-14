@@ -1,26 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <prerequisites>
     <maven>3.0.0</maven>
   </prerequisites>
-
   <groupId>com.linkedin.camus</groupId>
   <artifactId>camus-parent</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Camus Parent</name>
   <description>
-    Camus is LinkedIn's Kafka->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka.
+    Camus is LinkedIn's Kafka-&gt;HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka.
   </description>
   <url>https://github.com/linkedin/camus</url>
-
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
-
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -97,7 +92,6 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-
   <modules>
     <module>camus-api</module>
     <module>camus-etl-kafka</module>
@@ -105,7 +99,6 @@
     <module>camus-schema-registry-avro</module>
     <module>camus-example</module>
   </modules>
-
   <licenses>
     <license>
       <name>Apache License 2.0</name>
@@ -113,25 +106,21 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
-
   <scm>
     <connection>scm:git:git://github.com/linkedin/camus.git</connection>
     <developerConnection>scm:git:git@github.com:linkedin/camus.git</developerConnection>
     <url>http://github.com/linkedin/camus/</url>
   </scm>
-
   <issueManagement>
     <system>github</system>
     <url>http://github.com/linkedin/camus/issues</url>
   </issueManagement>
-
   <repositories>
     <repository>
       <id>apache-releases</id>
       <url>https://repository.apache.org/content/groups/public</url>
     </repository>
   </repositories>
-
   <build>
     <plugins>
       <plugin>
@@ -186,4 +175,16 @@
     </plugins>
   </build>
 
+  <distributionManagement>
+    <repository>
+      <id>central</id>
+      <name>libs-release</name>
+      <url>https://build.relateiq.com:8086/libs-release-local</url>
+    </repository>
+    <snapshotRepository>
+      <id>central</id>
+      <name>libs-snapshot-local</name>
+      <url>https://build.relateiq.com:8086/libs-snapshot-local</url>
+    </snapshotRepository>
+  </distributionManagement>
 </project>

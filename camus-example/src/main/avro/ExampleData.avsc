@@ -1,0 +1,17 @@
+{
+  "namespace": "com.linkedin.camus.example.sample",
+  "type": "record",
+  "name": "ExampleData",
+  "doc": "This is an example logs format",
+  "fields": [
+	    {
+			"name": "logTime", 
+			"type": "long",
+			"default": null
+	    },
+	    {
+			"name": "logValues", 
+			"type": {"type": "map", "values": "string"}
+	    }
+	]
+}

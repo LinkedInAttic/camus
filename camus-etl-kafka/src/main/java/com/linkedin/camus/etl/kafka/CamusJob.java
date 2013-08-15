@@ -38,8 +38,9 @@ import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.TIPStatus;
-import org.apache.hadoop.mapred.TaskCompletionEvent;
+// import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskReport;
+import org.apache.hadoop.mapreduce.TaskCompletionEvent;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
@@ -378,9 +379,13 @@ public class CamusJob extends Configured implements Tool {
         if (!job.isSuccessful()) {
             JobClient client = new JobClient(new JobConf(job.getConfiguration()));
 
-            TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
+            // TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0); This is
+	    // incompatible with MR2. Setting maxEvents to 10 as per 
+	    // https://issues.apache.org/jira/browse/MAPREDUCE-4932
+            TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0, 10);
 
-            for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+            // for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+            for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID().toString())) {
                 if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
                     for (String s : task.getDiagnostics()) {
                         System.err.println("task error: " + s);
@@ -399,7 +404,7 @@ public class CamusJob extends Configured implements Tool {
      * @param timingMap
      * @throws IOException
      */
-    private void createReport(Job job, Map<String, Long> timingMap) throws IOException {
+    private void createReport(Job job, Map<String, Long> timingMap) throws IOException, InterruptedException {
         StringBuilder sb = new StringBuilder();
 
         sb.append("***********Timing Report*************\n");

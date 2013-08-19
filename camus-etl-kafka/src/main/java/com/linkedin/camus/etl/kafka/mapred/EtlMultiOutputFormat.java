@@ -6,7 +6,6 @@ import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.coders.DefaultPartitioner;
 import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
-import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
@@ -59,8 +58,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
     public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
 
-    public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
-            .getDateTimeFormatter("YYYYMMddHH");
     public static final String OFFSET_PREFIX = "offsets";
     public static final String ERRORS_PREFIX = "errors";
     public static final String COUNTS_PREFIX = "counts";
@@ -204,7 +201,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         if(partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS) == null) {
             //List<Partitioner> partitioners = job.getConfiguration().getInstances(ETL_DEFAULT_PARTITIONER_CLASS, com.linkedin.camus.coders.Partitioner.class);
             List<Partitioner> partitioners = new ArrayList<Partitioner>();
-            partitioners.add(new DefaultPartitioner());
+            partitioners.add(new DefaultPartitioner(getDefaultTimeZone(job)));
             partitionersByTopic.put(ETL_DEFAULT_PARTITIONER_CLASS, partitioners.get(0));
         }
         return partitionersByTopic.get(ETL_DEFAULT_PARTITIONER_CLASS);

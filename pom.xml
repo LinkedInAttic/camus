@@ -74,6 +74,7 @@
         <groupId>kafka</groupId>
         <artifactId>kafka</artifactId>
         <version>0.7.2</version>
+        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>com.github.sgroschupf</groupId>
@@ -174,7 +175,6 @@
       </plugin>
     </plugins>
   </build>
-
   <distributionManagement>
     <repository>
       <id>central</id>

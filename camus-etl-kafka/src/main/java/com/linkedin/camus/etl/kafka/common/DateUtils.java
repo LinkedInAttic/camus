@@ -6,11 +6,14 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 public class DateUtils {
-	public static DateTimeZone PST = DateTimeZone.forID("America/Los_Angeles");
+    // TODO:  Pacific time is probably a bad default.
+    // UTC should be the default.
+	public static DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("America/Los_Angeles");
+
 	public static DateTimeFormatter MINUTE_FORMATTER = getDateTimeFormatter("YYYY-MM-dd-HH-mm");
 
 	public static DateTimeFormatter getDateTimeFormatter(String str) {
-		return getDateTimeFormatter(str, PST);
+		return getDateTimeFormatter(str, DEFAULT_TIMEZONE);
 	}
 	
 	public static DateTimeFormatter getDateTimeFormatter(String str, DateTimeZone timeZone) {
@@ -22,7 +25,7 @@ public class DateUtils {
 	}
 
 	public static DateTime getMidnight() {
-		DateTime time = new DateTime(PST);
-		return new DateTime(time.getYear(), time.getMonthOfYear(), time.getDayOfMonth(), 0, 0, 0, 0, PST);
+		DateTime time = new DateTime(DEFAULT_TIMEZONE);
+		return new DateTime(time.getYear(), time.getMonthOfYear(), time.getDayOfMonth(), 0, 0, 0, 0, DEFAULT_TIMEZONE);
 	}
 }

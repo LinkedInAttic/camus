@@ -6,11 +6,37 @@ import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
 public class DefaultPartitioner implements Partitioner {
-    public static final DateTimeFormatter OUTPUT_DATE_FORMAT = DateUtils
-            .getDateTimeFormatter("YYYY/MM/dd/HH");
+    // TODO:  Pacific time is probably a bad default.
+    // UTC should be the default.
+    public    static final String DEFAULT_TIMEZONE   = "America/Los_Angeles";
+    protected static final String OUTPUT_DATE_FORMAT = "YYYY/MM/dd/HH";
+
+    public DateTimeFormatter outputDateFormatter;
+
+    /**
+     * Returns a new DefaultPartitioner using the DEFAULT_TIMEZONE.
+     */
+    public DefaultPartitioner() {
+        this(DEFAULT_TIMEZONE);
+    }
+
+    /**
+     * Returns a new DefaultPartitioner with the given timeZoneString
+     */
+    public DefaultPartitioner(String timeZoneString) {
+        this(DateTimeZone.forID(timeZoneString));
+    }
+
+    /**
+     * Constructs a new DefaultPartitioner with the given DateTimeZone timeZone.
+     */
+    public DefaultPartitioner(DateTimeZone timeZone) {
+        outputDateFormatter = DateUtils.getDateTimeFormatter(OUTPUT_DATE_FORMAT, timeZone);
+    }
 
     @Override
     public String encodePartition(JobContext context, IEtlKey key) {
@@ -24,7 +50,7 @@ public class DefaultPartitioner implements Partitioner {
         sb.append(topic).append("/");
         sb.append(EtlMultiOutputFormat.getDestPathTopicSubDir(context)).append("/");
         DateTime bucket = new DateTime(Long.valueOf(encodedPartition));
-        sb.append(bucket.toString(OUTPUT_DATE_FORMAT));
+        sb.append(bucket.toString(outputDateFormatter));
         return sb.toString();
     }
 }

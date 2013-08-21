@@ -131,6 +131,23 @@ public class CamusJob extends Configured implements Tool {
 					props.getProperty(key.toString()));
 		}
 
+                // Check for a configuration option for the record writer
+                // provider and set it in the job context if it exists
+                String recordWriterProviderClassName =
+                    props.getProperty(EtlMultiOutputFormat.ETL_RECORD_WRITER_PROVIDER_CLASS);
+                if (recordWriterProviderClassName != null) {
+                    try {
+                        Class recordWriterProviderClass =
+                            Class.forName(recordWriterProviderClassName);
+                        EtlMultiOutputFormat.setRecordWriterProviderClass(job, recordWriterProviderClass);
+                    }
+                    catch (ClassNotFoundException cnfe) {
+                        log.error("Cannot find class for " +
+                                EtlMultiOutputFormat.ETL_RECORD_WRITER_PROVIDER_CLASS + ": " +
+                                recordWriterProviderClassName);
+                    }
+                }
+
 		FileSystem fs = FileSystem.get(job.getConfiguration());
 
 		String hadoopCacheJarDir = job.getConfiguration().get(

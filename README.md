@@ -102,6 +102,8 @@ Here is an abbreviated list of commonly used parameters.
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
  * kafka.blacklist.topics=
  * kafka.whitelist.topics=
+* The class to use to write records to HDFS
+ * etl.record.writer.provider.class=com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider
 
 ### Running Camus
 

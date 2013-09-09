@@ -6,11 +6,12 @@ import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
 public class DefaultPartitioner implements Partitioner {
-    public static final DateTimeFormatter OUTPUT_DATE_FORMAT = DateUtils
-            .getDateTimeFormatter("YYYY/MM/dd/HH");
+    protected static final String OUTPUT_DATE_FORMAT = "YYYY/MM/dd/HH";
+    protected DateTimeFormatter outputDateFormatter = null;
 
     @Override
     public String encodePartition(JobContext context, IEtlKey key) {
@@ -20,6 +21,14 @@ public class DefaultPartitioner implements Partitioner {
 
     @Override
     public String generatePartitionedPath(JobContext context, String topic, int brokerId, int partitionId, String encodedPartition) {
+        // We only need to initialize outputDateFormatter with the default timeZone once.
+        if (outputDateFormatter == null) {
+            outputDateFormatter = DateUtils.getDateTimeFormatter(
+                OUTPUT_DATE_FORMAT,
+                DateTimeZone.forID(EtlMultiOutputFormat.getDefaultTimeZone(context))
+            );
+        }
+
         StringBuilder sb = new StringBuilder();
         sb.append(topic).append("/");
         sb.append(EtlMultiOutputFormat.getDestPathTopicSubDir(context)).append("/");

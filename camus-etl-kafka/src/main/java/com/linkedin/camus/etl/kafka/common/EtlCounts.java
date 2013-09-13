@@ -201,7 +201,7 @@ public class EtlCounts {
 	}
 	
 	
-	public void postTrackingCountToKafka(Configuration conf , String tier, URI brokerURI) {
+	public void postTrackingCountToKafka(Configuration conf , String tier, String brokerList) {
 		MessageEncoder<IndexedRecord, byte[]> encoder;
 		try {
 			encoder = (MessageEncoder<IndexedRecord, byte[]>) Class.forName(
@@ -253,30 +253,28 @@ public class EtlCounts {
 
 			if (monitorSet.size() >= 2000) {
 				counts += monitorSet.size();
-				produceCount(brokerURI, monitorSet);
+				produceCount(brokerList, monitorSet);
 				monitorSet.clear();
 			}
 		}
 
 		if (monitorSet.size() > 0) {
 			counts += monitorSet.size();
-			produceCount(brokerURI, monitorSet);
+			produceCount(brokerList, monitorSet);
 		}
 
 		log.info(topic + " sent " + counts + " counts");
 	}
 
-	private void produceCount(URI brokerURI, ArrayList<byte[]> monitorSet) {
+	private void produceCount(String brokerList, ArrayList<byte[]> monitorSet) {
 		// Shuffle the broker
 
 		Properties props = new Properties();
-		props.put("metadata.broker.list",
-				brokerURI.getHost() + ":" + brokerURI.getPort());
+		props.put("metadata.broker.list", brokerList);
 		props.put("producer.type", "async");
 		props.put("request.required.acks", "1");
 		props.put("request.timeout.ms", "30000");
-		log.debug("Host " + brokerURI.getHost() + " port "
-				+ brokerURI.getPort());
+		log.debug("Broker list: " + brokerList);
 		Producer producer = new Producer(new ProducerConfig(props));
 		try {
 			for (byte[] message : monitorSet) {
@@ -287,7 +285,7 @@ public class EtlCounts {
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(topic + " issue sending tracking to "
-					+ brokerURI.toString());
+                    + brokerList.toString());
 		} finally {
 			if (producer != null) {
 				producer.close();

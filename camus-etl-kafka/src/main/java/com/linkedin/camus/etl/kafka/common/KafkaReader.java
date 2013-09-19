@@ -12,6 +12,7 @@ import kafka.message.Message;
 import kafka.message.MessageAndOffset;
 
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.log4j.Logger;
 
 /**
  * Poorly named class that handles kafka pull events within each
@@ -35,15 +36,15 @@ public class KafkaReader {
 	private long lastFetchTime = 0;
 
 	private int fetchBufferSize;
-
+	private static Logger log = Logger.getLogger(KafkaReader.class);
 	/**
 	 * Construct using the json represention of the kafka request
 	 */
 	public KafkaReader(EtlRequest request, int clientTimeout, int fetchBufferSize) throws Exception {
 		this.fetchBufferSize = fetchBufferSize;
 
-		System.out.println("bufferSize=" + fetchBufferSize);
-		System.out.println("timeout=" + clientTimeout);
+		log.info("bufferSize=" + fetchBufferSize);
+		log.info("timeout=" + clientTimeout);
 
 		// Create the kafka request from the json
 		kafkaRequest = request;
@@ -60,7 +61,7 @@ public class KafkaReader {
 		
 		fetch();
 
-		System.out.println("Connected to node " + uri + " beginning reading at offset " + beginOffset + " latest offset=" + lastOffset);
+		log.info("Connected to node " + uri + " beginning reading at offset " + beginOffset + " latest offset=" + lastOffset);
 	}
 
 	public boolean hasNext() throws IOException {

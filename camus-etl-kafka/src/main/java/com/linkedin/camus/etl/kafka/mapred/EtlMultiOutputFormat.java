@@ -26,6 +26,7 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -66,6 +67,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String REQUESTS_FILE = "requests.previous";
     private static EtlMultiOutputCommitter committer = null;
     private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
+    private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
     private long granularityMs;
 
@@ -294,8 +296,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 }
             } else if (val instanceof ExceptionWritable) {
                 committer.addOffset(key);
-                System.err.println(key.toString());
-                System.err.println(val.toString());
+                log.error(key.toString());
+                log.error(val.toString());
                 errorWriter.append(key, (ExceptionWritable) val);
             }
         }

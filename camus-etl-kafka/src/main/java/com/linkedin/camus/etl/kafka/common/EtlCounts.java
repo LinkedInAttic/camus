@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -71,6 +72,7 @@ public class EtlCounts {
     // String instance
     private final HashMap<String, String> stringIntern = new HashMap<String, String>();
     private Configuration conf;
+    private static Logger log = Logger.getLogger(EtlCounts.class);
 
     public EtlCounts(Configuration conf, String topic, long monitorGranularity) {
         this.topic = topic;
@@ -128,7 +130,7 @@ public class EtlCounts {
         FileStatus[] statuses = fs.listStatus(path, new PrefixFilter(COUNTS));
 
         if (statuses.length == 0) {
-            System.out.println("No old counts found!");
+            log.info("No old counts found!");
         }
 
         for (FileStatus status : statuses) {
@@ -191,8 +193,6 @@ public class EtlCounts {
                 while (jp.nextToken() != JsonToken.END_OBJECT) {
                     jp.nextToken();
                     String fieldName = jp.getCurrentName();
-                    // JsonToken token = jp.nextToken();
-                    // System.out.println("token: " + token);
                     if (COUNT.equals(fieldName)) {
                         count = jp.getLongValue();
                     } else if (START.equals(fieldName)) {
@@ -282,14 +282,14 @@ public class EtlCounts {
         countFile.put(ERROR_COUNT, errorCount);
 
         Path countOutput = path;
-        System.out.println("Writing count to file " + path);
+        log.info("Writing count to file " + path);
         OutputStream outputStream = new BufferedOutputStream(fs.create(path));
 
         ObjectMapper m = new ObjectMapper();
         m.writeValue(outputStream, countFile);
 
         outputStream.close();
-        System.out.println("Finished writing to file " + countOutput);
+        log.info("Finished writing to file " + countOutput);
     }
 
     /**
@@ -371,7 +371,7 @@ public class EtlCounts {
             produceCount(brokerURI, monitorSet);
         }
 
-        System.out.println(topic + " sent " + counts + " counts");
+        log.info(topic + " sent " + counts + " counts");
     }
 
     private void produceCount(List<URI> brokerURI, ArrayList<Message> monitorSet) {
@@ -384,7 +384,7 @@ public class EtlCounts {
             props.put("host", uri.getHost());
             props.put("port", String.valueOf(uri.getPort()));
             props.put("buffer.size", String.valueOf(512 * 1024));
-            System.out.println("Host " + uri.getHost() + " port " + props.get("port"));
+            log.info("Host " + uri.getHost() + " port " + props.get("port"));
 
             try {
                 SyncProducerConfig config = new SyncProducerConfig(props);
@@ -397,7 +397,7 @@ public class EtlCounts {
                 break;
             } catch (Exception e) {
                 e.printStackTrace();
-                System.out.println(topic + " issue sending tracking to " + uri);
+                log.err(topic + " issue sending tracking to " + uri);
                 continue;
             } finally {
                 if (basicProducer != null) {

@@ -24,6 +24,7 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 
 import com.linkedin.camus.coders.CamusWrapper;
@@ -59,6 +60,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
     private long endTimeStamp = 0;
 
     private String statusMsg = "";
+    private static Logger log = Logger.getLogger(EtlRecordReader.class);
 
     EtlSplit split;
 
@@ -112,7 +114,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
         this.totalBytes = this.split.getLength();
 
-        System.out.println("Finished executing the initialize part");
+        System.out.log.info("Finished executing the initialize part");
     }
 
     @Override
@@ -210,7 +212,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                             request.getOffset(), request.getOffset(), 0);
                     value = new AvroWrapper<Object>(new Object());
 
-                    System.out.println("topic:" + request.getTopic() + " partition:"
+                    log.info("topic:" + request.getTopic() + " partition:"
                             + request.getPartition() + " beginOffset:" + request.getOffset()
                             + " estimatedLastOffset:" + request.getLastOffset());
 
@@ -257,7 +259,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 				if(exceptionCount == getMaximumDecoderExceptionsToPrint(context))
 				{
 					exceptionCount = Integer.MAX_VALUE; //Any random value
-					System.out.println("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");	
+					log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");	
 				}
                         continue;
                     }
@@ -283,12 +285,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                         DateTime time = new DateTime(timeStamp);
                         statusMsg += " begin read at " + time.toString();
                         context.setStatus(statusMsg);
-                        System.out.println(key.getTopic() + " begin read at " + time.toString());
+                        log.info(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
                         statusMsg += " max read at " + new DateTime(timeStamp).toString();
                         context.setStatus(statusMsg);
-                        System.out.println(key.getTopic() + " max read at "
+                        log.info(key.getTopic() + " max read at "
                                 + new DateTime(timeStamp).toString());
                         mapperContext.getCounter("total", "request-time(ms)").increment(
                                 reader.getFetchTime());

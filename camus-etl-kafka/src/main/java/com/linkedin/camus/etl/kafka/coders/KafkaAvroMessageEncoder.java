@@ -37,6 +37,7 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
     private final Map<Schema, String> cache = Collections
             .synchronizedMap(new HashMap<Schema, String>());
     private final EncoderFactory encoderFactory = EncoderFactory.get();
+    private static Logger log = Logger.getLogger(KafkaAvroMessageEncoder.class);
 
     @SuppressWarnings("unchecked")
     public KafkaAvroMessageEncoder(String topicName, Configuration conf) {
@@ -89,7 +90,7 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
                 writer = new GenericDatumWriter<IndexedRecord>(record.getSchema());
             writer.write(record, encoder);
 
-            System.err.println(out.toByteArray().length);
+            log.error(out.toByteArray().length);
             return new Message(out.toByteArray());
         } catch (IOException e) {
             throw new MessageEncoderException(e);

@@ -44,10 +44,13 @@ import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.log4j.Logger;
+import org.apache.log4j.xml.DOMConfigurator;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
@@ -72,6 +75,8 @@ public class CamusJob extends Configured implements Tool {
     public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
     public static final String BROKER_URI_FILE = "brokers.uri";
     public static final String POST_TRACKING_COUNTS_TO_KAFKA = "post.tracking.counts.to.kafka";
+    public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+    private static Logger log = Logger.getLogger(CamusJob.class);
    
  private final Properties props;
 
@@ -137,6 +142,7 @@ public class CamusJob extends Configured implements Tool {
     }
 
     private Job createJob(Properties props) throws IOException {
+    	
         Job job = new Job(getConf());
         job.setJarByClass(CamusJob.class);
         job.setJobName("Camus Job");
@@ -148,6 +154,10 @@ public class CamusJob extends Configured implements Tool {
             job.getConfiguration().set(key.toString(), props.getProperty(key.toString()));
         }
 
+        if (getLog4jConfigure(job)) {
+			DOMConfigurator.configure("log4j.xml");
+		}
+        
         // For reasons not clear, just setting the property is not enough.
         if(props.containsKey("fs.defaultFS")) {
             FileSystem.setDefaultUri(job.getConfiguration(), props.get("fs.defaultFS").toString());
@@ -162,7 +172,7 @@ public class CamusJob extends Configured implements Tool {
             if (status != null) {
                 for (int i = 0; i < status.length; ++i) {
                     if (!status[i].isDir()) {
-                        System.out.println("Adding Jar to Distributed Cache Archive File:"
+                      log.info("Adding Jar to Distributed Cache Archive File:"
                                 + status[i].getPath());
 
                         DistributedCache.addFileToClassPath(status[i].getPath(),
@@ -170,8 +180,7 @@ public class CamusJob extends Configured implements Tool {
                     }
                 }
             } else {
-                System.out
-                        .println("hdfs.default.classpath.dir " + hadoopCacheJarDir + " is empty.");
+                log.info("hdfs.default.classpath.dir " + hadoopCacheJarDir + " is empty.");
             }
         }
 
@@ -180,7 +189,7 @@ public class CamusJob extends Configured implements Tool {
         if (externalJarList != null) {
             String[] jarFiles = externalJarList.split(",");
             for (String jarFile : jarFiles) {
-                System.out.println("Adding extenral jar File:" + jarFile);
+                log.info("Adding extenral jar File:" + jarFile);
                 DistributedCache.addFileToClassPath(new Path(jarFile), job.getConfiguration(), fs);
             }
         }
@@ -191,29 +200,29 @@ public class CamusJob extends Configured implements Tool {
     public void run() throws Exception {
         startTiming("pre-setup");
         startTiming("total");
-        System.out.println("Starting Kafka ETL Job");
+        log.info("Starting Kafka ETL Job");
 
         Job job = createJob(props);
         FileSystem fs = FileSystem.get(job.getConfiguration());
 
-        System.out.println("The blacklisted topics: "
+        log.info("The blacklisted topics: "
                 + Arrays.toString(EtlInputFormat.getKafkaBlacklistTopic(job)));
-        System.out.println("The whitelisted topics: "
+        log.info("The whitelisted topics: "
                 + Arrays.toString(EtlInputFormat.getKafkaWhitelistTopic(job)));
-        System.out.println("Dir Destination set to: "
+        log.info("Dir Destination set to: "
                 + EtlMultiOutputFormat.getDestinationPath(job));
 
-        System.out.println("Getting the base paths.");
+        log.info("Getting the base paths.");
 
         Path execBasePath = new Path(props.getProperty(ETL_EXECUTION_BASE_PATH));
         Path execHistory = new Path(props.getProperty(ETL_EXECUTION_HISTORY_PATH));
 
         if (!fs.exists(execBasePath)) {
-            System.out.println("The execution base path does not exist. Creating the directory");
+            log.info("The execution base path does not exist. Creating the directory");
             fs.mkdirs(execBasePath);
         }
         if (!fs.exists(execHistory)) {
-            System.out.println("The history base path does not exist. Creating the directory.");
+            log.info("The history base path does not exist. Creating the directory.");
             fs.mkdirs(execHistory);
         }
 
@@ -234,7 +243,7 @@ public class CamusJob extends Configured implements Tool {
         // quota. Won't delete the most recent directory.
         for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
             FileStatus stat = executions[i];
-            System.out.println("removing old execution: " + stat.getPath().getName());
+            log.info("removing old execution: " + stat.getPath().getName());
             ContentSummary execContent = fs.getContentSummary(stat.getPath());
             currentCount -= execContent.getFileCount() - execContent.getDirectoryCount();
             fs.delete(stat.getPath(), true);
@@ -245,10 +254,9 @@ public class CamusJob extends Configured implements Tool {
         if (executions.length > 0) {
             Path previous = executions[executions.length - 1].getPath();
             FileInputFormat.setInputPaths(job, previous);
-            System.out.println("Previous execution: " + previous.toString());
+            log.info("Previous execution: " + previous.toString());
         } else {
-            System.out
-                    .println("No previous execution, all topics pulled from earliest available offset");
+            log.info("No previous execution, all topics pulled from earliest available offset");
         }
 
         // creating new execution dir. offsets, error_logs, and count files will
@@ -259,7 +267,7 @@ public class CamusJob extends Configured implements Tool {
                 DateTimeZone.UTC);
         Path newExecutionOutput = new Path(execBasePath, new DateTime().toString(dateFmt));
         FileOutputFormat.setOutputPath(job, newExecutionOutput);
-        System.out.println("New execution temp location: " + newExecutionOutput.toString());
+        log.info("New execution temp location: " + newExecutionOutput.toString());
 
         job.setInputFormatClass(EtlInputFormat.class);
         job.setOutputFormatClass(EtlMultiOutputFormat.class);
@@ -276,9 +284,9 @@ public class CamusJob extends Configured implements Tool {
         Counters counters = job.getCounters();
         for (String groupName : counters.getGroupNames()) {
             CounterGroup group = counters.getGroup(groupName);
-            System.out.println("Group: " + group.getDisplayName());
+            log.info("Group: " + group.getDisplayName());
             for (Counter counter : group) {
-                System.out.println(counter.getDisplayName() + ":\t" + counter.getValue());
+                log.info(counter.getDisplayName() + ":\t" + counter.getValue());
             }
         }
 
@@ -320,8 +328,7 @@ public class CamusJob extends Configured implements Tool {
                         EtlInputFormat.getZkTopicPath(job), EtlInputFormat.getZkBrokerPath(job));
                 brokerURI = new ArrayList<URI>(zkClient.getBrokersToUriMap().values());
             } catch (Exception e) {
-                System.err
-                        .println("Can't get brokers from zookeeper, using previously found brokers");
+                log.error("Can't get brokers from zookeeper, using previously found brokers");
                 brokerURI = readBrokers(fs, job);
             }
 
@@ -346,8 +353,8 @@ public class CamusJob extends Configured implements Tool {
             ExceptionWritable value = new ExceptionWritable();
 
             while (reader.next(key, value)) {
-                System.err.println(key.toString());
-                System.err.println(value.toString());
+                log.error(key.toString());
+                log.error(value.toString());
             }
             reader.close();
         }
@@ -359,7 +366,7 @@ public class CamusJob extends Configured implements Tool {
         // the current execution dir can be safely committed to the history dir.
         fs.rename(newExecutionOutput, execHistory);
 
-        System.out.println("Job finished");
+        log.info("Job finished");
 
         stopTiming("commit");
 
@@ -383,7 +390,7 @@ public class CamusJob extends Configured implements Tool {
             for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
                 if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
                     for (String s : task.getDiagnostics()) {
-                        System.err.println("task error: " + s);
+                        log.error("task error: " + s);
                     }
                 }
             }
@@ -497,7 +504,7 @@ public class CamusJob extends Configured implements Tool {
 
         sb.append(String.format("\n%16s %s\n", "Total MB read:", mb / 1024 / 1024));
 
-        System.out.println(sb.toString());
+        log.info(sb.toString());
     }
 
     /**
@@ -560,4 +567,8 @@ public class CamusJob extends Configured implements Tool {
     public static boolean getPostTrackingCountsToKafka(Job job){
     	return job.getConfiguration().getBoolean(POST_TRACKING_COUNTS_TO_KAFKA, true);
     }
+    
+    public static boolean getLog4jConfigure(JobContext job) {
+		return job.getConfiguration().getBoolean(LOG4J_CONFIGURATION, false);
+	}
 }

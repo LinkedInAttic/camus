@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer;
+import org.apache.log4j.Logger;
 
 /**
  * Loads the topic and the node information from zookeeper.
@@ -29,6 +30,7 @@ public class EtlZkClient {
 	private ZkClient zkClient;
 	private Map<String, List<EtlRequest>> topicToRequests = null;
 	private Map<String, URI> brokerUri = null;
+	private static Logger log = Logger.getLogger(EtlZkClient.class);
 
 	/**
 	 * Zookeeper client for Kafka
@@ -226,8 +228,8 @@ public class EtlZkClient {
 	 */
 	private void loadKafkaTopic() throws IOException {
 		List<String> topics = zkClient.getChildren(zkTopicPath);
-		System.out.println("Getting topics from " + zkTopicPath);
-		System.out.println("Number of topics is " + topics.size());
+		log.info("Getting topics from " + zkTopicPath);
+		log.info("Number of topics is " + topics.size());
 		topicToRequests = new HashMap<String, List<EtlRequest>>();
 
 		for (String topic : topics) {
@@ -239,7 +241,7 @@ public class EtlZkClient {
 				String nodePath = topicPath + "/" + nodeId;
 				String numPartitions = getZKString(nodePath);
 				if (numPartitions == null) {
-					System.err.println("Error on Topic: " + topic + ", Cannot find partitions in " + nodePath);
+					log.error("Error on Topic: " + topic + ", Cannot find partitions in " + nodePath);
 					continue;
 				}
 

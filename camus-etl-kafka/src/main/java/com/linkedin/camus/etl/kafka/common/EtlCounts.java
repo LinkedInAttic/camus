@@ -397,7 +397,7 @@ public class EtlCounts {
                 break;
             } catch (Exception e) {
                 e.printStackTrace();
-                log.err(topic + " issue sending tracking to " + uri);
+                log.error(topic + " issue sending tracking to " + uri);
                 continue;
             } finally {
                 if (basicProducer != null) {

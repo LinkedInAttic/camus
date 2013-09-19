@@ -114,7 +114,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
         this.totalBytes = this.split.getLength();
 
-        System.out.log.info("Finished executing the initialize part");
+        log.info("Finished executing the initialize part");
     }
 
     @Override

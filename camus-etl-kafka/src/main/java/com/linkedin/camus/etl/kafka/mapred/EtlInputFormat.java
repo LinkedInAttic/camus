@@ -8,7 +8,6 @@ import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
-
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-
 import kafka.api.PartitionOffsetRequestInfo;
 import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
@@ -86,15 +84,45 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public List<TopicMetadata> getKafkaMetadata(JobContext context) {
 		ArrayList<String> metaRequestTopics = new ArrayList<String>();
 		CamusJob.startTiming("kafkaSetupTime");
-		SimpleConsumer consumer = new SimpleConsumer(
-				CamusJob.getKafkaHostUrl(context),
-				CamusJob.getKafkaHostPort(context),
-				CamusJob.getKafkaTimeoutValue(context),
-				CamusJob.getKafkaBufferSize(context),
-				CamusJob.getKafkaClientName(context));
+		String brokerString = CamusJob.getKafkaBrokers(context);
+                List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
+		Collections.shuffle(brokers);
+		boolean fetchMetaDataSucceeded = false;
+		int i = 0;
+		List<TopicMetadata> topicMetadataList = null;
+		Exception savedException = null;
+		while (i < brokers.size() && !fetchMetaDataSucceeded) {
+			SimpleConsumer consumer = createConsumer(context, brokers.get(i));
+			log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
+			brokers.get(i), consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
+			try {
+				topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
+				fetchMetaDataSucceeded = true;
+			} catch (Exception e) {
+				savedException = e;
+				log.warn(String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed",
+					consumer.clientId(), metaRequestTopics, brokers.get(i)), e);
+			} finally {
+				consumer.close();
+				i++;
+			}
+		}
+		if (!fetchMetaDataSucceeded) {
+			throw new RuntimeException("Failed to obtain metadata!", savedException);
+		}
 		CamusJob.stopTiming("kafkaSetupTime");
-		return (consumer.send(new TopicMetadataRequest(metaRequestTopics)))
-				.topicsMetadata();
+		return topicMetadataList;
+	}
+ 
+	private SimpleConsumer createConsumer(JobContext context, String broker) {
+		String[] hostPort = broker.split(":");
+		SimpleConsumer consumer = new SimpleConsumer(
+			hostPort[0],
+			Integer.valueOf(hostPort[1]),
+			CamusJob.getKafkaTimeoutValue(context),
+			CamusJob.getKafkaBufferSize(context),
+			CamusJob.getKafkaClientName(context));
+		return consumer;
 	}
 
 	/**

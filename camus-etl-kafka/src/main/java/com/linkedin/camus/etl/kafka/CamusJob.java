@@ -78,6 +78,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String KAFKA_FETCH_REQUEST_CORRELATION_ID = "kafka.fetch.request.correlationid";
 	public static final String KAFKA_CLIENT_NAME = "kafka.client.name";
 	public static final String KAFKA_FETCH_BUFFER_SIZE = "kafka.fetch.buffer.size";
+	public static final String KAFKA_BROKERS = "kafka.brokers";
 	public static final String KAFKA_HOST_URL = "kafka.host.url";
 	public static final String KAFKA_HOST_PORT = "kafka.host.port";
 	public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
@@ -394,11 +395,10 @@ public class CamusJob extends Configured implements Tool {
 				}
 			}
 
-			URI brokerURI = new URI("tcp://" + getKafkaHostUrl(job) + ":"
-					+ getKafkaHostPort(job));
+			String brokerList = getKafkaBrokers(job);
 			for (EtlCounts finalCounts : allCounts.values()) {
 				finalCounts.postTrackingCountToKafka(job.getConfiguration(),
-						props.getProperty(KAFKA_MONITOR_TIER), brokerURI);
+						props.getProperty(KAFKA_MONITOR_TIER), brokerList);
 			}
 		}
 	}
@@ -595,12 +595,17 @@ public class CamusJob extends Configured implements Tool {
 				.getInt(KAFKA_FETCH_REQUEST_MAX_WAIT, 1000);
 	}
 
-	public static String getKafkaHostUrl(JobContext job) {
-		return job.getConfiguration().get(KAFKA_HOST_URL);
-	}
-
-	public static int getKafkaHostPort(JobContext job) {
-		return job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
+	public static String getKafkaBrokers(JobContext job) {
+		String brokers = job.getConfiguration().get(KAFKA_BROKERS);
+		if (brokers == null) {
+			brokers = job.getConfiguration().get(KAFKA_HOST_URL);
+			if (brokers != null) {
+				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " + 
+					KAFKA_HOST_PORT + " are deprecated. Please switch to using " + KAFKA_BROKERS);
+				return brokers + ":" + job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
+			}
+		}
+		return brokers;
 	}
 
 	public static int getKafkaFetchRequestCorrelationId(JobContext job) {

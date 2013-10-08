@@ -7,6 +7,7 @@ import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -22,12 +23,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.ContentSummary;
@@ -117,20 +120,34 @@ public class CamusJob extends Configured implements Tool {
 	}
 
 	private Job createJob(Properties props) throws IOException {
+		
+		if(getConf() == null)
+		{
+			Configuration conf = new Configuration();
+			for(Object key : props.keySet())
+			{
+				conf.set(key.toString(), props.getProperty(key.toString()));
+			}
+			setConf(conf);
+		}
+		
 		Job job = new Job(getConf());
-		//Job job = new Job();
 		job.setJarByClass(CamusJob.class);
 		job.setJobName("Camus Job");
+		if(job.getConfiguration().get("camus.job.name") != null)
+		{
+			job.setJobName(job.getConfiguration().get("camus.job.name"));
+		}
 
 		// Set the default partitioner
 		job.getConfiguration().set(
 				EtlMultiOutputFormat.ETL_DEFAULT_PARTITIONER_CLASS,
 				"com.linkedin.camus.etl.kafka.coders.DefaultPartitioner");
 
-		for (Object key : props.keySet()) {
-			job.getConfiguration().set(key.toString(),
-					props.getProperty(key.toString()));
-		}
+//		for (Object key : props.keySet()) {
+//			job.getConfiguration().set(key.toString(),
+//					props.getProperty(key.toString()));
+//		}
 
 		FileSystem fs = FileSystem.get(job.getConfiguration());
 

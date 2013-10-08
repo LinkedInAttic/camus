@@ -8,8 +8,12 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
+
 import java.io.IOException;
+import java.util.HashSet;
+
 import kafka.message.Message;
+
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
@@ -24,6 +28,8 @@ import org.joda.time.DateTime;
 
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
+    private static final String DEFAULT_SERVER = "server";
+    private static final String DEFAULT_SERVICE = "service";
     private TaskAttemptContext context;
 
     private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
@@ -44,6 +50,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private long maxPullTime = 0;
     private long beginTimeStamp = 0;
     private long endTimeStamp = 0;
+    private HashSet<String> ignoreServerServiceList = null;
 
     private String statusMsg = "";
 
@@ -94,6 +101,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             beginTimeStamp = (new DateTime()).minusDays(maxDays).getMillis();
         } else {
             beginTimeStamp = 0;
+        }
+        
+        ignoreServerServiceList = new HashSet<String>();
+        for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
+        {
+        	ignoreServerServiceList.add(ignoreServerServiceTopic);
         }
 
         this.totalBytes = this.split.getLength();
@@ -261,6 +274,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     try {
                         key.setTime(timeStamp);
                         key.setPartition(wrapper.getPartitionMap());
+                        setServerService();
                     } catch (Exception e) {
                         mapperContext.write(key, new ExceptionWritable(e));
                         continue;
@@ -324,6 +338,15 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                 reader = null;
             }
         }
+    }
+    
+    public void setServerService()
+    {
+    	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
+    	{
+    		key.setServer(DEFAULT_SERVER);
+    		key.setService(DEFAULT_SERVICE);
+    	}
     }
 
     public static int getMaximumDecoderExceptionsToPrint(JobContext job) {

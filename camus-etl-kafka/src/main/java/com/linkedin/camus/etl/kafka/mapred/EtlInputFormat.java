@@ -328,6 +328,16 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 			if (request.getEarliestOffset() > request.getOffset()
 					|| request.getOffset() > request.getLastOffset()) {
+				if(request.getEarliestOffset() > request.getOffset())
+				{
+					log.error("The earliest offset was found to be more than the current offset");
+					log.error("Moving to the earliest offset available");
+				}
+				else
+				{
+					log.error("The current offset was found to be more than the latest offset");
+					log.error("Moving to the earliest offset available");
+				}
 				request.setOffset(request.getEarliestOffset());
 				offsetKeys.put(
 						request,
@@ -589,7 +599,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 	public static String[] getEtlAuditIgnoreServiceTopicList(JobContext job) {
 		return job.getConfiguration().getStrings(
-				ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST);
+				ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, "");
 	}
 
 	public static void setMessageDecoderClass(JobContext job,

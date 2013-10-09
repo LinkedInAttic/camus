@@ -75,7 +75,8 @@
  					 <execution> <id>schemas</id> <phase>generate-sources</phase> <goals>  
  						<goal>schema</goal> <goal>protocol</goal> <goal>idl-protocol</goal> </goals>  
  						<configuration> <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory> 
- 						<outputDirectory>${project.basedir}/src/main/java/</outputDirectory> </configuration> 
+ 						<outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
+						<lifecycleMappingMetadata> <action> <ignore /> </action> </lifecycleMappingMetadata></configuration> 
  						</execution> 
  				</executions> 
 			</plugin>

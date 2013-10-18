@@ -61,6 +61,16 @@
         <version>1.7.3</version>
       </dependency>
       <dependency>
+	    <groupId>org.apache.avro</groupId>
+	    <artifactId>trevni-avro</artifactId>
+	    <version>1.7.4</version>		
+	  </dependency>
+	  <dependency>
+	    <groupId>org.apache.avro</groupId>
+	    <artifactId>trevni-core</artifactId>
+	    <version>1.7.4</version>
+	  </dependency>
+      <dependency>
         <groupId>org.apache.avro</groupId>
         <version>1.7.4-SNAPSHOT</version>
         <artifactId>avro-repo-bundle</artifactId>

@@ -29,6 +29,14 @@
       <artifactId>avro-mapred</artifactId>
     </dependency>
     <dependency>
+	  <groupId>org.apache.avro</groupId>
+	  <artifactId>trevni-avro</artifactId>	  
+	</dependency>
+	<dependency>
+	  <groupId>org.apache.avro</groupId>
+	  <artifactId>trevni-core</artifactId>	  
+	</dependency>
+    <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
     </dependency>

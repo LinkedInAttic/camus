@@ -76,9 +76,9 @@
 				<version>1.0.3</version>
 			</dependency>
 			<dependency>
-				<groupId>kafka</groupId>
-				<artifactId>kafka</artifactId>
-				<version>0.8-SNAPSHOT</version>
+				<groupId>org.apache.kafka</groupId>
+				<artifactId>kafka_2.8.0</artifactId>
+				<version>0.8.0-beta1</version>
 			</dependency>
 			<dependency>
 				<groupId>com.github.sgroschupf</groupId>

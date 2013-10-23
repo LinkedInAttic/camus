@@ -581,8 +581,8 @@ public class CamusJob extends Configured implements Tool {
 		}
 
 		if (cmd.hasOption('p'))
-			props.load(ClassLoader.getSystemClassLoader().getResourceAsStream(
-					cmd.getOptionValue('p')));
+		    props.load(this.getClass().getClassLoader().getResourceAsStream(
+                    cmd.getOptionValue('p')));
 
 		if (cmd.hasOption('P')) {
 			File file = new File(cmd.getOptionValue('P'));

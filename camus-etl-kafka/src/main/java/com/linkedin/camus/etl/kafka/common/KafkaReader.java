@@ -63,6 +63,10 @@ public class KafkaReader {
 		System.out.println("Connected to node " + uri + " beginning reading at offset " + beginOffset + " latest offset=" + lastOffset);
 	}
 
+	public String getTopic() {
+		return kafkaRequest.getTopic();
+	}
+	
 	public boolean hasNext() throws IOException {
 		return (messageIter != null && messageIter.hasNext()) || fetch();
 	}

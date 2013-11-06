@@ -233,6 +233,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                     context.progress();
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
                     mapperContext.getCounter("total", "event-count").increment(1);
+                    mapperContext.getCounter(reader.getTopic(), "event-count").increment(1);
                     byte[] bytes = getBytes(msgValue);
 
                     // check the checksum of message
@@ -243,7 +244,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
                                 + message.checksum() + ". Expected " + key.getChecksum(),
                                 key.getOffset());
                     }
-
+                    
                     long tempTime = System.currentTimeMillis();
                     CamusWrapper wrapper;
                     try {
@@ -279,6 +280,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, AvroWrapper<Object>> {
 
                     if (timeStamp < beginTimeStamp) {
                         mapperContext.getCounter("total", "skip-old").increment(1);
+                        mapperContext.getCounter(reader.getTopic(), "skip-old").increment(1);
                     } else if (endTimeStamp == 0) {
                         DateTime time = new DateTime(timeStamp);
                         statusMsg += " begin read at " + time.toString();

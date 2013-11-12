@@ -145,7 +145,7 @@ public class EtlZkClient {
 	public List<String> getTopics(Set<String> blacklist) {
 		ArrayList<String> topics = new ArrayList<String>();
 		for (String topic : topicToRequests.keySet()) {
-			if (!matchesPattern(blacklist, topic)) {
+			if (!matchesPattern(blacklist, topic, true)) {
 				topics.add(topic);
 			}
 		}
@@ -160,7 +160,7 @@ public class EtlZkClient {
 	public List<String> getTopics(Collection<String> topics, Set<String> whitelist, Set<String> blacklist) {
 		ArrayList<String> filteredTopics = new ArrayList<String>();
 		for (String topic : topics) {
-			if (!matchesPattern(blacklist, topic) && matchesPattern(whitelist, topic)) {
+			if (!matchesPattern(blacklist, topic, true) && matchesPattern(whitelist, topic, false)) {
 				filteredTopics.add(topic);
 			}
 		}
@@ -168,17 +168,17 @@ public class EtlZkClient {
 		return filteredTopics;
 	}
 
-	private boolean matchesPattern(Set<String> list, String compare) {
+	private boolean matchesPattern(Set<String> list, String compare, boolean reverse) {
         if (list == null || list.isEmpty()) {
-            return true;
+            return !reverse;
         }
 		for (String pattern : list) {
 			if (Pattern.matches(pattern, compare)) {
-				return true;
+				return reverse;
 			}
 		}
 
-		return false;
+		return !reverse;
 	}
 
 	// /**
@@ -264,8 +264,8 @@ public class EtlZkClient {
 	 * @param blackListTopics
 	 */
 	private void loadKafkaTopic(Set<String> whiteListTopics, Set<String> blackListTopics) throws IOException {
-		List<String> topics = getTopics(zkClient.getChildren(zkTopicPath), whiteListTopics, blackListTopics);
 		log.info("Getting topics from " + zkTopicPath);
+		List<String> topics = getTopics(zkClient.getChildren(zkTopicPath), whiteListTopics, blackListTopics);
 		log.info("Number of topics is " + topics.size());
 		topicToRequests = new HashMap<String, List<EtlRequest>>();
 

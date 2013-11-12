@@ -29,14 +29,18 @@ public class MemorySchemaRegistry<S> implements SchemaRegistry<S> {
 
 	@Override
 	public String register(String topic, S schema) {
-		long id = ids.incrementAndGet();
+		long id = generateSchemaId(schema);
 		MemorySchemaRegistryTuple tuple = new MemorySchemaRegistryTuple(topic,
 				id);
 		schemasById.put(tuple, schema);
 		latest.put(topic, tuple);
 		return Long.toString(id);
 	}
-
+	
+	protected long generateSchemaId(S schema) {
+		return ids.incrementAndGet();
+	}
+	
 	@Override
 	public S getSchemaByID(String topicName, String idStr) {
 		try {

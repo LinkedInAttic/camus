@@ -5,14 +5,14 @@ import org.apache.hadoop.conf.Configuration;
 
 import com.linkedin.camus.example.records.DummyLog;
 import com.linkedin.camus.example.records.DummyLog2;
-import com.linkedin.camus.schemaregistry.MemorySchemaRegistry;
+import com.linkedin.camus.schemaregistry.AvroMemorySchemaRegistry;
 
 /**
  * This is a little dummy registry that just uses a memory-backed schema
  * registry to store two dummy Avro schemas. You can use this with
  * camus.properties
  */
-public class DummySchemaRegistry extends MemorySchemaRegistry<Schema> {
+public class DummySchemaRegistry extends AvroMemorySchemaRegistry {
 	public DummySchemaRegistry(Configuration conf) {
 		super();
 		super.register("DUMMY_LOG", DummyLog.newBuilder().build().getSchema());

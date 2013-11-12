@@ -4,10 +4,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
 import java.util.regex.Pattern;
 
 import org.I0Itec.zkclient.ZkClient;
@@ -23,6 +25,8 @@ public class EtlZkClient {
 	public static final int DEFAULT_ZOOKEEPER_TIMEOUT = 30000;
 	private static final String DEFAULT_ZOOKEEPER_TOPIC_PATH = "/brokers/topics";
 	private static final String DEFAULT_ZOOKEEPER_BROKER_PATH = "/brokers/ids";
+    private static final Set<String> DEFAULT_WHITE_LIST = Collections.EMPTY_SET;
+    private static final Set<String> DEFAULT_BLACK_LIST = Collections.EMPTY_SET;
 
 	private final String zkTopicPath;
 	private final String zkBrokerPath;
@@ -82,6 +86,30 @@ public class EtlZkClient {
 	 * @throws IOException
 	 */
 	public EtlZkClient(String zkHosts, int zkSessionTimeout, int zkConnectionTimeout, String zkTopicPath, String zkBrokerPath) throws IOException {
+		this(zkHosts, zkSessionTimeout, zkConnectionTimeout, zkTopicPath, zkBrokerPath, DEFAULT_WHITE_LIST, DEFAULT_BLACK_LIST);
+	}
+
+	/**
+	 * Zookeeper client for Kafka
+	 *
+	 * @param zkHosts
+	 *            The zookeeper host connection scheme.
+	 * @param zkSessionTimeout
+	 *            The session timeout in millisec
+	 * @param zkConnectionTimeout
+	 *            The connection timeout in millisec
+	 * @param zkTopicPath
+	 *            The zookeeper path for topics
+	 * @param zkBrokerPath
+	 *            The borker path for topics
+	 * @param whiteListTopics
+	 *            White list of topics to include in topic list
+	 * @param whiteListTopics
+	 *          black list of topics to include in topic list
+	 * @throws IOException
+	 */
+	public EtlZkClient(String zkHosts, int zkSessionTimeout, int zkConnectionTimeout,
+	                   String zkTopicPath, String zkBrokerPath, Set<String> whiteListTopics, Set<String> blackListTopics) throws IOException {
 		this.zkTopicPath = zkTopicPath;
 		this.zkBrokerPath = zkBrokerPath;
 
@@ -91,7 +119,7 @@ public class EtlZkClient {
 			loadKafkaNodes();
 
 			// Loads the Topics available
-			loadKafkaTopic();
+			loadKafkaTopic(whiteListTopics, blackListTopics);
 		} finally {
 			zkClient.close();
 		}
@@ -117,7 +145,7 @@ public class EtlZkClient {
 	public List<String> getTopics(Set<String> blacklist) {
 		ArrayList<String> topics = new ArrayList<String>();
 		for (String topic : topicToRequests.keySet()) {
-			if (!matchesPattern(blacklist, topic)) {
+			if (!matchesPattern(blacklist, topic, true)) {
 				topics.add(topic);
 			}
 		}
@@ -126,24 +154,31 @@ public class EtlZkClient {
 	}
 
 	public List<String> getTopics(Set<String> whitelist, Set<String> blacklist) {
-		ArrayList<String> topics = new ArrayList<String>();
-		for (String topic : topicToRequests.keySet()) {
-			if (!matchesPattern(blacklist, topic) && matchesPattern(whitelist, topic)) {
-				topics.add(topic);
-			}
-		}
-
-		return topics;
+		return getTopics(topicToRequests.keySet(), whitelist, blacklist);
 	}
 
-	private boolean matchesPattern(Set<String> list, String compare) {
-		for (String pattern : list) {
-			if (Pattern.matches(pattern, compare)) {
-				return true;
+	public List<String> getTopics(Collection<String> topics, Set<String> whitelist, Set<String> blacklist) {
+		ArrayList<String> filteredTopics = new ArrayList<String>();
+		for (String topic : topics) {
+			if (!matchesPattern(blacklist, topic, true) && matchesPattern(whitelist, topic, false)) {
+				filteredTopics.add(topic);
 			}
 		}
 
-		return false;
+		return filteredTopics;
+	}
+
+	private boolean matchesPattern(Set<String> list, String compare, boolean reverse) {
+        if (list == null || list.isEmpty()) {
+            return !reverse;
+        }
+		for (String pattern : list) {
+			if (Pattern.matches(pattern, compare)) {
+				return reverse;
+			}
+		}
+
+		return !reverse;
 	}
 
 	// /**
@@ -225,10 +260,12 @@ public class EtlZkClient {
 	 * Loading kafka topics
 	 * 
 	 * @throws IOException
+	 * @param whiteListTopics
+	 * @param blackListTopics
 	 */
-	private void loadKafkaTopic() throws IOException {
-		List<String> topics = zkClient.getChildren(zkTopicPath);
+	private void loadKafkaTopic(Set<String> whiteListTopics, Set<String> blackListTopics) throws IOException {
 		log.info("Getting topics from " + zkTopicPath);
+		List<String> topics = getTopics(zkClient.getChildren(zkTopicPath), whiteListTopics, blackListTopics);
 		log.info("Number of topics is " + topics.size());
 		topicToRequests = new HashMap<String, List<EtlRequest>>();
 

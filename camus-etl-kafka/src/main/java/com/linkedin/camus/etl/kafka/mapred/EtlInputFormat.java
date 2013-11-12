@@ -9,13 +9,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Set;
 
-import kafka.message.Message;
-
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -34,7 +29,6 @@ import org.apache.log4j.Logger;
 
 import scala.actors.threadpool.Arrays;
 
-import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
@@ -94,22 +88,22 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                     + "\n\tzkSessionTimeout: " + zkSessionTimeout + "\n\tzkConnectionTimeout: "
                     + zkConnectionTimeout);
 
+	        Set<String> whiteListTopics = new HashSet<String>(
+			        Arrays.asList(getKafkaWhitelistTopic(context)));
+
+	        log.info("whiteListTopics: " + whiteListTopics);
+
+	        Set<String> blackListTopics = new HashSet<String>(
+			        Arrays.asList(getKafkaBlacklistTopic(context)));
+
+	        log.info("blackListTopics: " + blackListTopics);
+
             EtlZkClient zkClient = new EtlZkClient(zkHosts, zkSessionTimeout, zkConnectionTimeout,
-                    zkTopicPath, zkBrokerPath);
+                    zkTopicPath, zkBrokerPath, whiteListTopics, blackListTopics);
 
             log.info("zkClient.toString(): " + zkClient.toString());
 
             List<String> topicList = null;
-
-            Set<String> whiteListTopics = new HashSet<String>(
-                    Arrays.asList(getKafkaWhitelistTopic(context)));
-
-            log.info("whiteListTopics: " + whiteListTopics);
-
-            Set<String> blackListTopics = new HashSet<String>(
-                    Arrays.asList(getKafkaBlacklistTopic(context)));
-
-            log.info("blackListTopics: " + blackListTopics);
 
             if (whiteListTopics.isEmpty()) {
                 CamusJob.startTiming("kafkaSetupTime");
@@ -130,7 +124,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 try {
                    MessageDecoderFactory.createMessageDecoder(context, topic);
                 } catch (Exception e) {
-                    log.debug("We cound not construct a decoder for topic '" + topic
+                    log.debug("We could not construct a decoder for topic '" + topic
                             + "', so that topic will be discarded.", e);
                     topicsToDiscard.add(topic);
                 }

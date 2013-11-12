@@ -124,7 +124,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, AvroWrapper<Object>> {
                 try {
                    MessageDecoderFactory.createMessageDecoder(context, topic);
                 } catch (Exception e) {
-                    log.debug("We cound not construct a decoder for topic '" + topic
+                    log.debug("We could not construct a decoder for topic '" + topic
                             + "', so that topic will be discarded.", e);
                     topicsToDiscard.add(topic);
                 }

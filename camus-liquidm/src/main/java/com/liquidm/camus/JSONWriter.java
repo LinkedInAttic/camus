@@ -12,8 +12,7 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.compress.BZip2Codec;
-import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.*;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
@@ -25,7 +24,7 @@ public class JSONWriter implements RecordWriterProvider {
 
   @Override
   public String getFilenameExtension() {
-    return ".json.bz2";
+    return ".gz";
   }
 
   @SuppressWarnings("rawtypes")
@@ -38,17 +37,16 @@ public class JSONWriter implements RecordWriterProvider {
     Path file = committer.getWorkPath();
     file = new Path(file, EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
 
-    CompressionCodec codec = new BZip2Codec();
-    SequenceFile.CompressionType compressionType = SequenceFile.CompressionType.BLOCK;
+    CompressionCodecFactory codecFactory = new CompressionCodecFactory(conf);
+    CompressionCodec codec = codecFactory.getCodec(file);
 
-    final SequenceFile.Writer writer =
-        SequenceFile.createWriter(fs, conf, file, NullWritable.class, String.class, compressionType, codec);
+    final CompressionOutputStream writer = codec.createOutputStream(fs.create(file));
 
     return new RecordWriter<IEtlKey, CamusWrapper>() {
 
       @Override
       public void write(IEtlKey iEtlKey, CamusWrapper camusWrapper) throws IOException, InterruptedException {
-        writer.append(_emptyKey, new Text((camusWrapper.getRecord().toString() + '\n').getBytes("UTF-8")));
+        writer.write((camusWrapper.getRecord().toString() + '\n').getBytes("UTF-8"));
       }
 
       @Override

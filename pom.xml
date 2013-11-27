@@ -73,7 +73,7 @@
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-core</artifactId>
-				<version>1.0.3</version>
+				<version>1.1.1</version>
 			</dependency>
 			<dependency>
 				<groupId>kafka</groupId>
@@ -114,8 +114,8 @@
 		<module>camus-etl-kafka</module>
 		<module>camus-schema-registry</module>
 		<module>camus-schema-registry-avro</module>
-		<module>camus-example</module>
-	</modules>
+        <module>camus-liquidm</module>
+    </modules>
 
 	<licenses>
 		<license>
@@ -196,5 +196,4 @@
 			</plugin>
 		</plugins>
 	</build>
-
 </project>

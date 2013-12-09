@@ -77,7 +77,7 @@
 			</dependency>
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
-				<artifactId>hadoop-core</artifactId>
+				<artifactId>hadoop-client</artifactId>
 				<version>1.0.3</version>
 			</dependency>
 			<dependency>

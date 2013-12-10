@@ -35,7 +35,7 @@
 			</dependency>
 			<dependency>
 				<groupId>com.linkedin.camus</groupId>
-				<artifactId>camus-kafka-producer</artifactId>
+				<artifactId>camus-kafka-coders</artifactId>
 				<version>0.1.0-SNAPSHOT</version>
 			</dependency>
 			<dependency>
@@ -116,7 +116,7 @@
 
 	<modules>
 		<module>camus-api</module>
-		<module>camus-kafka-producer</module>
+		<module>camus-kafka-coders</module>
 		<module>camus-etl-kafka</module>
 		<module>camus-schema-registry</module>
 		<module>camus-schema-registry-avro</module>

@@ -27,7 +27,7 @@ import com.linkedin.camus.coders.MessageEncoderException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 
-public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Message> {
+public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[]> {
     public static final String KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS = "kafka.message.coder.schema.registry.class";
 
     private static final byte MAGIC_BYTE = 0x0;
@@ -37,7 +37,6 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
     private final Map<Schema, String> cache = Collections
             .synchronizedMap(new HashMap<Schema, String>());
     private final EncoderFactory encoderFactory = EncoderFactory.get();
-    private static Logger log = Logger.getLogger(KafkaAvroMessageEncoder.class);
 
     @SuppressWarnings("unchecked")
     public KafkaAvroMessageEncoder(String topicName, Configuration conf) {
@@ -58,7 +57,7 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
 
     }
 
-    public Message toMessage(IndexedRecord record) {
+    public byte[] toBytes(IndexedRecord record) {
         try {
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -90,8 +89,9 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, Messa
                 writer = new GenericDatumWriter<IndexedRecord>(record.getSchema());
             writer.write(record, encoder);
 
-            log.error(out.toByteArray().length);
-            return new Message(out.toByteArray());
+            System.err.println(out.toByteArray().length);
+            return out.toByteArray();
+            //return new Message(out.toByteArray());
         } catch (IOException e) {
             throw new MessageEncoderException(e);
         }

@@ -20,8 +20,8 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     public static final Text SERVER = new Text("server");
     public static final Text SERVICE = new Text("service");
     public static EtlKey DUMMY_KEY = new EtlKey();
-
-	private String nodeId = "";
+    
+    private String leaderId = "";
 	private int partition = 0;
 	private long beginOffset = 0;
 	private long offset = 0;
@@ -37,11 +37,11 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	 * dummy empty constructor
 	 */
 	public EtlKey() {
-		this("dummy", "0", 0, 0, 0, 0);
+		this("dummy","0", 0, 0, 0, 0);
 	}
 
 	public EtlKey(EtlKey other) {
-		this.nodeId = other.nodeId;
+		
 		this.partition = other.partition;
 		this.beginOffset = other.beginOffset;
 		this.offset = other.offset;
@@ -53,20 +53,20 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
         this.partitionMap = new MapWritable(other.partitionMap);
 	}
 
-	public EtlKey(String topic, String nodeId, int partition) {
-		this.set(topic, nodeId, partition, 0, 0, 0);
+	public EtlKey(String topic, String leaderId, int partition) {
+		this.set(topic, leaderId, partition, 0, 0, 0);
 	}
 
-	public EtlKey(String topic, String nodeId, int partition, long beginOffset, long offset) {
-		this.set(topic, nodeId, partition, beginOffset, offset, 0);
+	public EtlKey(String topic, String leaderId, int partition, long beginOffset, long offset) {
+		this.set(topic, leaderId, partition, beginOffset, offset, 0);
 	}
 
-	public EtlKey(String topic, String nodeId, int partition, long beginOffset, long offset, long checksum) {
-		this.set(topic, nodeId, partition, beginOffset, offset, checksum);
+	public EtlKey(String topic, String leaderId,  int partition, long beginOffset, long offset, long checksum) {
+		this.set(topic, leaderId, partition, beginOffset, offset, checksum);
 	}
 
-	public void set(String topic, String nodeId, int partition, long beginOffset, long offset, long checksum) {
-		this.nodeId = nodeId;
+	public void set(String topic, String leaderId, int partition, long beginOffset, long offset, long checksum) {
+		this.leaderId = leaderId;
 		this.partition = partition;
 		this.beginOffset = beginOffset;
 		this.offset = offset;
@@ -78,7 +78,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	}
 	
 	public void clear() {
-		nodeId = "";
+		leaderId = "";
 		partition = 0;
 		beginOffset = 0;
 		offset = 0;
@@ -118,8 +118,8 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 		return topic;
 	}
 
-	public String getNodeId() {
-		return nodeId;
+	public String getLeaderId() {
+		return leaderId;
 	}
 
 	public int getPartition() {
@@ -156,7 +156,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 
 	@Override
 	public void readFields(DataInput in) throws IOException {
-		this.nodeId = UTF8.readString(in);
+		this.leaderId = UTF8.readString(in);
 		this.partition = in.readInt();
 		this.beginOffset = in.readLong();
 		this.offset = in.readLong();
@@ -176,7 +176,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 
 	@Override
 	public void write(DataOutput out) throws IOException {
-		UTF8.writeString(out, this.nodeId);
+		UTF8.writeString(out, this.leaderId);
 		out.writeInt(this.partition);
 		out.writeLong(this.beginOffset);
 		out.writeLong(this.offset);
@@ -216,9 +216,9 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
         builder.append(topic);
         builder.append(" partition=");
         builder.append(partition);
-        builder.append(" nodeId=");
-        builder.append(nodeId);
-        builder.append(" server");
+        builder.append("leaderId=");
+        builder.append(leaderId);
+        builder.append(" server=");
         builder.append(server);
         builder.append(" service=");
         builder.append(service);

@@ -13,7 +13,7 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 {
 
 	@Override
-	public CamusWrapper<Record> decode(Message message)
+	public CamusWrapper<Record> decode(byte[] payload)
 	{
 		try
 		{
@@ -28,9 +28,10 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
                     decoderFactory.jsonDecoder(
                             schema, 
                             new String(
-                                    message.payload().array(), 
-                                    Message.payloadOffset(message.magic()),
-                                    message.payloadSize()
+                                    payload, 
+                                    //Message.payloadOffset(message.magic()),
+                                    Message.MagicOffset(),
+                                    payload.length - Message.MagicOffset()
                             )
                     )
             ));

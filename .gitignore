@@ -1,10 +1,27 @@
 .classpath
 .project
-*.iml
+dist
+target
+*iml
+*.ipr
+*.iws
+*.tar.gz
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+**/.classpath
+**/.project
+**/.settings/
+.settings/*
+*.jar
+**/bin/
+**/test-output/
+**/.idea
 .idea
 
 # target dirs
-target
 camus-api/target/
 camus-etl-kafka/target/
 camus-example/target/

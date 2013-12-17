@@ -19,7 +19,7 @@ import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import org.apache.hadoop.io.Text;
 
-public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
+public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 	protected DecoderFactory decoderFactory;
 	protected SchemaRegistry<Schema> registry;
 	private Schema latestSchema;
@@ -44,7 +44,7 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 	}
 
 	private class MessageDecoderHelper {
-		private Message message;
+		//private Message message;
 		private ByteBuffer buffer;
 		private Schema schema;
 		private int start;
@@ -53,12 +53,14 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 		private static final byte MAGIC_BYTE = 0x0;
 		private final SchemaRegistry<Schema> registry;
 		private final String topicName;
+		private byte[] payload;
 
 		public MessageDecoderHelper(SchemaRegistry<Schema> registry,
-				String topicName, Message message) {
+				String topicName, byte[] payload) {
 			this.registry = registry;
 			this.topicName = topicName;
-			this.message = message;
+			//this.message = message;
+			this.payload = payload;
 		}
 
 		public ByteBuffer getBuffer() {
@@ -81,15 +83,15 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 			return targetSchema;
 		}
 
-		private ByteBuffer getByteBuffer(Message message) {
-			ByteBuffer buffer = message.payload();
+		private ByteBuffer getByteBuffer(byte[] payload) {
+			ByteBuffer buffer = ByteBuffer.wrap(payload);
 			if (buffer.get() != MAGIC_BYTE)
 				throw new IllegalArgumentException("Unknown magic byte!");
 			return buffer;
 		}
 
 		public MessageDecoderHelper invoke() {
-			buffer = getByteBuffer(message);
+			buffer = getByteBuffer(payload);
 			String id = Integer.toString(buffer.getInt());
 			schema = registry.getSchemaByID(topicName, id);
 			if (schema == null)
@@ -104,10 +106,10 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 		}
 	}
 
-	public CamusWrapper<Record> decode(Message message) {
+	public CamusWrapper<Record> decode(byte[] payload) {
 		try {
 			MessageDecoderHelper helper = new MessageDecoderHelper(registry,
-					topicName, message).invoke();
+					topicName, payload).invoke();
 			DatumReader<Record> reader = (helper.getTargetSchema() == null) ? new GenericDatumReader<Record>(
 					helper.getSchema()) : new GenericDatumReader<Record>(
 					helper.getSchema(), helper.getTargetSchema());

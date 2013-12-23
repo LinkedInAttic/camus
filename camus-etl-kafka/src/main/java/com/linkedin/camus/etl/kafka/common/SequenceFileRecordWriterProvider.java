@@ -26,14 +26,10 @@ import org.apache.log4j.Logger;
  * Provides a RecordWriter that uses SequenceFile.Writer to write
  * SequenceFiles records to HDFS.  Compression settings are controlled via
  * the usual hadoop configuration values.
- * - mapred.output.compress             - true or false)
- * - mapred.output.compression.codec    - org.apache.hadoop.io.compress.SnappyCodec, etc.
- * - mapred.output.compression.type     - BLOCK or RECORD
  *
- * I believe that the above properties are deprecated, and instead one should use
- * mapreduce.output.fileoutputformat.compress, mapred.output.fileoutputformat.compress.codec,
- * and mapreduce.output.fileoutputformat.compress.type.  This might depend on the version
- * of Hadoop that you are using.
+ * - mapreduce.output.fileoutputformat.compress         - true or false
+ * - mapreduce.output.fileoutputformat.compress.codec   - org.apache.hadoop.io.compress.* (SnappyCodec, etc.)
+ * - mapreduce.output.fileoutputformat.compress.type    - BLOCK or RECORD
  *
  */
 public class SequenceFileRecordWriterProvider implements RecordWriterProvider {

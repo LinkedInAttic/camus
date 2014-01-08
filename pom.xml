@@ -81,13 +81,21 @@
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-core</artifactId>
-				<version>1.2.1</version>
-				<scope>provided</scope>
+				<version>2.0.0-mr1-cdh4.5.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.hadoop</groupId>
+				<artifactId>hadoop-common</artifactId>
+				<version>2.0.0-cdh4.5.0</version>
 			</dependency>
 			<dependency>
 				<groupId>kafka</groupId>
 				<artifactId>kafka</artifactId>
 				<version>0.8-SNAPSHOT</version>
+				<!--<exclusion>
+					<groupId>org.xerial.snappy</groupId>
+					<artifactId>snappy-java</artifactId>
+				</exclusion>-->
 			</dependency>
 			<dependency>
 				<groupId>com.github.sgroschupf</groupId>
@@ -115,7 +123,6 @@
 				<groupId>org.xerial.snappy</groupId>
 				<artifactId>snappy-java</artifactId>
 				<version>1.0.4.1</version>
-				<scope>provided</scope>
 			</dependency>
 
 		</dependencies>
@@ -154,6 +161,10 @@
 		<repository>
 			<id>apache-releases</id>
 			<url>https://repository.apache.org/content/groups/public</url>
+		</repository>
+		<repository>
+			<id>cloudera</id>
+			<url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
 		</repository>
 	</repositories>
 

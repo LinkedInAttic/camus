@@ -10,6 +10,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionOutputStream;
 
 import org.apache.log4j.Logger;
 
@@ -29,7 +32,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
     // init(JobContext context) method signature that EtlMultiOutputFormat would always call.
     @Override
     public String getFilenameExtension() {
-        return "";
+        return ".gz";
     }
 
     @Override
@@ -56,7 +59,11 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         );
 
         // Create a FSDataOutputStream stream that will write to path.
-        final FSDataOutputStream writer = path.getFileSystem(context.getConfiguration()).create(path);
+        FSDataOutputStream writer = path.getFileSystem(context.getConfiguration()).create(path);
+
+        CompressionCodecFactory codecFactory = new CompressionCodecFactory(context.getConfiguration());
+        CompressionCodec codec = codecFactory.getCodec(path);
+        final CompressionOutputStream compressedOutput = codec.createOutputStream(writer);
 
         // Return a new anonymous RecordWriter that uses the
         // FSDataOutputStream writer to write bytes straight into path.
@@ -64,12 +71,12 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
             @Override
             public void write(IEtlKey ignore, CamusWrapper data) throws IOException {
                 String record = (String)data.getRecord() + recordDelimiter;
-                writer.write(record.getBytes());
+                compressedOutput.write(record.getBytes());
             }
 
             @Override
             public void close(TaskAttemptContext context) throws IOException, InterruptedException {
-                writer.close();
+                compressedOutput.close();
             }
         };
     }

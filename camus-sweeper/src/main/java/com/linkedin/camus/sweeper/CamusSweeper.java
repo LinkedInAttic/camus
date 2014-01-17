@@ -149,7 +149,15 @@ public class CamusSweeper extends Configured implements Tool
       System.out.println("Processing topic " + topicName);
 
       Path destinationPath = new Path(destLocation + "/" + topic.getPath().getName() + "/" + destSubdir);
-      runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+      try
+      {
+        runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+      }
+      catch (Exception e)
+      {
+        System.err.println("unable to process " + topicName + " skipping...");
+        e.printStackTrace();
+      }
     }
 
     System.out.println("Shutting down executor");

@@ -40,7 +40,7 @@ public class Utils {
 	 */
 	public static List<String> getStringList(Properties props, String property) {
 		String value = (String) props.getProperty(property, null);
-		if (value == null)
+		if (value == null || value.isEmpty())
 			return new ArrayList<String>();
 		else
 			return Arrays.asList(value.split(","));

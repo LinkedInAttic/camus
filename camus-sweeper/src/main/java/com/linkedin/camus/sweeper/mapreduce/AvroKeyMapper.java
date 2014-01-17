@@ -73,7 +73,14 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
       }
       else if (fld.schema().getType() == Type.RECORD)
       {
-        projectData((GenericRecord) source.get(fld.name()), (GenericRecord) target.get(fld.name()));
+        GenericRecord record = (GenericRecord) target.get(fld.name());
+        
+        if (record == null){
+          record = new GenericData.Record(fld.schema());
+          target.put(fld.name(), record);
+        }
+        
+        projectData((GenericRecord) source.get(fld.name()), record);
       }
       else
       {

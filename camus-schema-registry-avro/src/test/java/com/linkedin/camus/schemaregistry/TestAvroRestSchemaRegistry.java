@@ -44,7 +44,6 @@ public class TestAvroRestSchemaRegistry extends TestSchemaRegistries {
 		props.put("jetty.host", "localhost");
 		props.put("jetty.port", "8123");
 		server = new RepositoryServer(props);
-		server = new RepositoryServer(props);
 		server.start();
 	}
 

@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.Comparator;
+import java.util.Arrays;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -229,7 +231,13 @@ public class CamusJob extends Configured implements Tool {
 				+ content.getDirectoryCount();
 
 		FileStatus[] executions = fs.listStatus(execHistory);
-
+		Arrays.sort(executions, new Comparator<FileStatus>() {
+			public int compare(FileStatus f1, FileStatus f2) {
+				return Long.valueOf(f1.getModificationTime())
+						.compareTo(f2.getModificationTime());
+			}
+		});
+		
 		// removes oldest directory until we get under required % of count
 		// quota. Won't delete the most recent directory.
 		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {

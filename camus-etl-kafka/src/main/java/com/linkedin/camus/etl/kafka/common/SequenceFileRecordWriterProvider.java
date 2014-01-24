@@ -86,7 +86,7 @@ public class SequenceFileRecordWriterProvider implements RecordWriterProvider {
             )
         );
 
-        log.info("Creating new SequenceFile.Writer with compression type " + compressionType + " and compression codec " + compressionCodec.getClass().getName());
+        log.info("Creating new SequenceFile.Writer with compression type " + compressionType + " and compression codec " + ( compressionCodec != null ? compressionCodec.getClass().getName() : "null"));
         final SequenceFile.Writer writer = SequenceFile.createWriter(
             path.getFileSystem(conf),
             conf,

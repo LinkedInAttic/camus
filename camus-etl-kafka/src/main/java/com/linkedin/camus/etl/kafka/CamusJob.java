@@ -233,8 +233,7 @@ public class CamusJob extends Configured implements Tool {
 		FileStatus[] executions = fs.listStatus(execHistory);
 		Arrays.sort(executions, new Comparator<FileStatus>() {
 			public int compare(FileStatus f1, FileStatus f2) {
-				return Long.valueOf(f1.getModificationTime())
-						.compareTo(f2.getModificationTime());
+				return f1.getPath().getName().compareTo(f2.getPath().getName());
 			}
 		});
 		

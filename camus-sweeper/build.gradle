@@ -1,0 +1,15 @@
+apply plugin: 'li-java'
+ 
+dependencies {
+	compile spec.external.log4j
+	compile spec.external.avro17
+	compile spec.external.avroIpc
+	compile spec.external.avroMapred
+	compile spec.external.jodaTime
+	compile spec.external.hadoopCore
+	compile spec.external.paranamer
+	compile spec.external.snappyJava
+	compile spec.external.junit
+}
+
+classification="library"

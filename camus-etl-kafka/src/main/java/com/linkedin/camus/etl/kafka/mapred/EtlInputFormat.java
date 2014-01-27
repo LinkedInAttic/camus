@@ -10,6 +10,7 @@ import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
 import java.io.IOException;
 import java.net.URI;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,6 +86,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		ArrayList<String> metaRequestTopics = new ArrayList<String>();
 		CamusJob.startTiming("kafkaSetupTime");
 		String brokerString = CamusJob.getKafkaBrokers(context);
+		if (brokerString.isEmpty())
+			throw new InvalidParameterException("kafka.brokers must contain at least one node");
                 List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
 		Collections.shuffle(brokers);
 		boolean fetchMetaDataSucceeded = false;
@@ -115,6 +118,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	}
  
 	private SimpleConsumer createConsumer(JobContext context, String broker) {
+		if (!broker.matches(".+:\\d+"))
+			throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
 		String[] hostPort = broker.split(":");
 		SimpleConsumer consumer = new SimpleConsumer(
 			hostPort[0],

@@ -115,6 +115,7 @@
 		<module>camus-schema-registry</module>
 		<module>camus-schema-registry-avro</module>
 		<module>camus-example</module>
+		<module>camus-sweeper</module>
 	</modules>
 
 	<licenses>

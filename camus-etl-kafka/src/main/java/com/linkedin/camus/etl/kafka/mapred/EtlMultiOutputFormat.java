@@ -407,8 +407,10 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
             return partitionedPath +
                         "/" + topic + "." + leaderId + "." + partition +
-                        "." + count+
-                        "." + offset + recordWriterProvider.getFilenameExtension();
+                        "." + count +
+                        "." + offset + 
+                        "." + encodedPartition + 
+                        recordWriterProvider.getFilenameExtension();
         }
     }
 }

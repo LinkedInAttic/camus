@@ -221,7 +221,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
         String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
         if(partitionersByTopic.get(customPartitionerProperty) == null) {
-            List<Partitioner> partitioners = new ArrayList<Partitioner>();//job.getConfiguration().getInstances(customPartitionerProperty, com.linkedin.camus.coders.Partitioner.class);
+            List<Partitioner> partitioners = job.getConfiguration().getInstances(customPartitionerProperty, com.linkedin.camus.coders.Partitioner.class);
             if(partitioners.isEmpty()) {
                 return getDefaultPartitioner(job);
             } else {

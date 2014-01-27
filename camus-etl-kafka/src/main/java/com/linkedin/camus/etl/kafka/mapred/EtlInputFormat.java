@@ -330,21 +330,32 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 					|| request.getOffset() > request.getLastOffset()) {
 				if(request.getEarliestOffset() > request.getOffset())
 				{
-					log.error("The earliest offset was found to be more than the current offset");
+					log.error("The earliest offset [" + request.getEarliestOffset() + "] was found to be more than the current offset [" + request.getOffset() + "]");
 					log.error("Moving to the earliest offset available");
 				}
 				else
 				{
-					log.error("The current offset was found to be more than the latest offset");
+					log.error("The current offset [" + request.getOffset() + "] was found to be more than the latest offset [" + request.getLastOffset() + "]");
 					log.error("Moving to the earliest offset available");
 				}
-				request.setOffset(request.getEarliestOffset());
+				// The KafkaReader class will read (offset, latest) where offset is the what we tell it to start from and
+				// latest is the brokers next offset (i.e. not a message yet). So if we want it to read the earliest known message
+				// we need to set it to (earliest - 1)
+				request.setOffset(request.getEarliestOffset() - 1);
 				offsetKeys.put(
 						request,
 						new EtlKey(request.getTopic(), request.getLeaderId(),
 								request.getPartition(), 0, request
 										.getLastOffset()));
 			}
+			else if (key == null) {
+				// key == null implies we have no current offset
+				// The KafkaReader class will read (offset, latest) where offset is the what we tell it to start from and
+				// latest is the brokers next offset (i.e. not a message yet). So if we want it to read the earliest known message
+				// we need to set it to (earliest - 1)
+				request.setOffset(request.getEarliestOffset() - 1);
+			}
+			
 			log.info(request);
 		}
 

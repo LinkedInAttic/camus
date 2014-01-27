@@ -224,7 +224,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			if (Pattern.matches(regex, topicMetadata.topic())) {
 				filteredTopics.add(topicMetadata);
 			} else {
-				log.info("Discrading topic : " + topicMetadata.topic());
+				log.info("Discarding topic : " + topicMetadata.topic());
 			}
 		}
 		return filteredTopics;

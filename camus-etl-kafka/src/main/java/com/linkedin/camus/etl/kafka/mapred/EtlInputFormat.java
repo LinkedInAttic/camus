@@ -67,7 +67,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
 	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
-	private final Logger log = Logger.getLogger(getClass());
+	private static Logger log = null;
+	
+	public EtlInputFormat()
+  {
+	  if (log == null)
+	    log = Logger.getLogger(getClass());
+  }
+	
+	public static void setLogger(Logger log){
+	  EtlInputFormat.log = log;
+	}
 
 	@Override
 	public RecordReader<EtlKey, CamusWrapper> createRecordReader(
@@ -380,6 +390,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			MessageDecoderFactory.createMessageDecoder(context, topic);
 			return true;
 		} catch (Exception e) {
+		  log.error("failed to create decoder", e);
 			return false;
 		}
 	}

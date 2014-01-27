@@ -88,18 +88,22 @@ public class CamusJob extends Configured implements Tool {
 	public static final String KAFKA_HOST_PORT = "kafka.host.port";
 	public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
-	private static org.apache.log4j.Logger log = Logger
-			.getLogger(CamusJob.class);
+	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
 
-	public CamusJob() {
-		this.props = new Properties();
+	public CamusJob() throws IOException {
+		this(new Properties());
 	}
 
 	public CamusJob(Properties props) throws IOException {
-		this.props = props;
+		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
 	}
+	
+	 public CamusJob(Properties props, Logger log) throws IOException {
+	    this.props = props;
+	    this.log = log;
+	  }
 
 	private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
 
@@ -271,6 +275,8 @@ public class CamusJob extends Configured implements Tool {
 		log.info("New execution temp location: "
 				+ newExecutionOutput.toString());
 
+		EtlInputFormat.setLogger(log);
+		
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setNumReduceTasks(0);

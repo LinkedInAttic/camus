@@ -31,14 +31,8 @@ import com.linkedin.camus.sweeper.utils.Utils;
 
 public class CamusHourlyCleaner extends Configured implements Tool
 {
-
-  public static final String TARGET_NAMENODE = "target.namenode";
-  public static final String SOURCE_NAMENODE = "source.namenode";
-  public static final String HADOOP_JOB_UGI = "hadoop.job.ugi";
-  public static final String SOURCE_PATH = "source.hour.path";
-  public static final String DEST_PATH = "dest.hour.path";
-  public static final String LAST_HOURS = "last.hours";
-  public static final String SIMULATE = "simulate";
+  
+  public static final String SIMULATE = "camus.sweeper.clean.simulate";
   public static final String KAFKA_FORCE_DELETE = "kafka.force.delete";
 
   private Properties props;
@@ -46,20 +40,16 @@ public class CamusHourlyCleaner extends Configured implements Tool
   private DateTimeFormatter outputDailyFormat;
   private DateTimeFormatter outputMonthFormat;
 
-  private String sourceURL;
-  private List<String> destURLs;
   private FileSystem sourceFS;
-  private ArrayList<FileSystem> destFSList;
 
   private Path sourcePath;
-  private Path destPath;
 
   private int numDays = 14;
   private int lookbackDays = 30;
 
   private boolean simulate = false;
   private boolean forceDelete;
-  
+
   public CamusHourlyCleaner()
   {
     // TODO Auto-generated constructor stub
@@ -75,27 +65,22 @@ public class CamusHourlyCleaner extends Configured implements Tool
   public void run() throws Exception
   {
     System.out.println("Cleaning");
-    destURLs = Utils.getStringList(props, TARGET_NAMENODE);
-    sourceURL = (String) props.getProperty(SOURCE_NAMENODE);
 
-    Configuration destConf = new Configuration();
-    destConf.set("hadoop.job.ugi", (String) props.getProperty(HADOOP_JOB_UGI));
-    destFSList = new ArrayList<FileSystem>();
-
-    for (String url : destURLs)
-    {
-      destFSList.add(FileSystem.get(new URI(url), destConf));
-    }
 
     Configuration srcConf = new Configuration();
-    srcConf.set("hadoop.job.ugi", (String) props.getProperty(HADOOP_JOB_UGI));
-    sourceFS = FileSystem.get(new URI(sourceURL), srcConf);
 
-    sourcePath = new Path(props.getProperty(SOURCE_PATH));
-    destPath = new Path(props.getProperty(DEST_PATH));
+    sourceFS = FileSystem.get(srcConf);
 
-    numDays = Integer.parseInt((String) props.getProperty("num.days", "14"));
-    lookbackDays = Integer.parseInt((String) props.getProperty("lookback.days", "30"));
+    String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
+    String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
+    
+    if (destLocation.isEmpty())
+      destLocation = fromLocation;
+    
+    sourcePath = new Path(destLocation);
+
+    numDays = Integer.parseInt((String) props.getProperty("camus.sweeper.clean.retention.hourly.num.days", "14"));
+    lookbackDays = Integer.parseInt((String) props.getProperty("camus.sweeper.clean.hourly.lookback.days", "30"));
 
     simulate = Boolean.parseBoolean(props.getProperty(SIMULATE, "false"));
     forceDelete = Boolean.parseBoolean(props.getProperty(KAFKA_FORCE_DELETE, "false"));
@@ -134,20 +119,6 @@ public class CamusHourlyCleaner extends Configured implements Tool
         if (sourceFS.exists(sourceDailyDate) || forceDelete)
         {
           System.out.println("Deleting " + sourceHourlyDate);
-          // We should be good to delete. Delete dest first.
-          Path destHourlyDate = new Path(destPath, topic + "/hourly/" + dateString);
-          for (FileSystem destFS : destFSList)
-          {
-            if (destFS.exists(destHourlyDate))
-            {
-              System.out.println("Deleting " + destHourlyDate + " on  " + destFS.getUri());
-              if (!simulate && !destFS.delete(destHourlyDate, true))
-              {
-                throw new IOException("Error deleting " + destHourlyDate + " on " + destFS.getUri());
-              }
-            }
-          }
-
           // We should be sure that if this source is deleted that the destinations were also
           // cleared out too.
           if (!simulate && !sourceFS.delete(sourceHourlyDate, true))

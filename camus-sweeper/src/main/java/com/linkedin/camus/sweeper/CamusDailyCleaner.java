@@ -36,11 +36,8 @@ import com.linkedin.camus.sweeper.utils.Utils;
 public class CamusDailyCleaner extends Configured implements Tool
 {
 
-  public static final String NAMENODE = "namenode";
-  public static final String HADOOP_JOB_UGI = "hadoop.job.ugi";
-  public static final String DAILY_PATH = "daily.path";
-  public static final String SIMULATE = "simulate";
-  public static final String RETENTION_TOPIC_PREFIX = "retention.topic.";
+  public static final String SIMULATE = "camus.sweeper.clean.simulate";
+  public static final String RETENTION_TOPIC_PREFIX = "camus.sweeper.clean.retention.days.topic.";
   public static final String OUTPUT_DAILY_FORMAT_STR = "YYYY/MM/dd";
 
   private DateUtils dUtils;
@@ -50,7 +47,6 @@ public class CamusDailyCleaner extends Configured implements Tool
 
   private final Properties props;
 
-  private String namenode;
   private String dailyPath;
   private FileSystem fs;
   private boolean simulate = false;
@@ -81,20 +77,25 @@ public class CamusDailyCleaner extends Configured implements Tool
   {
 
     log.info("Starting the Camus - Daily Cleaner");
-    namenode = (String) props.getProperty(NAMENODE);
-    log.debug("Namenode : " + namenode);
-    dailyPath = (String) props.getProperty(DAILY_PATH);
+    
+    String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
+    String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
+    
+    if (destLocation.isEmpty())
+      destLocation = fromLocation;
+    
+    dailyPath = destLocation;
+    
     log.debug("Daily Path : " + dailyPath);
     simulate = Boolean.parseBoolean(props.getProperty(SIMULATE, "false"));
 
     Configuration conf = new Configuration();
-    conf.set("hadoop.job.ugi", (String) props.getProperty(HADOOP_JOB_UGI));
-    fs = FileSystem.get(new URI(namenode), conf);
+    fs = FileSystem.get(conf);
 
     // Topic-specific retention
     Map<String, String> map = Utils.getMapByPrefix(props, RETENTION_TOPIC_PREFIX);
 
-    int regularRetention = Integer.parseInt((String) props.getProperty("retention.global", "-1"));
+    int regularRetention = Integer.parseInt((String) props.getProperty("camus.sweeper.clean.retention.days.global", "-1"));
 
     if (regularRetention != -1)
       System.out.println("Global retention set to " + regularRetention);

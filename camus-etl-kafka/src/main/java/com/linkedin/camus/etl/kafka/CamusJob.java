@@ -264,8 +264,8 @@ public class CamusJob extends Configured implements Tool {
 		// appropriate date-partitioned subdir in camus.destination.path
 		DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter(
 				"YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
-		Path newExecutionOutput = new Path(execBasePath,
-				new DateTime().toString(dateFmt));
+		String executionDate = new DateTime().toString(dateFmt);
+		Path newExecutionOutput = new Path(execBasePath, executionDate);
 		FileOutputFormat.setOutputPath(job, newExecutionOutput);
 		log.info("New execution temp location: "
 				+ newExecutionOutput.toString());
@@ -299,7 +299,9 @@ public class CamusJob extends Configured implements Tool {
 		// Print any potentail errors encountered
 		printErrors(fs, newExecutionOutput);
 
-		fs.rename(newExecutionOutput, execHistory);
+		Path newHistory = new Path(execHistory, executionDate);
+		log.debug("Moving execution to history : " + newHistory);
+		fs.rename(newExecutionOutput, newHistory);
 
 		log.info("Job finished");
 		stopTiming("commit");

@@ -124,43 +124,41 @@ public class CamusJob extends Configured implements Tool {
 				(timingMap.get(name) == null ? 0 : timingMap.get(name))
 						+ System.currentTimeMillis());
 	}
-
+	
 	private Job createJob(Properties props) throws IOException {
-		
-		if(getConf() == null)
-		{
-			Configuration conf = new Configuration();
-			for(Object key : props.keySet())
-			{
-				conf.set(key.toString(), props.getProperty(key.toString()));
-			}
-			setConf(conf);
-		}
-		
-		Job job = new Job(getConf());
-		job.setJarByClass(CamusJob.class);
-		
+	  Job job; 
+	  if(getConf() == null)
+	    {
+	      setConf(new Configuration()); 
+	    }
+	  
+	  populateConf(props, getConf());
+	  
+	  job = new Job(getConf());
+	  job.setJarByClass(CamusJob.class);
+	  
+	   if(job.getConfiguration().get("camus.job.name") != null)
+	    {
+	      job.setJobName(job.getConfiguration().get("camus.job.name"));
+	    }
+	   else
+	   {
+	     job.setJobName("Camus Job");
+	   }
+	   
+	  return job;
+	}
 
-		// Set the default partitioner
-		job.getConfiguration().set(
-				EtlMultiOutputFormat.ETL_DEFAULT_PARTITIONER_CLASS,
-				"com.linkedin.camus.etl.kafka.coders.DefaultPartitioner");
-
-		for (Object key : props.keySet()) {
-			job.getConfiguration().set(key.toString(),
-					props.getProperty(key.toString()));
-		}
-			
-		job.setJobName("Camus Job");
-		if(job.getConfiguration().get("camus.job.name") != null)
-		{
-			job.setJobName(job.getConfiguration().get("camus.job.name"));
-		}
+	public static void populateConf(Properties props, Configuration conf) throws IOException {
 		
-		
-		FileSystem fs = FileSystem.get(job.getConfiguration());
+	  for(Object key : props.keySet())
+    {
+      conf.set(key.toString(), props.getProperty(key.toString()));
+    }
 
-		String hadoopCacheJarDir = job.getConfiguration().get(
+		FileSystem fs = FileSystem.get(conf);
+
+		String hadoopCacheJarDir = conf.get(
 				"hdfs.default.classpath.dir", null);
 		if (hadoopCacheJarDir != null) {
 			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
@@ -173,7 +171,7 @@ public class CamusJob extends Configured implements Tool {
 
 						DistributedCache
 								.addFileToClassPath(status[i].getPath(),
-										job.getConfiguration(), fs);
+										conf, fs);
 					}
 				}
 			} else {
@@ -183,18 +181,16 @@ public class CamusJob extends Configured implements Tool {
 		}
 
 		// Adds External jars to hadoop classpath
-		String externalJarList = job.getConfiguration().get(
+		String externalJarList = conf.get(
 				"hadoop.external.jarFiles", null);
 		if (externalJarList != null) {
 			String[] jarFiles = externalJarList.split(",");
 			for (String jarFile : jarFiles) {
 				log.info("Adding external jar File:" + jarFile);
 				DistributedCache.addFileToClassPath(new Path(jarFile),
-						job.getConfiguration(), fs);
+						conf, fs);
 			}
 		}
-
-		return job;
 	}
 
 	public void run() throws Exception {

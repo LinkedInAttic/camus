@@ -5,6 +5,7 @@ dependencies {
 	compile(project(":camus-external:camus-api"))
 	compile(project(":camus-external:camus-schema-registry"))
 	compile(project(":camus-external:camus-schema-registry-avro"))
+	compile(project(":camus-external:camus-kafka-coders"))
 
 	compile spec.external.log4j
 	compile spec.external.avro17

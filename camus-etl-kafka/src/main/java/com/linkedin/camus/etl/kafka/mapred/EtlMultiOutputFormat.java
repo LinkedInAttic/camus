@@ -84,6 +84,19 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
                 .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
                         AvroRecordWriterProvider.class);
     }
+    
+    public static RecordWriterProvider getRecordWriterProvider(JobContext job) {
+        try
+        {
+          return (RecordWriterProvider) job.getConfiguration()
+                   .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
+                           AvroRecordWriterProvider.class).newInstance();
+        }
+        catch (Exception e)
+        {
+          throw new RuntimeException(e);
+        }
+    }
 
     public static void setDefaultTimeZone(JobContext job, String tz) {
         job.getConfiguration().set(ETL_DEFAULT_TIMEZONE, tz);

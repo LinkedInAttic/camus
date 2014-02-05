@@ -187,7 +187,7 @@ public class EtlCounts {
 	
 	
 	
-	public void writeCountsToHDFS(ArrayList<Map<String,Object>> allCountObject, FileSystem fs, Path path) throws IOException {
+	public void writeCountsToMap(ArrayList<Map<String,Object>> allCountObject, FileSystem fs, Path path) throws IOException {
 		Map<String, Object> countFile = new HashMap<String, Object>();
 		countFile.put(TOPIC, topic);
 		countFile.put(GRANULARITY, granularity);

@@ -84,22 +84,24 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
                             fs.mkdirs(dest.getParent());
                         }
 
-                    fs.rename(f.getPath(), dest);
+                    commitFile(context, f.getPath(), dest);
 
                     if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-                            count.writeCountsToHDFS(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
+                            count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
                                     + dest.getName().replace(recordWriterProvider.getFilenameExtension(), "")));
                     }
                 }
             }
 
-            Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
-            OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
-            ObjectMapper mapper= new ObjectMapper();
-            log.info("Writing counts to : " + tempPath.toString());
-            long time = System.currentTimeMillis();
-            mapper.writeValue(outputStream, allCountObject);
-            log.debug("Time taken : " + (System.currentTimeMillis() - time)/1000);
+            if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
+              Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
+              OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
+              ObjectMapper mapper= new ObjectMapper();
+              log.info("Writing counts to : " + tempPath.toString());
+              long time = System.currentTimeMillis();
+              mapper.writeValue(outputStream, allCountObject);
+              log.debug("Time taken : " + (System.currentTimeMillis() - time)/1000);
+            }
         }
 
         SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs,
@@ -111,6 +113,10 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         }
         offsetWriter.close();
         super.commitTask(context);
+    }
+    
+    protected void commitFile(JobContext job, Path source, Path target) throws IOException{
+      FileSystem.get(job.getConfiguration()).rename(source, target);
     }
 
     public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {

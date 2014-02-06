@@ -132,7 +132,7 @@ public class CamusJob extends Configured implements Tool {
 	      setConf(new Configuration()); 
 	    }
 	  
-	  populateConf(props, getConf());
+	  populateConf(props, getConf(), log);
 	  
 	  job = new Job(getConf());
 	  job.setJarByClass(CamusJob.class);
@@ -149,8 +149,7 @@ public class CamusJob extends Configured implements Tool {
 	  return job;
 	}
 
-	public static void populateConf(Properties props, Configuration conf) throws IOException {
-		
+	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
 	  for(Object key : props.keySet())
     {
       conf.set(key.toString(), props.getProperty(key.toString()));

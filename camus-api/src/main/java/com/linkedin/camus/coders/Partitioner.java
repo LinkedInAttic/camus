@@ -39,5 +39,5 @@ public abstract class Partitioner extends Configured {
      *                         above.
      * @return A path string where the avro files will be moved to.
      */
-    public abstract String generatePartitionedPath(JobContext context, String topic, int brokerId, int partitionId, String encodedPartition);
+    public abstract String generatePartitionedPath(JobContext context, String topic, String brokerId, int partitionId, String encodedPartition);
 }

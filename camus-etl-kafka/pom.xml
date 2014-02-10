@@ -43,8 +43,8 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
-			<groupId>kafka</groupId>
-			<artifactId>kafka</artifactId>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka_2.10</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.github.sgroschupf</groupId>

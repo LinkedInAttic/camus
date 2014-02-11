@@ -17,8 +17,8 @@
 			<artifactId>camus-schema-registry</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>kafka</groupId>
-			<artifactId>kafka</artifactId>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka_2.10</artifactId>
 		</dependency>
 		<!-- Gson is needed for JSONStringMessageDecoder -->
 		<dependency>

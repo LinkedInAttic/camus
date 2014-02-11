@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.Comparator;
+import java.util.Arrays;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -86,18 +88,22 @@ public class CamusJob extends Configured implements Tool {
 	public static final String KAFKA_HOST_PORT = "kafka.host.port";
 	public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
-	private static org.apache.log4j.Logger log = Logger
-			.getLogger(CamusJob.class);
+	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
 
-	public CamusJob() {
-		this.props = new Properties();
+	public CamusJob() throws IOException {
+		this(new Properties());
 	}
 
 	public CamusJob(Properties props) throws IOException {
-		this.props = props;
+		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
 	}
+	
+	 public CamusJob(Properties props, Logger log) throws IOException {
+	    this.props = props;
+	    this.log = log;
+	  }
 
 	private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
 
@@ -118,43 +124,40 @@ public class CamusJob extends Configured implements Tool {
 				(timingMap.get(name) == null ? 0 : timingMap.get(name))
 						+ System.currentTimeMillis());
 	}
-
+	
 	private Job createJob(Properties props) throws IOException {
-		
-		if(getConf() == null)
-		{
-			Configuration conf = new Configuration();
-			for(Object key : props.keySet())
-			{
-				conf.set(key.toString(), props.getProperty(key.toString()));
-			}
-			setConf(conf);
-		}
-		
-		Job job = new Job(getConf());
-		job.setJarByClass(CamusJob.class);
-		
+	  Job job; 
+	  if(getConf() == null)
+	    {
+	      setConf(new Configuration()); 
+	    }
+	  
+	  populateConf(props, getConf(), log);
+	  
+	  job = new Job(getConf());
+	  job.setJarByClass(CamusJob.class);
+	  
+	   if(job.getConfiguration().get("camus.job.name") != null)
+	    {
+	      job.setJobName(job.getConfiguration().get("camus.job.name"));
+	    }
+	   else
+	   {
+	     job.setJobName("Camus Job");
+	   }
+	   
+	  return job;
+	}
 
-		// Set the default partitioner
-		job.getConfiguration().set(
-				EtlMultiOutputFormat.ETL_DEFAULT_PARTITIONER_CLASS,
-				"com.linkedin.camus.etl.kafka.coders.DefaultPartitioner");
+	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
+	  for(Object key : props.keySet())
+    {
+      conf.set(key.toString(), props.getProperty(key.toString()));
+    }
 
-		for (Object key : props.keySet()) {
-			job.getConfiguration().set(key.toString(),
-					props.getProperty(key.toString()));
-		}
-			
-		job.setJobName("Camus Job");
-		if(job.getConfiguration().get("camus.job.name") != null)
-		{
-			job.setJobName(job.getConfiguration().get("camus.job.name"));
-		}
-		
-		
-		FileSystem fs = FileSystem.get(job.getConfiguration());
+		FileSystem fs = FileSystem.get(conf);
 
-		String hadoopCacheJarDir = job.getConfiguration().get(
+		String hadoopCacheJarDir = conf.get(
 				"hdfs.default.classpath.dir", null);
 		if (hadoopCacheJarDir != null) {
 			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
@@ -167,7 +170,7 @@ public class CamusJob extends Configured implements Tool {
 
 						DistributedCache
 								.addFileToClassPath(status[i].getPath(),
-										job.getConfiguration(), fs);
+										conf, fs);
 					}
 				}
 			} else {
@@ -177,18 +180,16 @@ public class CamusJob extends Configured implements Tool {
 		}
 
 		// Adds External jars to hadoop classpath
-		String externalJarList = job.getConfiguration().get(
+		String externalJarList = conf.get(
 				"hadoop.external.jarFiles", null);
 		if (externalJarList != null) {
 			String[] jarFiles = externalJarList.split(",");
 			for (String jarFile : jarFiles) {
 				log.info("Adding external jar File:" + jarFile);
 				DistributedCache.addFileToClassPath(new Path(jarFile),
-						job.getConfiguration(), fs);
+						conf, fs);
 			}
 		}
-
-		return job;
 	}
 
 	public void run() throws Exception {
@@ -229,7 +230,12 @@ public class CamusJob extends Configured implements Tool {
 				+ content.getDirectoryCount();
 
 		FileStatus[] executions = fs.listStatus(execHistory);
-
+		Arrays.sort(executions, new Comparator<FileStatus>() {
+			public int compare(FileStatus f1, FileStatus f2) {
+				return f1.getPath().getName().compareTo(f2.getPath().getName());
+			}
+		});
+		
 		// removes oldest directory until we get under required % of count
 		// quota. Won't delete the most recent directory.
 		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
@@ -264,6 +270,8 @@ public class CamusJob extends Configured implements Tool {
 		log.info("New execution temp location: "
 				+ newExecutionOutput.toString());
 
+		EtlInputFormat.setLogger(log);
+		
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setNumReduceTasks(0);

@@ -10,6 +10,7 @@ import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
 import java.io.IOException;
 import java.net.URI;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -66,7 +67,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
 	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
-	private final Logger log = Logger.getLogger(getClass());
+	private static Logger log = null;
+	
+	public EtlInputFormat()
+  {
+	  if (log == null)
+	    log = Logger.getLogger(getClass());
+  }
+	
+	public static void setLogger(Logger log){
+	  EtlInputFormat.log = log;
+	}
 
 	@Override
 	public RecordReader<EtlKey, CamusWrapper> createRecordReader(
@@ -85,6 +96,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		ArrayList<String> metaRequestTopics = new ArrayList<String>();
 		CamusJob.startTiming("kafkaSetupTime");
 		String brokerString = CamusJob.getKafkaBrokers(context);
+		if (brokerString.isEmpty())
+			throw new InvalidParameterException("kafka.brokers must contain at least one node");
                 List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
 		Collections.shuffle(brokers);
 		boolean fetchMetaDataSucceeded = false;
@@ -115,6 +128,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	}
  
 	private SimpleConsumer createConsumer(JobContext context, String broker) {
+		if (!broker.matches(".+:\\d+"))
+			throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
 		String[] hostPort = broker.split(":");
 		SimpleConsumer consumer = new SimpleConsumer(
 			hostPort[0],
@@ -209,7 +224,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			if (Pattern.matches(regex, topicMetadata.topic())) {
 				filteredTopics.add(topicMetadata);
 			} else {
-				log.info("Discrading topic : " + topicMetadata.topic());
+				log.info("Discarding topic : " + topicMetadata.topic());
 			}
 		}
 		return filteredTopics;
@@ -375,6 +390,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			MessageDecoderFactory.createMessageDecoder(context, topic);
 			return true;
 		} catch (Exception e) {
+		  log.error("failed to create decoder", e);
 			return false;
 		}
 	}

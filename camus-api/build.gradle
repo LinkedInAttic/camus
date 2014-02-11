@@ -1,0 +1,7 @@
+apply plugin: 'java'
+ 
+dependencies {
+	compile spec.external.hadoopCore
+}
+ 
+classification="library"

@@ -2,9 +2,11 @@ package com.linkedin.camus.coders;
 
 
 import com.linkedin.camus.etl.IEtlKey;
+
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.mapreduce.JobContext;
 
-public interface Partitioner {
+public abstract class Partitioner extends Configured {
     /**
      * Encode partition values into a string, to be embedded into the working filename.
      * Encoded values cannot use '/' or ':'.
@@ -19,7 +21,7 @@ public interface Partitioner {
      * @param etlKey The EtlKey containing values extracted from the Record by the MessageDecoder.
      * @return A string that encodes the partitioning values.
      */
-    String encodePartition(JobContext context, IEtlKey etlKey);
+    public abstract String encodePartition(JobContext context, IEtlKey etlKey);
 
     /**
      * Return a string representing the partitioned directory structure where the .avro files will be moved.
@@ -37,5 +39,5 @@ public interface Partitioner {
      *                         above.
      * @return A path string where the avro files will be moved to.
      */
-    String generatePartitionedPath(JobContext context, String topic, int brokerId, int partitionId, String encodedPartition);
+    public abstract String generatePartitionedPath(JobContext context, String topic, String brokerId, int partitionId, String encodedPartition);
 }

@@ -68,13 +68,13 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
 	private static Logger log = null;
-	
+
 	public EtlInputFormat()
   {
 	  if (log == null)
 	    log = Logger.getLogger(getClass());
   }
-	
+
 	public static void setLogger(Logger log){
 	  EtlInputFormat.log = log;
 	}
@@ -88,7 +88,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 	/**
 	 * Gets the metadata from Kafka
-	 * 
+	 *
 	 * @param context
 	 * @return
 	 */
@@ -106,7 +106,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		Exception savedException = null;
 		while (i < brokers.size() && !fetchMetaDataSucceeded) {
 			SimpleConsumer consumer = createConsumer(context, brokers.get(i));
-			log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
+			System.out.println(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
 			brokers.get(i), consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
 			try {
 				topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
@@ -126,7 +126,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		CamusJob.stopTiming("kafkaSetupTime");
 		return topicMetadataList;
 	}
- 
+
 	private SimpleConsumer createConsumer(JobContext context, String broker) {
 		if (!broker.matches(".+:\\d+"))
 			throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
@@ -142,7 +142,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 	/**
 	 * Gets the latest offsets and create the requests as needed
-	 * 
+	 *
 	 * @param context
 	 * @param offsetRequestInfo
 	 * @return
@@ -224,7 +224,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			if (Pattern.matches(regex, topicMetadata.topic())) {
 				filteredTopics.add(topicMetadata);
 			} else {
-				log.info("Discarding topic : " + topicMetadata.topic());
+				System.out.println("Discarding topic : " + topicMetadata.topic());
 			}
 		}
 		return filteredTopics;
@@ -259,17 +259,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 			for (TopicMetadata topicMetadata : topicMetadataList) {
 				if (Pattern.matches(regex, topicMetadata.topic())) {
-					log.info("Discarding topic (blacklisted): "
+					System.out.println("Discarding topic (blacklisted): "
 							+ topicMetadata.topic());
 				} else if (!createMessageDecoder(context, topicMetadata.topic())) {
-					log.info("Discarding topic (Decoder generation failed) : "
+					System.out.println("Discarding topic (Decoder generation failed) : "
 							+ topicMetadata.topic());
 				} else {
 					for (PartitionMetadata partitionMetadata : topicMetadata
 							.partitionsMetadata()) {
 						if (partitionMetadata.errorCode() != ErrorMapping
 								.NoError()) {
-							log.info("Skipping the creation of ETL request for Topic : "
+							System.out.println("Skipping the creation of ETL request for Topic : "
 									+ topicMetadata.topic()
 									+ " and Partition : "
 									+ partitionMetadata.partitionId()
@@ -360,7 +360,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 								request.getPartition(), 0, request
 										.getLastOffset()));
 			}
-			log.info(request);
+			System.out.println(request);
 		}
 
 		writePrevious(offsetKeys.values(), context);
@@ -497,7 +497,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		for (Path input : inputs) {
 			FileSystem fs = input.getFileSystem(context.getConfiguration());
 			for (FileStatus f : fs.listStatus(input, new OffsetFileFilter())) {
-				log.info("previous offset file:" + f.getPath().toString());
+				System.out.println("previous offset file:" + f.getPath().toString());
 				SequenceFile.Reader reader = new SequenceFile.Reader(fs,
 						f.getPath(), context.getConfiguration());
 				EtlKey key = new EtlKey();

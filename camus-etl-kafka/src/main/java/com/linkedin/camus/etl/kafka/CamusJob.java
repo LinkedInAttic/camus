@@ -88,6 +88,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String KAFKA_HOST_PORT = "kafka.host.port";
 	public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+	public static final String LOG4J_PATH = "log4j.path";
 	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
@@ -99,7 +100,7 @@ public class CamusJob extends Configured implements Tool {
 	public CamusJob(Properties props) throws IOException {
 		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
 	}
-	
+
 	 public CamusJob(Properties props, Logger log) throws IOException {
 	    this.props = props;
 	    this.log = log;
@@ -124,19 +125,19 @@ public class CamusJob extends Configured implements Tool {
 				(timingMap.get(name) == null ? 0 : timingMap.get(name))
 						+ System.currentTimeMillis());
 	}
-	
+
 	private Job createJob(Properties props) throws IOException {
-	  Job job; 
+	  Job job;
 	  if(getConf() == null)
 	    {
-	      setConf(new Configuration()); 
+	      setConf(new Configuration());
 	    }
-	  
+
 	  populateConf(props, getConf(), log);
-	  
+
 	  job = new Job(getConf());
 	  job.setJarByClass(CamusJob.class);
-	  
+
 	   if(job.getConfiguration().get("camus.job.name") != null)
 	    {
 	      job.setJobName(job.getConfiguration().get("camus.job.name"));
@@ -145,7 +146,7 @@ public class CamusJob extends Configured implements Tool {
 	   {
 	     job.setJobName("Camus Job");
 	   }
-	   
+
 	  return job;
 	}
 
@@ -165,7 +166,7 @@ public class CamusJob extends Configured implements Tool {
 			if (status != null) {
 				for (int i = 0; i < status.length; ++i) {
 					if (!status[i].isDir()) {
-						log.info("Adding Jar to Distributed Cache Archive File:"
+						System.out.println("Adding Jar to Distributed Cache Archive File:"
 								+ status[i].getPath());
 
 						DistributedCache
@@ -185,7 +186,7 @@ public class CamusJob extends Configured implements Tool {
 		if (externalJarList != null) {
 			String[] jarFiles = externalJarList.split(",");
 			for (String jarFile : jarFiles) {
-				log.info("Adding external jar File:" + jarFile);
+				System.out.println("Adding external jar File:" + jarFile);
 				DistributedCache.addFileToClassPath(new Path(jarFile),
 						conf, fs);
 			}
@@ -198,11 +199,11 @@ public class CamusJob extends Configured implements Tool {
 		startTiming("total");
 		Job job = createJob(props);
 		if (getLog4jConfigure(job)) {
-			DOMConfigurator.configure("log4j.xml");
+			DOMConfigurator.configure(getLog4jPath(job));
 		}
 		FileSystem fs = FileSystem.get(job.getConfiguration());
 
-		log.info("Dir Destination set to: "
+		System.out.println("Dir Destination set to: "
 				+ EtlMultiOutputFormat.getDestinationPath(job));
 
 		Path execBasePath = new Path(props.getProperty(ETL_EXECUTION_BASE_PATH));
@@ -210,11 +211,11 @@ public class CamusJob extends Configured implements Tool {
 				props.getProperty(ETL_EXECUTION_HISTORY_PATH));
 
 		if (!fs.exists(execBasePath)) {
-			log.info("The execution base path does not exist. Creating the directory");
+			System.out.println("The execution base path does not exist. Creating the directory");
 			fs.mkdirs(execBasePath);
 		}
 		if (!fs.exists(execHistory)) {
-			log.info("The history base path does not exist. Creating the directory.");
+			System.out.println("The history base path does not exist. Creating the directory.");
 			fs.mkdirs(execHistory);
 		}
 
@@ -235,12 +236,12 @@ public class CamusJob extends Configured implements Tool {
 				return f1.getPath().getName().compareTo(f2.getPath().getName());
 			}
 		});
-		
+
 		// removes oldest directory until we get under required % of count
 		// quota. Won't delete the most recent directory.
 		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
 			FileStatus stat = executions[i];
-			log.info("removing old execution: " + stat.getPath().getName());
+			System.out.println("removing old execution: " + stat.getPath().getName());
 			ContentSummary execContent = fs.getContentSummary(stat.getPath());
 			currentCount -= execContent.getFileCount()
 					- execContent.getDirectoryCount();
@@ -252,7 +253,7 @@ public class CamusJob extends Configured implements Tool {
 		if (executions.length > 0) {
 			Path previous = executions[executions.length - 1].getPath();
 			FileInputFormat.setInputPaths(job, previous);
-			log.info("Previous execution: " + previous.toString());
+			System.out.println("Previous execution: " + previous.toString());
 		} else {
 			System.out
 					.println("No previous execution, all topics pulled from earliest available offset");
@@ -267,11 +268,11 @@ public class CamusJob extends Configured implements Tool {
 		Path newExecutionOutput = new Path(execBasePath,
 				new DateTime().toString(dateFmt));
 		FileOutputFormat.setOutputPath(job, newExecutionOutput);
-		log.info("New execution temp location: "
+		System.out.println("New execution temp location: "
 				+ newExecutionOutput.toString());
 
 		EtlInputFormat.setLogger(log);
-		
+
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setNumReduceTasks(0);
@@ -284,9 +285,9 @@ public class CamusJob extends Configured implements Tool {
 		Counters counters = job.getCounters();
 		for (String groupName : counters.getGroupNames()) {
 			CounterGroup group = counters.getGroup(groupName);
-			log.info("Group: " + group.getDisplayName());
+			System.out.println("Group: " + group.getDisplayName());
 			for (Counter counter : group) {
-				log.info(counter.getDisplayName() + ":\t" + counter.getValue());
+				System.out.println(counter.getDisplayName() + ":\t" + counter.getValue());
 			}
 		}
 
@@ -301,7 +302,7 @@ public class CamusJob extends Configured implements Tool {
 
 		fs.rename(newExecutionOutput, execHistory);
 
-		log.info("Job finished");
+		System.out.println("Job finished");
 		stopTiming("commit");
 		stopTiming("total");
 		createReport(job, timingMap);
@@ -434,7 +435,7 @@ public class CamusJob extends Configured implements Tool {
 	/**
 	 * Creates a diagnostic report mostly focused on timing breakdowns. Useful
 	 * for determining where to optimize.
-	 * 
+	 *
 	 * @param job
 	 * @param timingMap
 	 * @throws IOException
@@ -546,7 +547,7 @@ public class CamusJob extends Configured implements Tool {
 		sb.append(String.format("\n%16s %s\n", "Total MB read:",
 				mb / 1024 / 1024));
 
-		log.info(sb.toString());
+		System.out.println(sb.toString());
 	}
 
 	/**
@@ -628,7 +629,7 @@ public class CamusJob extends Configured implements Tool {
 		if (brokers == null) {
 			brokers = job.getConfiguration().get(KAFKA_HOST_URL);
 			if (brokers != null) {
-				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " + 
+				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " +
 					KAFKA_HOST_PORT + " are deprecated. Please switch to using " + KAFKA_BROKERS);
 				return brokers + ":" + job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
 			}
@@ -662,4 +663,9 @@ public class CamusJob extends Configured implements Tool {
 	public static boolean getLog4jConfigure(JobContext job) {
 		return job.getConfiguration().getBoolean(LOG4J_CONFIGURATION, false);
 	}
+
+	public static String getLog4jPath(JobContext job) {
+		return job.getConfiguration().get(LOG4J_PATH, "log4j.xml");
+	}
+
 }

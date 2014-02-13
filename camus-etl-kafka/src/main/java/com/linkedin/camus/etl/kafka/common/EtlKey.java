@@ -20,7 +20,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     public static final Text SERVER = new Text("server");
     public static final Text SERVICE = new Text("service");
     public static EtlKey DUMMY_KEY = new EtlKey();
-    
+
     private String leaderId = "";
 	private int partition = 0;
 	private long beginOffset = 0;
@@ -41,7 +41,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	}
 
 	public EtlKey(EtlKey other) {
-		
+
 		this.partition = other.partition;
 		this.beginOffset = other.beginOffset;
 		this.offset = other.offset;
@@ -76,7 +76,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 												// this time will be used for
 												// debugging.
 	}
-	
+
 	public void clear() {
 		leaderId = "";
 		partition = 0;
@@ -133,7 +133,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 	public void setOffset(long offset) {
 		this.offset = offset;
 	}
-	
+
 	public long getOffset() {
 		return this.offset;
 	}

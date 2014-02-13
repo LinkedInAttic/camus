@@ -102,7 +102,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         } else {
             beginTimeStamp = 0;
         }
-        
+
         ignoreServerServiceList = new HashSet<String>();
         for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
         {
@@ -187,7 +187,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         // rescheduled in the next
         // run.
         if (System.currentTimeMillis() > maxPullTime) {
-            log.info("Max pull time reached");
+            System.out.println("Max pull time reached");
             if (reader != null) {
                 closeReader();
             }
@@ -209,7 +209,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     key.set(request.getTopic(), request.getLeaderId(), request.getPartition(),
                             request.getOffset(), request.getOffset(), 0);
                     value = null;
-                    log.info("\n\ntopic:" + request.getTopic() + " partition:"
+                    System.out.println("\n\ntopic:" + request.getTopic() + " partition:"
                             + request.getPartition() + " beginOffset:" + request.getOffset()
                             + " estimatedLastOffset:" + request.getLastOffset());
 
@@ -259,7 +259,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                             exceptionCount++;
                         } else if (exceptionCount == getMaximumDecoderExceptionsToPrint(context)) {
                             exceptionCount = Integer.MAX_VALUE; //Any random value
-                            log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");
+                            System.out.println("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");
                         }
                         continue;
                     }
@@ -286,16 +286,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                         DateTime time = new DateTime(timeStamp);
                         statusMsg += " begin read at " + time.toString();
                         context.setStatus(statusMsg);
-                        log.info(key.getTopic() + " begin read at " + time.toString());
+                        System.out.println(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
                         if (timeStamp > endTimeStamp)
-                            log.info("Kafka Max history hours reached");
+                            System.out.println("Kafka Max history hours reached");
                         if (System.currentTimeMillis() > maxPullTime)
-                            log.info("Kafka pull time limit reached");
+                            System.out.println("Kafka pull time limit reached");
                         statusMsg += " max read at " + new DateTime(timeStamp).toString();
                         context.setStatus(statusMsg);
-                        log.info(key.getTopic() + " max read at "
+                        System.out.println(key.getTopic() + " max read at "
                                 + new DateTime(timeStamp).toString());
                         mapperContext.getCounter("total", "request-time(ms)").increment(
                                 reader.getFetchTime());
@@ -314,7 +314,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     }
                     return true;
                 }
-                log.info("Records read : " + count);
+                System.out.println("Records read : " + count);
                 count = 0;
                 reader = null;
             } catch (Throwable t) {
@@ -339,7 +339,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             }
         }
     }
-    
+
     public void setServerService()
     {
     	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))

@@ -174,25 +174,47 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 						partitionEarliestOffsetRequestInfo);
 			}
 
-			OffsetResponse latestOffsetResponse = consumer
+			int tries = 0;
+			OffsetResponse latestOffsetResponse = null;
+			OffsetResponse earliestOffsetResponse = null;
+			while (tries < 3) {
+				latestOffsetResponse = consumer
 					.getOffsetsBefore(new OffsetRequest(latestOffsetInfo,
-							kafka.api.OffsetRequest.CurrentVersion(), CamusJob
-									.getKafkaClientName(context)));
-			OffsetResponse earliestOffsetResponse = consumer
+								kafka.api.OffsetRequest.CurrentVersion(), CamusJob
+								.getKafkaClientName(context)));
+				earliestOffsetResponse = consumer
 					.getOffsetsBefore(new OffsetRequest(earliestOffsetInfo,
-							kafka.api.OffsetRequest.CurrentVersion(), CamusJob
-									.getKafkaClientName(context)));
+								kafka.api.OffsetRequest.CurrentVersion(), CamusJob
+								.getKafkaClientName(context)));
+				if (!latestOffsetResponse.hasError() && !earliestOffsetResponse.hasError()) {
+					break;
+				}
+				try {
+					Thread.sleep(300);
+				} catch (java.lang.InterruptedException e) {
+					// ...
+				}
+				++tries;
+			}
 			consumer.close();
 			for (TopicAndPartition topicAndPartition : topicAndPartitions) {
-				long latestOffset = latestOffsetResponse.offsets(
+				long latestOffset = 0;
+				long offsets[] = latestOffsetResponse.offsets(
 						topicAndPartition.topic(),
-						topicAndPartition.partition())[0];
-				long earliestOffset = earliestOffsetResponse.offsets(
+						topicAndPartition.partition());
+				if (offsets.length > 0) {
+					latestOffset = offsets[0];
+				}
+				long earliestOffset = 0;
+				offsets = earliestOffsetResponse.offsets(
 						topicAndPartition.topic(),
-						topicAndPartition.partition())[0];
+						topicAndPartition.partition());
+				if (offsets.length > 0) {
+					earliestOffset = offsets[0];
+				}
 				EtlRequest etlRequest = new EtlRequest(context,
 						topicAndPartition.topic(), Integer.toString(leader
-								.getLeaderId()), topicAndPartition.partition(),
+							.getLeaderId()), topicAndPartition.partition(),
 						leader.getUri());
 				etlRequest.setLatestOffset(latestOffset);
 				etlRequest.setEarliestOffset(earliestOffset);

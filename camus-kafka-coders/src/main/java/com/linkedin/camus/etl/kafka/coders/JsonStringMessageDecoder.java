@@ -5,8 +5,8 @@ import java.nio.ByteBuffer;
 import java.util.Properties;
 import java.text.SimpleDateFormat;
 
-import com.google.gson.JsonParser;
-import com.google.gson.JsonObject;
+import net.minidev.json.JSONObject;
+import net.minidev.json.JSONValue;
 
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
@@ -50,21 +50,21 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 	public CamusWrapper<String> decode(byte[] payload) {
 		long       timestamp = 0;
 		String     payloadString;
-		JsonObject jsonObject;
+                JSONObject jobj;
 
 		payloadString =  new String(payload);
 
 		// Parse the payload into a JsonObject.
 		try {
-			jsonObject = new JsonParser().parse(payloadString).getAsJsonObject();
+                        jobj = (JSONObject) JSONValue.parse(payloadString);
 		} catch (RuntimeException e) {
 			log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
 			throw new RuntimeException(e);
 		}
 
 		// Attempt to read and parse the timestamp element into a long.
-		if (jsonObject.has(timestampField)) {
-			String timestampString = jsonObject.get(timestampField).getAsString();
+		if (jobj.get(timestampField) != null) {
+			String timestampString = (String)jobj.get(timestampField);
 			try {
 				timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
 			} catch (Exception e) {

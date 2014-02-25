@@ -14,7 +14,7 @@ import org.joda.time.format.DateTimeFormatter;
 public class DefaultPartitioner extends Partitioner {
 
     protected static final String OUTPUT_DATE_FORMAT = "YYYY/MM/dd/HH";
-    protected DateTimeZone outputDateTimeZone = null;
+    //protected DateTimeZone outputDateTimeZone = null;
     protected DateTimeFormatter outputDateFormatter = null;
 
     @Override
@@ -28,8 +28,8 @@ public class DefaultPartitioner extends Partitioner {
         StringBuilder sb = new StringBuilder();
         sb.append(topic).append("/");
         sb.append(EtlMultiOutputFormat.getDestPathTopicSubDir(context)).append("/");
-        DateTime bucket = new DateTime(Long.valueOf(encodedPartition),outputDateTimeZone);
-        sb.append(bucket.toString(OUTPUT_DATE_FORMAT));
+        DateTime bucket = new DateTime(Long.valueOf(encodedPartition));
+        sb.append(bucket.toString(outputDateFormatter));
         return sb.toString();
     }
 
@@ -37,8 +37,7 @@ public class DefaultPartitioner extends Partitioner {
     public void setConf(Configuration conf)
     {
         if (conf != null){
-            outputDateTimeZone = DateTimeZone.forID(conf.get(EtlMultiOutputFormat.ETL_DEFAULT_TIMEZONE, "America/Los_Angeles"));
-            outputDateFormatter = DateUtils.getDateTimeFormatter(OUTPUT_DATE_FORMAT, outputDateTimeZone);
+        	outputDateFormatter = DateUtils.getDateTimeFormatter(OUTPUT_DATE_FORMAT,DateTimeZone.forID(conf.get(EtlMultiOutputFormat.ETL_DEFAULT_TIMEZONE, "America/Los_Angeles")));
         }
 
         super.setConf(conf);

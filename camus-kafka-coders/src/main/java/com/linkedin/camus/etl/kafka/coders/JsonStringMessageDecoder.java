@@ -64,29 +64,33 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 
 		// Attempt to read and parse the timestamp element into a long.
 		if (jobj.get(timestampField) != null) {
-			String timestampString = (String)jobj.get(timestampField);
-			try {
-				timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
-			} catch (Exception e) {
-				log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
+			Object ts = jobj.get(timestampField);
+			if (ts instanceof String) {
+				try {
+					timestamp = new SimpleDateFormat(timestampFormat).parse((String)ts).getTime();
+				} catch (Exception e) {
+					log.error("Could not parse timestamp '" + ts + "' while decoding JSON message.");
+				}
+			} else if (ts instanceof Long) {
+				timestamp = (Long)ts;
 			}
 		}
 
 		// If timestamp wasn't set in the above block,
 		// then set it to current time.
-                final long now = System.currentTimeMillis();
+		final long now = System.currentTimeMillis();
 		if (timestamp == 0) {
 			log.warn("Couldn't find or parse timestamp field '" + timestampField + "' in JSON message, defaulting to current time.");
 			timestamp = now;
 		}
 
-                // If timestamp is from >12hours ago, reset it.
-                if (now - timestamp > 12 * 60 * 60 * 1000) {
-                  timestamp = now;
-                } else if (timestamp > now) {
-                  // Can't be in the future, right?
-                  timestamp = now;
-                }
+		// If timestamp is from >12hours ago, reset it.
+		if (now - timestamp > 12 * 60 * 60 * 1000) {
+			timestamp = now;
+		} else if (timestamp > now) {
+			// Can't be in the future, right?
+			timestamp = now;
+		}
 
 		return new CamusWrapper<String>(payloadString, timestamp);
 	}

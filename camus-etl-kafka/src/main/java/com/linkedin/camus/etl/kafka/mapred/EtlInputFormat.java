@@ -343,7 +343,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 						request,
 						new EtlKey(request.getTopic(), request.getLeaderId(),
 								request.getPartition(), 0, request
-										.getLastOffset()));
+										.getOffset()));
 			}
 			log.info(request);
 		}

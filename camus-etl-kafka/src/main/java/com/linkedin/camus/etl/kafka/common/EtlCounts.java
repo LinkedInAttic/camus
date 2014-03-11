@@ -1,7 +1,6 @@
 package com.linkedin.camus.etl.kafka.common;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,27 +12,22 @@ import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
 
+import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
-import org.joda.time.DateTime;
 
 import com.linkedin.camus.coders.MessageEncoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.events.EventHeader;
-import com.linkedin.camus.events.Guid;
-import com.linkedin.camus.events.TrackingMonitoringEvent;
 
 @JsonIgnoreProperties({"trackingCount", "lastKey", "eventCount", "RANDOM"})
 public class EtlCounts {
 
 	private static Logger log = Logger.getLogger(EtlCounts.class);
 	private static final String TOPIC = "topic";
-	private static final String SERVER = "server";
-	private static final String SERVICE = "service";
 	private static final String GRANULARITY = "granularity";
 	private static final String COUNTS = "counts";
 	private static final String START_TIME = "startTime";
@@ -41,8 +35,7 @@ public class EtlCounts {
 	private static final String FIRST_TIMESTAMP = "firstTimestamp";
 	private static final String LAST_TIMESTAMP = "lastTimestamp";
 	private static final String ERROR_COUNT = "errorCount";
-	private static final String START = "start";
-	private static final String COUNT = "count";
+	private static final String MONITORING_EVENT_CLASS = "monitoring.event.class";
 	
 	private String topic;
 	private long startTime;
@@ -53,7 +46,6 @@ public class EtlCounts {
 	private long firstTimestamp;
 	private HashMap<String, Source> counts;
 		
-	//private final transient HashMap<NewSource, Long> trackingCount = new HashMap<NewSource, Long>();
 	private transient EtlKey lastKey;
 	private transient int eventCount = 0;
 	private transient static final Random RANDOM = new Random();
@@ -203,6 +195,7 @@ public class EtlCounts {
 	
 	public void postTrackingCountToKafka(Configuration conf , String tier, String brokerList) {
 		MessageEncoder<IndexedRecord, byte[]> encoder;
+		AbstractMonitoringEvent monitoringDetails;
 		try {
 			encoder = (MessageEncoder<IndexedRecord, byte[]>) Class.forName(
 					conf.get(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS))
@@ -214,41 +207,21 @@ public class EtlCounts {
 			}
 
 			encoder.init(props, "TrackingMonitoringEvent");
+			monitoringDetails = (AbstractMonitoringEvent) Class.forName(conf.get(MONITORING_EVENT_CLASS))
+					.getDeclaredConstructor(Configuration.class).newInstance(conf);
 		} catch (Exception e1) {
 			throw new RuntimeException(e1);
 		}
 
 		ArrayList<byte[]> monitorSet = new ArrayList<byte[]>();
-		long timestamp = new DateTime().getMillis();
 		int counts = 0;
+		
 		for (Map.Entry<String, Source> singleCount : this.getCounts().entrySet()) {
 			Source countEntry = singleCount.getValue();
-			long partition = countEntry.getStart();
-			String serverName = countEntry.getServer();
-			String serviceName = countEntry.getService();
-			long count = countEntry.getCount();
-			EventHeader header = new EventHeader();
-			
-			Guid guid = new Guid();
-			byte[] bytes = new byte[16];
-			RANDOM.nextBytes(bytes);
-			guid.bytes(bytes);
-
-			header.memberId = -1;
-			header.server = serverName;
-			header.service = serviceName;
-			header.time = timestamp;
-			header.guid = guid;
-			
-			TrackingMonitoringEvent trackingRecord = new TrackingMonitoringEvent();
-			trackingRecord.header = header;
-			trackingRecord.beginTimestamp = partition;
-			trackingRecord.endTimestamp = partition + granularity;
-			trackingRecord.count = count;
-			trackingRecord.tier = tier;
-			trackingRecord.eventType = topic;
-
-			byte[] message = encoder.toBytes(trackingRecord);
+			GenericRecord monitoringRecord = monitoringDetails
+					.createMonitoringEventRecord(countEntry, topic,
+							granularity, tier);
+			byte[] message = encoder.toBytes((IndexedRecord) monitoringRecord);
 			monitorSet.add(message);
 
 			if (monitorSet.size() >= 2000) {

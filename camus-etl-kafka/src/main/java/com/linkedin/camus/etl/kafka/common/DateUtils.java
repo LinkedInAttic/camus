@@ -20,6 +20,12 @@ public class DateUtils {
 	public static long getPartition(long timeGranularityMs, long timestamp) {
 		return (timestamp / timeGranularityMs) * timeGranularityMs;
 	}
+	
+	public static long getPartition(long timeGranularityMs, long timestamp, DateTimeZone outputDateTimeZone) {
+		long adjustedTimeStamp = outputDateTimeZone.convertUTCToLocal(timestamp);
+		long partitionedTime = (adjustedTimeStamp / timeGranularityMs) * timeGranularityMs;
+		return outputDateTimeZone.convertLocalToUTC(partitionedTime, false);
+	}
 
 	public static DateTime getMidnight() {
 		DateTime time = new DateTime(PST);

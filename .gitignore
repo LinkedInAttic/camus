@@ -20,6 +20,7 @@ target
 **/test-output/
 **/.idea
 .idea
+**/dependency-reduced-pom.xml
 
 # target dirs
 camus-api/target/

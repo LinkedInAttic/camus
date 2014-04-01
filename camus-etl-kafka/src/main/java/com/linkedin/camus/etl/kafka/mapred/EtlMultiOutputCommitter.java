@@ -24,6 +24,8 @@ import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 
+import com.twitter.elephantbird.util.HadoopCompat;
+
 public class EtlMultiOutputCommitter extends FileOutputCommitter {
     private Pattern workingFileMetadataPattern;
 
@@ -94,7 +96,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
             }
 
             if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-              Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
+              Path tempPath = new Path(workPath, "counts." + HadoopCompat.getConfiguration(context).get("mapred.task.id"));
               OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
               ObjectMapper mapper= new ObjectMapper();
               log.info("Writing counts to : " + tempPath.toString());
@@ -105,7 +107,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         }
 
         SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs,
-                context.getConfiguration(),
+                HadoopCompat.getConfiguration(context),
                 new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, EtlMultiOutputFormat.OFFSET_PREFIX, "")),
                 EtlKey.class, NullWritable.class);
         for (String s : offsets.keySet()) {
@@ -114,9 +116,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         offsetWriter.close();
         super.commitTask(context);
     }
-    
+
     protected void commitFile(JobContext job, Path source, Path target) throws IOException{
-      FileSystem.get(job.getConfiguration()).rename(source, target);
+      FileSystem.get(HadoopCompat.getConfiguration(job)).rename(source, target);
     }
 
     public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {
@@ -136,8 +138,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         return partitionedPath +
                     "/" + topic + "." + leaderId + "." + partition +
                     "." + count+
-                    "." + offset + 
-                    "." + encodedPartition + 
+                    "." + offset +
+                    "." + encodedPartition +
                     recordWriterProvider.getFilenameExtension();
     }
 }

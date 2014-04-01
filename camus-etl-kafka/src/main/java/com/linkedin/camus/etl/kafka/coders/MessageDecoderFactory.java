@@ -9,24 +9,26 @@ import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 
+import com.twitter.elephantbird.util.HadoopCompat;
+
 public class MessageDecoderFactory {
-    
+
     public static MessageDecoder<?,?> createMessageDecoder(JobContext context, String topicName){
         MessageDecoder<?,?> decoder;
         try {
             decoder = (MessageDecoder<?,?>) EtlInputFormat.getMessageDecoderClass(context).newInstance();
-            
+
             Properties props = new Properties();
-            for (Entry<String, String> entry : context.getConfiguration()){
+            for (Entry<String, String> entry : HadoopCompat.getConfiguration(context)) {
                 props.put(entry.getKey(), entry.getValue());
             }
-            
+
             decoder.init(props, topicName);
-            
+
             return decoder;
         } catch (Exception e) {
             throw new MessageDecoderException(e);
-        }    
+        }
     }
 
 }

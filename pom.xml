@@ -23,6 +23,23 @@
 		<avro.version>1.7.4</avro.version>
 	</properties>
 
+        <distributionManagement>
+        <repository>
+            <uniqueVersion>true</uniqueVersion>
+            <id>nexus</id>
+            <name>Releases</name>
+            <url>http://017.sand01.nym1.placeiq.net:8081/nexus/content/repositories/releases</url>
+            <layout>default</layout>
+        </repository>
+        <snapshotRepository>
+            <uniqueVersion>true</uniqueVersion>
+            <id>nexus</id>
+            <name>Snapshots</name>
+            <url>http://017.sand01.nym1.placeiq.net:8081/nexus/content/repositories/snapshots</url>
+            <layout>default</layout>
+        </snapshotRepository>
+    </distributionManagement>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>

@@ -37,7 +37,7 @@ import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
-public class CamusJobTest {
+public class CamusJobIT {
     
     private static final Random RANDOM = new Random();
     

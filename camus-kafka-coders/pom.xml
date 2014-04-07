@@ -18,12 +18,13 @@
 		</dependency>
 		<dependency>
 			<groupId>org.apache.kafka</groupId>
-			<artifactId>kafka_2.10</artifactId>
+			<artifactId>kafka_2.9.2</artifactId>
 		</dependency>
 		<!-- Gson is needed for JSONStringMessageDecoder -->
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
+			<version>2.2.4</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>

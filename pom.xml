@@ -7,7 +7,7 @@
 		<maven>3.0.0</maven>
 	</prerequisites>
 
-	<groupId>com.linkedin.camus</groupId>
+	<groupId>com.placeiq</groupId>
 	<artifactId>camus-parent</artifactId>
 	<version>0.1.0-SNAPSHOT</version>
 	<packaging>pom</packaging>
@@ -19,6 +19,8 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<kafka.version>0.8.1</kafka.version>
+		<avro.version>1.7.4</avro.version>
 	</properties>
 
 	<dependencyManagement>
@@ -58,17 +60,13 @@
 			<dependency>
 				<groupId>org.apache.avro</groupId>
 				<artifactId>avro</artifactId>
-				<version>1.7.3</version>
+				<version>${avro.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.avro</groupId>
 				<artifactId>avro-mapred</artifactId>
-				<version>1.7.3</version>
-			</dependency>
-			<dependency>
-				<groupId>org.apache.avro</groupId>
-				<version>1.7.4-SNAPSHOT</version>
-				<artifactId>avro-repo-bundle</artifactId>
+				<version>${avro.version}</version>
+               			<classifier>hadoop2</classifier>
 			</dependency>
 			<dependency>
 				<groupId>joda-time</groupId>
@@ -78,19 +76,13 @@
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-client</artifactId>
-				<version>1.0.3</version>
+				<version>2.0.0-mr1-cdh4.6.0</version>
 			</dependency>
 			<dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka_2.10</artifactId>
-                <version>0.8.0</version>
-                <exclusions>
-                  <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-simple</artifactId>
-                  </exclusion>
-                </exclusions>
-            </dependency>
+				<groupId>org.apache.kafka</groupId>
+				<artifactId>kafka_2.9.2</artifactId>
+				<version>${kafka.version}</version>
+			</dependency>
 			<dependency>
 				<groupId>com.github.sgroschupf</groupId>
 				<artifactId>zkclient</artifactId>
@@ -106,26 +98,6 @@
 				<artifactId>junit</artifactId>
 				<version>4.8.1</version>
 			</dependency>
-			<dependency>
-				<groupId>org.scala-lang</groupId>
-				<artifactId>scala-library</artifactId>
-				<version>2.10.3</version>
-			</dependency>
-			<dependency>
-				<groupId>org.xerial.snappy</groupId>
-				<artifactId>snappy-java</artifactId>
-				<version>1.0.4.1</version>
-			</dependency>
-			<dependency>
-				<groupId>com.google.code.gson</groupId>
-				<artifactId>gson</artifactId>
-				<version>2.2.4</version>
-			</dependency>
-			<dependency>
-				<groupId>commons-httpclient</groupId>
-				<artifactId>commons-httpclient</artifactId>
-				<version>3.0.1</version>
-			</dependency>
 		</dependencies>
 	</dependencyManagement>
 
@@ -133,8 +105,10 @@
 		<module>camus-api</module>
 		<module>camus-kafka-coders</module>
 		<module>camus-etl-kafka</module>
+<!--
 		<module>camus-schema-registry</module>
 		<module>camus-schema-registry-avro</module>
+-->
 		<module>camus-example</module>
 		<module>camus-sweeper</module>
 	</modules>
@@ -163,6 +137,10 @@
 			<id>apache-releases</id>
 			<url>https://repository.apache.org/content/groups/public</url>
 		</repository>
+		<repository>
+			<id>cloudera-releases</id>
+			<url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
+		</repository>
 	</repositories>
 
 	<build>
@@ -179,29 +157,6 @@
 					</execution>
 				</executions>
 			</plugin>
-			<plugin>
-				<artifactId>maven-install-plugin</artifactId>
-				<version>2.3.1</version>
-				<inherited>false</inherited>
-				<executions>
-					<execution>
-						<id>install-avro-repo-client</id>
-						<phase>validate</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<groupId>org.apache.avro</groupId>
-							<artifactId>avro-repo-bundle</artifactId>
-							<version>1.7.4-SNAPSHOT</version>
-							<packaging>jar</packaging>
-							<file>${basedir}/lib/avro-repo-bundle-1.7.4-SNAPSHOT-withdeps.jar</file>
-							<pomFile>${basedir}/lib/avro-repo-bundle-1.7.4-SNAPSHOT-withdeps.xml</pomFile>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
 		</plugins>
 	</build>
-
 </project>

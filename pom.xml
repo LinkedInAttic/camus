@@ -7,7 +7,7 @@
 		<maven>3.0.0</maven>
 	</prerequisites>
 
-	<groupId>com.placeiq</groupId>
+	<groupId>com.linkedin.camus</groupId>
 	<artifactId>camus-parent</artifactId>
 	<version>0.1.0-SNAPSHOT</version>
 	<packaging>pom</packaging>

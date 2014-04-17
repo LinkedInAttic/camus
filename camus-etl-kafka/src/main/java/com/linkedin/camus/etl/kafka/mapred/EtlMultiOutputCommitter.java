@@ -3,12 +3,16 @@ package com.linkedin.camus.etl.kafka.mapred;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -69,8 +73,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         if (EtlMultiOutputFormat.isRunMoveData(context)) {
             Path workPath = super.getWorkPath();
             Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
+            List<String> taskOutputPaths = new LinkedList<String>();
+            
             for (FileStatus f : fs.listStatus(workPath)) {
                 String file = f.getPath().getName();
+                
                 if (file.startsWith("data")) {
                     String workingFileName = file.substring(0, file.lastIndexOf("-m"));
                     EtlCounts count = counts.get(workingFileName);
@@ -85,6 +92,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
                         }
 
                     commitFile(context, f.getPath(), dest);
+                    
+                    taskOutputPaths.add(dest.toString());
 
                     if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
                             count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
@@ -101,6 +110,13 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
               long time = System.currentTimeMillis();
               mapper.writeValue(outputStream, allCountObject);
               log.debug("Time taken : " + (System.currentTimeMillis() - time)/1000);
+            }
+            // write task's output paths
+            if (!taskOutputPaths.isEmpty()) {
+	            Path p = new Path(workPath, "outputPaths." + context.getConfiguration().get("mapred.task.id"));
+	            PrintStream outputStream = new PrintStream(fs.create(p));
+	            outputStream.println(StringUtils.join(taskOutputPaths, ","));
+	            outputStream.close();
             }
         }
 

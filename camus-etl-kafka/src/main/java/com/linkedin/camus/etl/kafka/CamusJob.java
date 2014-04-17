@@ -1,30 +1,21 @@
 package com.linkedin.camus.etl.kafka;
 
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlCounts;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.Source;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
-import java.util.Comparator;
-import java.util.Arrays;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -32,6 +23,8 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -65,6 +58,14 @@ import org.codehaus.jackson.type.TypeReference;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
+
+import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EtlCounts;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.Source;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -126,27 +127,25 @@ public class CamusJob extends Configured implements Tool {
 	}
 	
 	private Job createJob(Properties props) throws IOException {
-	  Job job; 
-	  if(getConf() == null)
-	    {
-	      setConf(new Configuration()); 
-	    }
-	  
-	  populateConf(props, getConf(), log);
-	  
-	  job = new Job(getConf());
-	  job.setJarByClass(CamusJob.class);
-	  
-	   if(job.getConfiguration().get("camus.job.name") != null)
-	    {
-	      job.setJobName(job.getConfiguration().get("camus.job.name"));
-	    }
-	   else
-	   {
-	     job.setJobName("Camus Job");
-	   }
-	   
-	  return job;
+		Job job;
+		if (getConf() == null) {
+			setConf(new Configuration());
+		}
+
+		populateConf(props, getConf(), log);
+
+		job = new Job(getConf());
+		job.setJarByClass(CamusJob.class);
+
+		if (getConf().get("mapred.job.name") == null) {
+			if (job.getConfiguration().get("camus.job.name") != null) {
+				job.setJobName(job.getConfiguration().get("camus.job.name"));
+			} else {
+				job.setJobName("Camus Job");
+			}
+		}
+
+		return job;
 	}
 
 	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
@@ -193,10 +192,12 @@ public class CamusJob extends Configured implements Tool {
 	}
 
 	public void run() throws Exception {
-
+		Configuration conf = getConf();
+		
 		startTiming("pre-setup");
 		startTiming("total");
 		Job job = createJob(props);
+
 		if (getLog4jConfigure(job)) {
 			DOMConfigurator.configure("log4j.xml");
 		}
@@ -324,6 +325,21 @@ public class CamusJob extends Configured implements Tool {
 			}
 			throw new RuntimeException("hadoop job failed");
 		}
+		StringBuilder outputPaths = new StringBuilder();
+		
+		FileStatus[] statuses = fs.listStatus(newHistory, new PathFilter() {
+			public boolean accept(Path path) {
+	            return path.getName().startsWith("outputPaths.");
+            }
+		});
+		String separator = "";
+		
+		for (FileStatus status : statuses) {
+			outputPaths.append(separator);
+			outputPaths.append(StringUtils.join(IOUtils.readLines(fs.open(status.getPath())), ","));
+			separator = ",";
+		}
+		conf.set(job.getJobName() + ".outputs", outputPaths.toString());
 	}
 
 	public void printErrors(FileSystem fs, Path newExecutionOutput)

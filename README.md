@@ -15,21 +15,21 @@ All work is done within a single Hadoop job divided into three stages:
 
 1. Setup stage fetches available topics and partitions from Zookeeper and the latest offsets from the Kafka Nodes.
 
-2. Hadoop job stage allocates topic pulls among a set number of tasks.  Each task does the following:
-*  Fetch events  from Kafka server and collect count statistics..
-*  Move data  files to corresponding directories based on time stamps of events.
-*  Produce count  events and write to HDFS.  * TODO: Determine status of open sourcing  Kafka Audit.
-*  Store updated  offsets in HDFS.
+1. Hadoop job stage allocates topic pulls among a set number of tasks.  Each task does the following:
+    *  Fetch events  from Kafka server and collect count statistics..
+    *  Move data  files to corresponding directories based on time stamps of events.
+    *  Produce count  events and write to HDFS.  * TODO: Determine status of open sourcing  Kafka Audit.
+    *  Store updated  offsets in HDFS.
 
-3. Cleanup stage reads counts from all tasks, aggregates the values, and submits the results to Kafka for consumption by Kafka Audit. 
+1. Cleanup stage reads counts from all tasks, aggregates the values, and submits the results to Kafka for consumption by Kafka Audit. 
 
 ## Setup Stage 
 
 1. Setup stage fetches from Zookeeper Kafka broker urls and topics (in /brokers/id, and /brokers/topics).  This data is transient and will be gone once Kafka server is down.
 
-2. Topic offsets stored in HDFS.  Camus maintains its own status by storing offset for each topic in HDFS. This data is persistent.
+1. Topic offsets stored in HDFS.  Camus maintains its own status by storing offset for each topic in HDFS. This data is persistent.
 
-3. Setup stage allocates all topics and partitions among a fixed number of tasks.
+1. Setup stage allocates all topics and partitions among a fixed number of tasks.
 
 ## Hadoop Stage 
 
@@ -62,8 +62,9 @@ Once the hadoop job has completed, the main client reads all the written audit c
 ### Building the project
 
 You can build Camus with:
-
-    mvn clean package
+```
+mvn clean package
+```
 
 Note that there are two jars that are not currently in a public Maven repo. These jars (kafka-0.7.2 and avro-schema-repository-1.74-SNAPSHOT) are supplied in the lib directory, and maven will automatically install them into your local Maven cache (usually ~/.m2).
 
@@ -78,36 +79,37 @@ Camus can be ran from the command line as Java App. You will need to set some pr
 Here is an abbreviated list of commonly used parameters.
 
 * Top-level data output directory, sub-directories will be dynamically created for each topic pulled
- * etl.destination.path=
+    * `etl.destination.path=`
 * HDFS location where you want to keep execution files, i.e. offsets, error logs, and count files
- * etl.execution.base.path=
+    * `etl.execution.base.path=`
 * Where completed Camus job output directories are kept, usually a sub-dir in the base.path
- * etl.execution.history.path=
+    * `etl.execution.history.path=`
 * Zookeeper configurations:
- * zookeeper.hosts=
- * zookeeper.broker.topics=/brokers/topics
- * zookeeper.broker.nodes=/brokers/ids
+    * `zookeeper.hosts=`
+    * `zookeeper.broker.topics=/brokers/topics`
+    * `zookeeper.broker.nodes=/brokers/ids`
 * All files in this dir will be added to the distributed cache and placed on the classpath for hadoop tasks
- * hdfs.default.classpath.dir=
+    * `hdfs.default.classpath.dir=`
 * Max hadoop tasks to use, each task can pull multiple topic partitions
- * mapred.map.tasks=30
+    * `mapred.map.tasks=30`
 * Max historical time that will be pulled from each partition based on event timestamp
- * kafka.max.pull.hrs=1
+    * `kafka.max.pull.hrs=1`
 * Events with a timestamp older than this will be discarded. 
- * kafka.max.historical.days=3
+    * `kafka.max.historical.days=3`
 * Max minutes for each mapper to pull messages
- * kafka.max.pull.minutes.per.task=-1
+    * `kafka.max.pull.minutes.per.task=-1`
 * Decoder class for Kafka Messages to Avro Records
- * camus.message.decoder.class=
+    * `camus.message.decoder.class=`
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
- * kafka.blacklist.topics=
- * kafka.whitelist.topics=
+    * `kafka.blacklist.topics=`
+    * `kafka.whitelist.topics=`
 
 ### Running Camus
 
 Camus can be run from the command line using java jar.  Here is the usage:
-
+```
 usage: CamusJob.java<br/>
  -D <property=value>   use value for given property<br/>
  -P <arg>              external properties filename<br/>
  -p <arg>              properties filename from the classpath<br/>
+```

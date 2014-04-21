@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
@@ -69,615 +70,562 @@ import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 public class CamusJob extends Configured implements Tool {
 
-	public static final String ETL_EXECUTION_BASE_PATH = "etl.execution.base.path";
-	public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
-	public static final String ETL_COUNTS_PATH = "etl.counts.path";
-	public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
-	public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
-	public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
-	public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
-	public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
-	public static final String BROKER_URI_FILE = "brokers.uri";
-	public static final String POST_TRACKING_COUNTS_TO_KAFKA = "post.tracking.counts.to.kafka";
-	public static final String KAFKA_FETCH_REQUEST_MAX_WAIT = "kafka.fetch.request.max.wait";
-	public static final String KAFKA_FETCH_REQUEST_MIN_BYTES = "kafka.fetch.request.min.bytes";
-	public static final String KAFKA_FETCH_REQUEST_CORRELATION_ID = "kafka.fetch.request.correlationid";
-	public static final String KAFKA_CLIENT_NAME = "kafka.client.name";
-	public static final String KAFKA_FETCH_BUFFER_SIZE = "kafka.fetch.buffer.size";
-	public static final String KAFKA_BROKERS = "kafka.brokers";
-	public static final String KAFKA_HOST_URL = "kafka.host.url";
-	public static final String KAFKA_HOST_PORT = "kafka.host.port";
-	public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
-	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
-	private static org.apache.log4j.Logger log;
+    public static final String ETL_EXECUTION_BASE_PATH = "etl.execution.base.path";
+    public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
+    public static final String ETL_COUNTS_PATH = "etl.counts.path";
+    public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
+    public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
+    public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
+    public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
+    public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
+    public static final String BROKER_URI_FILE = "brokers.uri";
+    public static final String POST_TRACKING_COUNTS_TO_KAFKA = "post.tracking.counts.to.kafka";
+    public static final String KAFKA_FETCH_REQUEST_MAX_WAIT = "kafka.fetch.request.max.wait";
+    public static final String KAFKA_FETCH_REQUEST_MIN_BYTES = "kafka.fetch.request.min.bytes";
+    public static final String KAFKA_FETCH_REQUEST_CORRELATION_ID = "kafka.fetch.request.correlationid";
+    public static final String KAFKA_CLIENT_NAME = "kafka.client.name";
+    public static final String KAFKA_FETCH_BUFFER_SIZE = "kafka.fetch.buffer.size";
+    public static final String KAFKA_BROKERS = "kafka.brokers";
+    public static final String KAFKA_HOST_URL = "kafka.host.url";
+    public static final String KAFKA_HOST_PORT = "kafka.host.port";
+    public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
+    public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+    private static org.apache.log4j.Logger log;
 
-	private final Properties props;
+    private final Properties props;
 
-	public CamusJob() throws IOException {
-		this(new Properties());
-	}
-
-	public CamusJob(Properties props) throws IOException {
-		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
-	}
-	
-	 public CamusJob(Properties props, Logger log) throws IOException {
-	    this.props = props;
-	    this.log = log;
-	  }
-
-	private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
-
-	public static void startTiming(String name) {
-		timingMap.put(name,
-				(timingMap.get(name) == null ? 0 : timingMap.get(name))
-						- System.currentTimeMillis());
-	}
-
-	public static void stopTiming(String name) {
-		timingMap.put(name,
-				(timingMap.get(name) == null ? 0 : timingMap.get(name))
-						+ System.currentTimeMillis());
-	}
-
-	public static void setTime(String name) {
-		timingMap.put(name,
-				(timingMap.get(name) == null ? 0 : timingMap.get(name))
-						+ System.currentTimeMillis());
-	}
-	
-	private Job createJob(Properties props) throws IOException {
-		Job job;
-		if (getConf() == null) {
-			setConf(new Configuration());
-		}
-
-		populateConf(props, getConf(), log);
-
-		job = new Job(getConf());
-		job.setJarByClass(CamusJob.class);
-
-		if (getConf().get("mapred.job.name") == null) {
-			if (job.getConfiguration().get("camus.job.name") != null) {
-				job.setJobName(job.getConfiguration().get("camus.job.name"));
-			} else {
-				job.setJobName("Camus Job");
-			}
-		}
-
-		return job;
-	}
-
-	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
-	  for(Object key : props.keySet())
-    {
-      conf.set(key.toString(), props.getProperty(key.toString()));
+    public CamusJob() throws IOException {
+        this(new Properties());
     }
 
-		FileSystem fs = FileSystem.get(conf);
+    public CamusJob(Properties props) throws IOException {
+        this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
+    }
 
-		String hadoopCacheJarDir = conf.get(
-				"hdfs.default.classpath.dir", null);
-		if (hadoopCacheJarDir != null) {
-			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
+    public CamusJob(Properties props, Logger log) throws IOException {
+        this.props = props;
+        this.log = log;
+    }
 
-			if (status != null) {
-				for (int i = 0; i < status.length; ++i) {
-					if (!status[i].isDir()) {
-						log.info("Adding Jar to Distributed Cache Archive File:"
-								+ status[i].getPath());
+    private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
 
-						DistributedCache
-								.addFileToClassPath(status[i].getPath(),
-										conf, fs);
-					}
-				}
-			} else {
-				System.out.println("hdfs.default.classpath.dir "
-						+ hadoopCacheJarDir + " is empty.");
-			}
-		}
+    public static void startTiming(String name) {
+        timingMap.put(name, (timingMap.get(name) == null ? 0 : timingMap.get(name)) - System.currentTimeMillis());
+    }
 
-		// Adds External jars to hadoop classpath
-		String externalJarList = conf.get(
-				"hadoop.external.jarFiles", null);
-		if (externalJarList != null) {
-			String[] jarFiles = externalJarList.split(",");
-			for (String jarFile : jarFiles) {
-				log.info("Adding external jar File:" + jarFile);
-				DistributedCache.addFileToClassPath(new Path(jarFile),
-						conf, fs);
-			}
-		}
-	}
+    public static void stopTiming(String name) {
+        timingMap.put(name, (timingMap.get(name) == null ? 0 : timingMap.get(name)) + System.currentTimeMillis());
+    }
 
-	public void run() throws Exception {
-		Configuration conf = getConf();
-		
-		startTiming("pre-setup");
-		startTiming("total");
-		Job job = createJob(props);
+    public static void setTime(String name) {
+        timingMap.put(name, (timingMap.get(name) == null ? 0 : timingMap.get(name)) + System.currentTimeMillis());
+    }
 
-		if (getLog4jConfigure(job)) {
-			DOMConfigurator.configure("log4j.xml");
-		}
-		FileSystem fs = FileSystem.get(job.getConfiguration());
+    private Job createJob(Properties props) throws IOException {
+        Job job;
+        if (getConf() == null) {
+            setConf(new Configuration());
+        }
 
-		log.info("Dir Destination set to: "
-				+ EtlMultiOutputFormat.getDestinationPath(job));
+        populateConf(props, getConf(), log);
 
-		Path execBasePath = new Path(props.getProperty(ETL_EXECUTION_BASE_PATH));
-		Path execHistory = new Path(
-				props.getProperty(ETL_EXECUTION_HISTORY_PATH));
+        job = new Job(getConf());
+        job.setJarByClass(CamusJob.class);
 
-		if (!fs.exists(execBasePath)) {
-			log.info("The execution base path does not exist. Creating the directory");
-			fs.mkdirs(execBasePath);
-		}
-		if (!fs.exists(execHistory)) {
-			log.info("The history base path does not exist. Creating the directory.");
-			fs.mkdirs(execHistory);
-		}
-
-		// enforcing max retention on the execution directories to avoid
-		// exceeding HDFS quota. retention is set to a percentage of available
-		// quota.
-		ContentSummary content = fs.getContentSummary(execBasePath);
-		long limit = (long) (content.getQuota() * job.getConfiguration()
-				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
-		limit = limit == 0 ? 50000 : limit;
-
-		long currentCount = content.getFileCount()
-				+ content.getDirectoryCount();
-
-		FileStatus[] executions = fs.listStatus(execHistory);
-		Arrays.sort(executions, new Comparator<FileStatus>() {
-			public int compare(FileStatus f1, FileStatus f2) {
-				return f1.getPath().getName().compareTo(f2.getPath().getName());
-			}
-		});
-		
-		// removes oldest directory until we get under required % of count
-		// quota. Won't delete the most recent directory.
-		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
-			FileStatus stat = executions[i];
-			log.info("removing old execution: " + stat.getPath().getName());
-			ContentSummary execContent = fs.getContentSummary(stat.getPath());
-			currentCount -= execContent.getFileCount()
-					- execContent.getDirectoryCount();
-			fs.delete(stat.getPath(), true);
-		}
-
-		// determining most recent execution and using as the starting point for
-		// this execution
-		if (executions.length > 0) {
-			Path previous = executions[executions.length - 1].getPath();
-			FileInputFormat.setInputPaths(job, previous);
-			log.info("Previous execution: " + previous.toString());
-		} else {
-			System.out
-					.println("No previous execution, all topics pulled from earliest available offset");
-		}
-
-		// creating new execution dir. offsets, error_logs, and count files will
-		// be written to this directory. data is not written to the
-		// output directory in a normal run, but instead written to the
-		// appropriate date-partitioned subdir in camus.destination.path
-		DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter(
-				"YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
-		String executionDate = new DateTime().toString(dateFmt);
-		Path newExecutionOutput = new Path(execBasePath, executionDate);
-		FileOutputFormat.setOutputPath(job, newExecutionOutput);
-		log.info("New execution temp location: "
-				+ newExecutionOutput.toString());
-
-		EtlInputFormat.setLogger(log);
-		
-		job.setInputFormatClass(EtlInputFormat.class);
-		job.setOutputFormatClass(EtlMultiOutputFormat.class);
-		job.setNumReduceTasks(0);
-
-		stopTiming("pre-setup");
-		job.submit();
-		job.waitForCompletion(true);
-
-		// dump all counters
-		Counters counters = job.getCounters();
-		for (String groupName : counters.getGroupNames()) {
-			CounterGroup group = counters.getGroup(groupName);
-			log.info("Group: " + group.getDisplayName());
-			for (Counter counter : group) {
-				log.info(counter.getDisplayName() + ":\t" + counter.getValue());
-			}
-		}
-
-		stopTiming("hadoop");
-		startTiming("commit");
-
-		// Send Tracking counts to Kafka
-		sendTrackingCounts(job, fs, newExecutionOutput);
-
-		// Print any potentail errors encountered
-		printErrors(fs, newExecutionOutput);
-
-		Path newHistory = new Path(execHistory, executionDate);
-		log.debug("Moving execution to history : " + newHistory);
-		fs.rename(newExecutionOutput, newHistory);
-
-		log.info("Job finished");
-		stopTiming("commit");
-		stopTiming("total");
-		createReport(job, timingMap);
-
-		if (!job.isSuccessful()) {
-			JobClient client = new JobClient(
-					new JobConf(job.getConfiguration()));
-
-			TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
-
-			for (TaskReport task : client.getMapTaskReports(tasks[0]
-					.getTaskAttemptId().getJobID())) {
-				if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
-					for (String s : task.getDiagnostics()) {
-						System.err.println("task error: " + s);
-					}
-				}
-			}
-			throw new RuntimeException("hadoop job failed");
-		}
-		StringBuilder outputPaths = new StringBuilder();
-		
-		FileStatus[] statuses = fs.listStatus(newHistory, new PathFilter() {
-			public boolean accept(Path path) {
-	            return path.getName().startsWith("outputPaths.");
+        if (getConf().get("mapred.job.name") == null) {
+            if (job.getConfiguration().get("camus.job.name") != null) {
+                job.setJobName(job.getConfiguration().get("camus.job.name"));
+            } else {
+                job.setJobName("Camus Job");
             }
-		});
-		String separator = "";
-		
-		for (FileStatus status : statuses) {
-			outputPaths.append(separator);
-			outputPaths.append(StringUtils.join(IOUtils.readLines(fs.open(status.getPath())), ","));
-			separator = ",";
-		}
-		conf.set(job.getJobName() + ".outputs", outputPaths.toString());
-	}
+        }
 
-	public void printErrors(FileSystem fs, Path newExecutionOutput)
-			throws IOException {
-		for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
-				EtlMultiOutputFormat.ERRORS_PREFIX))) {
-			SequenceFile.Reader reader = new SequenceFile.Reader(fs,
-					f.getPath(), fs.getConf());
+        return job;
+    }
 
-			EtlKey key = new EtlKey();
-			ExceptionWritable value = new ExceptionWritable();
+    public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
+        for (Object key : props.keySet()) {
+            conf.set(key.toString(), props.getProperty(key.toString()));
+        }
 
-			while (reader.next(key, value)) {
-				System.err.println(key.toString());
-				System.err.println(value.toString());
-			}
-			reader.close();
-		}
-	}
+        FileSystem fs = FileSystem.get(conf);
 
-	// Posts the tracking counts to Kafka
-	public void sendTrackingCounts(JobContext job, FileSystem fs,
-			Path newExecutionOutput) throws IOException, URISyntaxException {
-		if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
-			FileStatus[] gstatuses = fs.listStatus(newExecutionOutput,
-					new PrefixFilter("counts"));
-			HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
-			for (FileStatus gfileStatus : gstatuses) {
-				FSDataInputStream fdsis = fs.open(gfileStatus.getPath());
+        String hadoopCacheJarDir = conf.get("hdfs.default.classpath.dir", null);
+        if (hadoopCacheJarDir != null) {
+            FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
 
-				BufferedReader br = new BufferedReader(new InputStreamReader(
-						fdsis), 1048576);
-				StringBuffer buffer = new StringBuffer();
-				String temp = "";
-				while ((temp = br.readLine()) != null) {
-					buffer.append(temp);
-				}
-				ObjectMapper mapper = new ObjectMapper();
-				mapper.configure(
-						DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES,
-						false);
-				ArrayList<EtlCounts> countsObjects = mapper.readValue(
-						buffer.toString(),
-						new TypeReference<ArrayList<EtlCounts>>() {
-						});
+            if (status != null) {
+                for (int i = 0; i < status.length; ++i) {
+                    if (!status[i].isDir()) {
+                        log.info("Adding Jar to Distributed Cache Archive File:" + status[i].getPath());
 
-				for (EtlCounts count : countsObjects) {
-					String topic = count.getTopic();
-					if (allCounts.containsKey(topic)) {
-						EtlCounts existingCounts = allCounts.get(topic);
-						existingCounts
-								.setEndTime(Math.max(
-										existingCounts.getEndTime(),
-										count.getEndTime()));
-						existingCounts.setLastTimestamp(Math.max(
-								existingCounts.getLastTimestamp(),
-								count.getLastTimestamp()));
-						existingCounts.setStartTime(Math.min(
-								existingCounts.getStartTime(),
-								count.getStartTime()));
-						existingCounts.setFirstTimestamp(Math.min(
-								existingCounts.getFirstTimestamp(),
-								count.getFirstTimestamp()));
-						existingCounts.setErrorCount(existingCounts
-								.getErrorCount() + count.getErrorCount());
-						existingCounts.setGranularity(count.getGranularity());
-						existingCounts.setTopic(count.getTopic());
-						for (Entry<String, Source> entry : count.getCounts()
-								.entrySet()) {
-							Source source = entry.getValue();
-							if (existingCounts.getCounts().containsKey(
-									source.toString())) {
-								Source old = existingCounts.getCounts().get(
-										source.toString());
-								old.setCount(old.getCount() + source.getCount());
-								existingCounts.getCounts().put(old.toString(),
-										old);
-							} else {
-								existingCounts.getCounts().put(
-										source.toString(), source);
-							}
-							allCounts.put(topic, existingCounts);
-						}
-					} else {
-						allCounts.put(topic, count);
-					}
-				}
-			}
+                        DistributedCache.addFileToClassPath(status[i].getPath(), conf, fs);
+                    }
+                }
+            } else {
+                System.out.println("hdfs.default.classpath.dir " + hadoopCacheJarDir + " is empty.");
+            }
+        }
 
-			for (FileStatus countFile : fs.listStatus(newExecutionOutput,
-					new PrefixFilter("counts"))) {
-				if (props.getProperty(ETL_KEEP_COUNT_FILES, "false").equals(
-						"true")) {
-					fs.rename(countFile.getPath(),
-							new Path(props.getProperty(ETL_COUNTS_PATH),
-									countFile.getPath().getName()));
-				} else {
-					fs.delete(countFile.getPath(), true);
-				}
-			}
+        // Adds External jars to hadoop classpath
+        String externalJarList = conf.get("hadoop.external.jarFiles", null);
+        if (externalJarList != null) {
+            String[] jarFiles = externalJarList.split(",");
+            for (String jarFile : jarFiles) {
+                log.info("Adding external jar File:" + jarFile);
+                DistributedCache.addFileToClassPath(new Path(jarFile), conf, fs);
+            }
+        }
+    }
 
-			String brokerList = getKafkaBrokers(job);
-			for (EtlCounts finalCounts : allCounts.values()) {
-				finalCounts.postTrackingCountToKafka(job.getConfiguration(),
-						props.getProperty(KAFKA_MONITOR_TIER), brokerList);
-			}
-		}
-	}
+    public void run() throws Exception {
+        Configuration conf = getConf();
 
-	/**
-	 * Creates a diagnostic report mostly focused on timing breakdowns. Useful
-	 * for determining where to optimize.
-	 * 
-	 * @param job
-	 * @param timingMap
-	 * @throws IOException
-	 */
-	private void createReport(Job job, Map<String, Long> timingMap)
-			throws IOException {
-		StringBuilder sb = new StringBuilder();
+        startTiming("pre-setup");
+        startTiming("total");
+        Job job = createJob(props);
 
-		sb.append("***********Timing Report*************\n");
+        if (getLog4jConfigure(job)) {
+            DOMConfigurator.configure("log4j.xml");
+        }
+        FileSystem fs = FileSystem.get(job.getConfiguration());
 
-		sb.append("Job time (seconds):\n");
+        log.info("Dir Destination set to: " + EtlMultiOutputFormat.getDestinationPath(job));
 
-		double preSetup = timingMap.get("pre-setup") / 1000;
-		double getSplits = timingMap.get("getSplits") / 1000;
-		double hadoop = timingMap.get("hadoop") / 1000;
-		double commit = timingMap.get("commit") / 1000;
-		double total = timingMap.get("total") / 1000;
+        Path execBasePath = new Path(props.getProperty(ETL_EXECUTION_BASE_PATH));
+        Path execHistory = new Path(props.getProperty(ETL_EXECUTION_HISTORY_PATH));
 
-		sb.append(String.format("    %12s %6.1f (%s)\n", "pre setup", preSetup,
-				NumberFormat.getPercentInstance().format(preSetup / total)
-						.toString()));
-		sb.append(String.format("    %12s %6.1f (%s)\n", "get splits",
-				getSplits,
-				NumberFormat.getPercentInstance().format(getSplits / total)
-						.toString()));
-		sb.append(String.format("    %12s %6.1f (%s)\n", "hadoop job", hadoop,
-				NumberFormat.getPercentInstance().format(hadoop / total)
-						.toString()));
-		sb.append(String.format("    %12s %6.1f (%s)\n", "commit", commit,
-				NumberFormat.getPercentInstance().format(commit / total)
-						.toString()));
+        if (!fs.exists(execBasePath)) {
+            log.info("The execution base path does not exist. Creating the directory");
+            fs.mkdirs(execBasePath);
+        }
+        if (!fs.exists(execHistory)) {
+            log.info("The history base path does not exist. Creating the directory.");
+            fs.mkdirs(execHistory);
+        }
 
-		int minutes = (int) total / 60;
-		int seconds = (int) total % 60;
+        // enforcing max retention on the execution directories to avoid
+        // exceeding HDFS quota. retention is set to a percentage of available
+        // quota.
+        ContentSummary content = fs.getContentSummary(execBasePath);
+        long limit = (long) (content.getQuota() * job.getConfiguration().getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
+        limit = limit == 0 ? 50000 : limit;
 
-		sb.append(String.format("Total: %d minutes %d seconds\n", minutes,
-				seconds));
+        long currentCount = content.getFileCount() + content.getDirectoryCount();
 
-		JobClient client = new JobClient(new JobConf(job.getConfiguration()));
+        FileStatus[] executions = fs.listStatus(execHistory);
+        Arrays.sort(executions, new Comparator<FileStatus>() {
+            public int compare(FileStatus f1, FileStatus f2) {
+                return f1.getPath().getName().compareTo(f2.getPath().getName());
+            }
+        });
 
-		TaskReport[] tasks = client.getMapTaskReports(JobID.downgrade(job
-				.getJobID()));
+        // removes oldest directory until we get under required % of count
+        // quota. Won't delete the most recent directory.
+        for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
+            FileStatus stat = executions[i];
+            log.info("removing old execution: " + stat.getPath().getName());
+            ContentSummary execContent = fs.getContentSummary(stat.getPath());
+            currentCount -= execContent.getFileCount() - execContent.getDirectoryCount();
+            fs.delete(stat.getPath(), true);
+        }
 
-		double min = Long.MAX_VALUE, max = 0, mean = 0;
-		double minRun = Long.MAX_VALUE, maxRun = 0, meanRun = 0;
-		long totalTaskTime = 0;
-		TreeMap<Long, List<TaskReport>> taskMap = new TreeMap<Long, List<TaskReport>>();
+        // determining most recent execution and using as the starting point for
+        // this execution
+        if (executions.length > 0) {
+            Path previous = executions[executions.length - 1].getPath();
+            FileInputFormat.setInputPaths(job, previous);
+            log.info("Previous execution: " + previous.toString());
+        } else {
+            System.out.println("No previous execution, all topics pulled from earliest available offset");
+        }
 
-		for (TaskReport t : tasks) {
-			long wait = t.getStartTime() - timingMap.get("hadoop_start");
-			min = wait < min ? wait : min;
-			max = wait > max ? wait : max;
-			mean += wait;
+        // creating new execution dir. offsets, error_logs, and count files will
+        // be written to this directory. data is not written to the
+        // output directory in a normal run, but instead written to the
+        // appropriate date-partitioned subdir in camus.destination.path
+        DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter("YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
+        String executionDate = new DateTime().toString(dateFmt);
+        Path newExecutionOutput = new Path(execBasePath, executionDate);
+        FileOutputFormat.setOutputPath(job, newExecutionOutput);
+        log.info("New execution temp location: " + newExecutionOutput.toString());
 
-			long runTime = t.getFinishTime() - t.getStartTime();
-			totalTaskTime += runTime;
-			minRun = runTime < minRun ? runTime : minRun;
-			maxRun = runTime > maxRun ? runTime : maxRun;
-			meanRun += runTime;
+        EtlInputFormat.setLogger(log);
 
-			if (!taskMap.containsKey(runTime)) {
-				taskMap.put(runTime, new ArrayList<TaskReport>());
-			}
-			taskMap.get(runTime).add(t);
-		}
+        job.setInputFormatClass(EtlInputFormat.class);
+        job.setOutputFormatClass(EtlMultiOutputFormat.class);
+        job.setNumReduceTasks(0);
 
-		mean /= tasks.length;
-		meanRun /= tasks.length;
+        stopTiming("pre-setup");
+        job.submit();
+        job.waitForCompletion(true);
 
-		// convert to seconds
-		min /= 1000;
-		max /= 1000;
-		mean /= 1000;
-		minRun /= 1000;
-		maxRun /= 1000;
-		meanRun /= 1000;
+        // dump all counters
+        Counters counters = job.getCounters();
+        for (String groupName : counters.getGroupNames()) {
+            CounterGroup group = counters.getGroup(groupName);
+            log.info("Group: " + group.getDisplayName());
+            for (Counter counter : group) {
+                log.info(counter.getDisplayName() + ":\t" + counter.getValue());
+            }
+        }
 
-		sb.append("\nHadoop job task times (seconds):\n");
-		sb.append(String.format("    %12s %6.1f\n", "min", minRun));
-		sb.append(String.format("    %12s %6.1f\n", "mean", meanRun));
-		sb.append(String.format("    %12s %6.1f\n", "max", maxRun));
-		sb.append(String.format("    %12s %6.1f/%.1f = %.2f\n", "skew",
-				meanRun, maxRun, meanRun / maxRun));
+        stopTiming("hadoop");
+        startTiming("commit");
 
-		sb.append("\nTask wait time (seconds):\n");
-		sb.append(String.format("    %12s %6.1f\n", "min", min));
-		sb.append(String.format("    %12s %6.1f\n", "mean", mean));
-		sb.append(String.format("    %12s %6.1f\n", "max", max));
+        // Send Tracking counts to Kafka
+        sendTrackingCounts(job, fs, newExecutionOutput);
 
-		CounterGroup totalGrp = job.getCounters().getGroup("total");
+        // Print any potentail errors encountered
+        printErrors(fs, newExecutionOutput);
 
-		long decode = totalGrp.findCounter("decode-time(ms)").getValue();
-		long request = totalGrp.findCounter("request-time(ms)").getValue();
-		long map = totalGrp.findCounter("mapper-time(ms)").getValue();
-		long mb = totalGrp.findCounter("data-read").getValue();
+        Path newHistory = new Path(execHistory, executionDate);
+        log.debug("Moving execution to history : " + newHistory);
+        fs.rename(newExecutionOutput, newHistory);
 
-		long other = totalTaskTime - map - request - decode;
+        log.info("Job finished");
+        stopTiming("commit");
+        stopTiming("total");
+        createReport(job, timingMap);
 
-		sb.append("\nHadoop task breakdown:\n");
-		sb.append(String.format("    %12s %s\n", "kafka", NumberFormat
-				.getPercentInstance().format(request / (double) totalTaskTime)));
-		sb.append(String.format("    %12s %s\n", "decode", NumberFormat
-				.getPercentInstance().format(decode / (double) totalTaskTime)));
-		sb.append(String.format("    %12s %s\n", "map output", NumberFormat
-				.getPercentInstance().format(map / (double) totalTaskTime)));
-		sb.append(String.format("    %12s %s\n", "other", NumberFormat
-				.getPercentInstance().format(other / (double) totalTaskTime)));
+        if (!job.isSuccessful()) {
+            JobClient client = new JobClient(new JobConf(job.getConfiguration()));
 
-		sb.append(String.format("\n%16s %s\n", "Total MB read:",
-				mb / 1024 / 1024));
+            TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
 
-		log.info(sb.toString());
-	}
+            for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+                if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
+                    for (String s : task.getDiagnostics()) {
+                        System.err.println("task error: " + s);
+                    }
+                }
+            }
+            throw new RuntimeException("hadoop job failed");
+        }
+        FileStatus[] statuses = fs.listStatus(newHistory, new PathFilter() {
+            public boolean accept(Path path) {
+                return path.getName().startsWith("outputPaths.");
+            }
+        });
+        Map<String, List<String>> topicNameToPaths = new HashMap<String, List<String>>() {
+            @Override
+            public List<String> get(Object key) {
+                List<String> list = super.get(key);
 
-	/**
-	 * Path filter that filters based on prefix
-	 */
-	private class PrefixFilter implements PathFilter {
-		private final String prefix;
+                if (list == null && key instanceof String) {
+                    list = new ArrayList<String>();
+                    super.put((String) key, list);
+                }
+                return list;
+            }
+        };
 
-		public PrefixFilter(String prefix) {
-			this.prefix = prefix;
-		}
+        for (FileStatus status : statuses) {
+            InputStream in = fs.open(status.getPath());
+            
+            for (String line : IOUtils.readLines(in)) {
+                for (String path : line.split(",")) {
+                    String fileName = new Path(path).getName();
+                    // topic name is encoded into each file name; see
+                    // EtlMultiOutputCommitter.getPartitionedPath
+                    String topicName = fileName.substring(0, fileName.indexOf('.'));
+        
+                    topicNameToPaths.get(topicName).add(path);
+                }
+            }
+            in.close();
+        }
+        String prefix = job.getJobName() + ".outputs.";
+        
+        for (Entry<String, List<String>> e : topicNameToPaths.entrySet()) {
+            conf.set(prefix + e.getKey(), StringUtils.join(e.getValue(), ","));
+        }
+    }
 
-		public boolean accept(Path path) {
-			// TODO Auto-generated method stub
-			return path.getName().startsWith(prefix);
-		}
-	}
+    public void printErrors(FileSystem fs, Path newExecutionOutput) throws IOException {
+        for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(EtlMultiOutputFormat.ERRORS_PREFIX))) {
+            SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(), fs.getConf());
 
-	public static void main(String[] args) throws Exception {
-		CamusJob job = new CamusJob();
-		ToolRunner.run(job, args);
-	}
+            EtlKey key = new EtlKey();
+            ExceptionWritable value = new ExceptionWritable();
 
-	@SuppressWarnings("static-access")
-	@Override
-	public int run(String[] args) throws Exception {
-		Options options = new Options();
+            while (reader.next(key, value)) {
+                System.err.println(key.toString());
+                System.err.println(value.toString());
+            }
+            reader.close();
+        }
+    }
 
-		options.addOption("p", true, "properties filename from the classpath");
-		options.addOption("P", true, "external properties filename");
+    // Posts the tracking counts to Kafka
+    public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput) throws IOException, URISyntaxException {
+        if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
+            FileStatus[] gstatuses = fs.listStatus(newExecutionOutput, new PrefixFilter("counts"));
+            HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
+            for (FileStatus gfileStatus : gstatuses) {
+                FSDataInputStream fdsis = fs.open(gfileStatus.getPath());
 
-		options.addOption(OptionBuilder.withArgName("property=value")
-				.hasArgs(2).withValueSeparator()
-				.withDescription("use value for given property").create("D"));
+                BufferedReader br = new BufferedReader(new InputStreamReader(fdsis), 1048576);
+                StringBuffer buffer = new StringBuffer();
+                String temp = "";
+                while ((temp = br.readLine()) != null) {
+                    buffer.append(temp);
+                }
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.configure(DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                ArrayList<EtlCounts> countsObjects = mapper.readValue(buffer.toString(), new TypeReference<ArrayList<EtlCounts>>() {
+                });
 
-		CommandLineParser parser = new PosixParser();
-		CommandLine cmd = parser.parse(options, args);
+                for (EtlCounts count : countsObjects) {
+                    String topic = count.getTopic();
+                    if (allCounts.containsKey(topic)) {
+                        EtlCounts existingCounts = allCounts.get(topic);
+                        existingCounts.setEndTime(Math.max(existingCounts.getEndTime(), count.getEndTime()));
+                        existingCounts.setLastTimestamp(Math.max(existingCounts.getLastTimestamp(), count.getLastTimestamp()));
+                        existingCounts.setStartTime(Math.min(existingCounts.getStartTime(), count.getStartTime()));
+                        existingCounts.setFirstTimestamp(Math.min(existingCounts.getFirstTimestamp(), count.getFirstTimestamp()));
+                        existingCounts.setErrorCount(existingCounts.getErrorCount() + count.getErrorCount());
+                        existingCounts.setGranularity(count.getGranularity());
+                        existingCounts.setTopic(count.getTopic());
+                        for (Entry<String, Source> entry : count.getCounts().entrySet()) {
+                            Source source = entry.getValue();
+                            if (existingCounts.getCounts().containsKey(source.toString())) {
+                                Source old = existingCounts.getCounts().get(source.toString());
+                                old.setCount(old.getCount() + source.getCount());
+                                existingCounts.getCounts().put(old.toString(), old);
+                            } else {
+                                existingCounts.getCounts().put(source.toString(), source);
+                            }
+                            allCounts.put(topic, existingCounts);
+                        }
+                    } else {
+                        allCounts.put(topic, count);
+                    }
+                }
+            }
 
-		if (!(cmd.hasOption('p') || cmd.hasOption('P'))) {
-			HelpFormatter formatter = new HelpFormatter();
-			formatter.printHelp("CamusJob.java", options);
-			return 1;
-		}
+            for (FileStatus countFile : fs.listStatus(newExecutionOutput, new PrefixFilter("counts"))) {
+                if (props.getProperty(ETL_KEEP_COUNT_FILES, "false").equals("true")) {
+                    fs.rename(countFile.getPath(), new Path(props.getProperty(ETL_COUNTS_PATH), countFile.getPath().getName()));
+                } else {
+                    fs.delete(countFile.getPath(), true);
+                }
+            }
 
-		if (cmd.hasOption('p'))
-		    props.load(this.getClass().getClassLoader().getResourceAsStream(
-                    cmd.getOptionValue('p')));
+            String brokerList = getKafkaBrokers(job);
+            for (EtlCounts finalCounts : allCounts.values()) {
+                finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER), brokerList);
+            }
+        }
+    }
 
-		if (cmd.hasOption('P')) {
-			File file = new File(cmd.getOptionValue('P'));
-			FileInputStream fStream = new FileInputStream(file);
-			props.load(fStream);
-		}
+    /**
+     * Creates a diagnostic report mostly focused on timing breakdowns. Useful
+     * for determining where to optimize.
+     * 
+     * @param job
+     * @param timingMap
+     * @throws IOException
+     */
+    private void createReport(Job job, Map<String, Long> timingMap) throws IOException {
+        StringBuilder sb = new StringBuilder();
 
-		props.putAll(cmd.getOptionProperties("D"));
+        sb.append("***********Timing Report*************\n");
 
-		run();
-		return 0;
-	}
+        sb.append("Job time (seconds):\n");
 
-	// Temporarily adding all Kafka parameters here
-	public static boolean getPostTrackingCountsToKafka(Job job) {
-		return job.getConfiguration().getBoolean(POST_TRACKING_COUNTS_TO_KAFKA,
-				true);
-	}
+        double preSetup = timingMap.get("pre-setup") / 1000;
+        double getSplits = timingMap.get("getSplits") / 1000;
+        double hadoop = timingMap.get("hadoop") / 1000;
+        double commit = timingMap.get("commit") / 1000;
+        double total = timingMap.get("total") / 1000;
 
-	public static int getKafkaFetchRequestMinBytes(JobContext context) {
-		return context.getConfiguration().getInt(KAFKA_FETCH_REQUEST_MIN_BYTES,
-				1024);
-	}
+        sb.append(String.format("    %12s %6.1f (%s)\n", "pre setup", preSetup, NumberFormat.getPercentInstance().format(preSetup / total)
+                .toString()));
+        sb.append(String.format("    %12s %6.1f (%s)\n", "get splits", getSplits, NumberFormat.getPercentInstance().format(getSplits / total)
+                .toString()));
+        sb.append(String.format("    %12s %6.1f (%s)\n", "hadoop job", hadoop, NumberFormat.getPercentInstance().format(hadoop / total)
+                .toString()));
+        sb.append(String.format("    %12s %6.1f (%s)\n", "commit", commit, NumberFormat.getPercentInstance().format(commit / total).toString()));
 
-	public static int getKafkaFetchRequestMaxWait(JobContext job) {
-		return job.getConfiguration()
-				.getInt(KAFKA_FETCH_REQUEST_MAX_WAIT, 1000);
-	}
+        int minutes = (int) total / 60;
+        int seconds = (int) total % 60;
 
-	public static String getKafkaBrokers(JobContext job) {
-		String brokers = job.getConfiguration().get(KAFKA_BROKERS);
-		if (brokers == null) {
-			brokers = job.getConfiguration().get(KAFKA_HOST_URL);
-			if (brokers != null) {
-				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " + 
-					KAFKA_HOST_PORT + " are deprecated. Please switch to using " + KAFKA_BROKERS);
-				return brokers + ":" + job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
-			}
-		}
-		return brokers;
-	}
+        sb.append(String.format("Total: %d minutes %d seconds\n", minutes, seconds));
 
-	public static int getKafkaFetchRequestCorrelationId(JobContext job) {
-		return job.getConfiguration().getInt(
-				KAFKA_FETCH_REQUEST_CORRELATION_ID, -1);
-	}
+        JobClient client = new JobClient(new JobConf(job.getConfiguration()));
 
-	public static String getKafkaClientName(JobContext job) {
-		return job.getConfiguration().get(KAFKA_CLIENT_NAME);
-	}
+        TaskReport[] tasks = client.getMapTaskReports(JobID.downgrade(job.getJobID()));
 
-	public static String getKafkaFetchRequestBufferSize(JobContext job) {
-		return job.getConfiguration().get(KAFKA_FETCH_BUFFER_SIZE);
-	}
+        double min = Long.MAX_VALUE, max = 0, mean = 0;
+        double minRun = Long.MAX_VALUE, maxRun = 0, meanRun = 0;
+        long totalTaskTime = 0;
+        TreeMap<Long, List<TaskReport>> taskMap = new TreeMap<Long, List<TaskReport>>();
 
-	public static int getKafkaTimeoutValue(JobContext job) {
-		int timeOut = job.getConfiguration().getInt(KAFKA_TIMEOUT_VALUE, 30000);
-		return timeOut;
-	}
+        for (TaskReport t : tasks) {
+            long wait = t.getStartTime() - timingMap.get("hadoop_start");
+            min = wait < min ? wait : min;
+            max = wait > max ? wait : max;
+            mean += wait;
 
-	public static int getKafkaBufferSize(JobContext job) {
-		return job.getConfiguration().getInt(KAFKA_FETCH_BUFFER_SIZE,
-				1024 * 1024);
-	}
+            long runTime = t.getFinishTime() - t.getStartTime();
+            totalTaskTime += runTime;
+            minRun = runTime < minRun ? runTime : minRun;
+            maxRun = runTime > maxRun ? runTime : maxRun;
+            meanRun += runTime;
 
-	public static boolean getLog4jConfigure(JobContext job) {
-		return job.getConfiguration().getBoolean(LOG4J_CONFIGURATION, false);
-	}
+            if (!taskMap.containsKey(runTime)) {
+                taskMap.put(runTime, new ArrayList<TaskReport>());
+            }
+            taskMap.get(runTime).add(t);
+        }
+
+        mean /= tasks.length;
+        meanRun /= tasks.length;
+
+        // convert to seconds
+        min /= 1000;
+        max /= 1000;
+        mean /= 1000;
+        minRun /= 1000;
+        maxRun /= 1000;
+        meanRun /= 1000;
+
+        sb.append("\nHadoop job task times (seconds):\n");
+        sb.append(String.format("    %12s %6.1f\n", "min", minRun));
+        sb.append(String.format("    %12s %6.1f\n", "mean", meanRun));
+        sb.append(String.format("    %12s %6.1f\n", "max", maxRun));
+        sb.append(String.format("    %12s %6.1f/%.1f = %.2f\n", "skew", meanRun, maxRun, meanRun / maxRun));
+
+        sb.append("\nTask wait time (seconds):\n");
+        sb.append(String.format("    %12s %6.1f\n", "min", min));
+        sb.append(String.format("    %12s %6.1f\n", "mean", mean));
+        sb.append(String.format("    %12s %6.1f\n", "max", max));
+
+        CounterGroup totalGrp = job.getCounters().getGroup("total");
+
+        long decode = totalGrp.findCounter("decode-time(ms)").getValue();
+        long request = totalGrp.findCounter("request-time(ms)").getValue();
+        long map = totalGrp.findCounter("mapper-time(ms)").getValue();
+        long mb = totalGrp.findCounter("data-read").getValue();
+
+        long other = totalTaskTime - map - request - decode;
+
+        sb.append("\nHadoop task breakdown:\n");
+        sb.append(String.format("    %12s %s\n", "kafka", NumberFormat.getPercentInstance().format(request / (double) totalTaskTime)));
+        sb.append(String.format("    %12s %s\n", "decode", NumberFormat.getPercentInstance().format(decode / (double) totalTaskTime)));
+        sb.append(String.format("    %12s %s\n", "map output", NumberFormat.getPercentInstance().format(map / (double) totalTaskTime)));
+        sb.append(String.format("    %12s %s\n", "other", NumberFormat.getPercentInstance().format(other / (double) totalTaskTime)));
+
+        sb.append(String.format("\n%16s %s\n", "Total MB read:", mb / 1024 / 1024));
+
+        log.info(sb.toString());
+    }
+
+    /**
+     * Path filter that filters based on prefix
+     */
+    private class PrefixFilter implements PathFilter {
+        private final String prefix;
+
+        public PrefixFilter(String prefix) {
+            this.prefix = prefix;
+        }
+
+        public boolean accept(Path path) {
+            // TODO Auto-generated method stub
+            return path.getName().startsWith(prefix);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        CamusJob job = new CamusJob();
+        ToolRunner.run(job, args);
+    }
+
+    @SuppressWarnings("static-access")
+    @Override
+    public int run(String[] args) throws Exception {
+        Options options = new Options();
+
+        options.addOption("p", true, "properties filename from the classpath");
+        options.addOption("P", true, "external properties filename");
+
+        options.addOption(OptionBuilder.withArgName("property=value").hasArgs(2).withValueSeparator()
+                .withDescription("use value for given property").create("D"));
+
+        CommandLineParser parser = new PosixParser();
+        CommandLine cmd = parser.parse(options, args);
+
+        if (!(cmd.hasOption('p') || cmd.hasOption('P'))) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp("CamusJob.java", options);
+            return 1;
+        }
+
+        if (cmd.hasOption('p'))
+            props.load(this.getClass().getClassLoader().getResourceAsStream(cmd.getOptionValue('p')));
+
+        if (cmd.hasOption('P')) {
+            File file = new File(cmd.getOptionValue('P'));
+            FileInputStream fStream = new FileInputStream(file);
+            props.load(fStream);
+        }
+
+        props.putAll(cmd.getOptionProperties("D"));
+
+        run();
+        return 0;
+    }
+
+    // Temporarily adding all Kafka parameters here
+    public static boolean getPostTrackingCountsToKafka(Job job) {
+        return job.getConfiguration().getBoolean(POST_TRACKING_COUNTS_TO_KAFKA, true);
+    }
+
+    public static int getKafkaFetchRequestMinBytes(JobContext context) {
+        return context.getConfiguration().getInt(KAFKA_FETCH_REQUEST_MIN_BYTES, 1024);
+    }
+
+    public static int getKafkaFetchRequestMaxWait(JobContext job) {
+        return job.getConfiguration().getInt(KAFKA_FETCH_REQUEST_MAX_WAIT, 1000);
+    }
+
+    public static String getKafkaBrokers(JobContext job) {
+        String brokers = job.getConfiguration().get(KAFKA_BROKERS);
+        if (brokers == null) {
+            brokers = job.getConfiguration().get(KAFKA_HOST_URL);
+            if (brokers != null) {
+                log.warn("The configuration properties " + KAFKA_HOST_URL + " and " + KAFKA_HOST_PORT
+                        + " are deprecated. Please switch to using " + KAFKA_BROKERS);
+                return brokers + ":" + job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
+            }
+        }
+        return brokers;
+    }
+
+    public static int getKafkaFetchRequestCorrelationId(JobContext job) {
+        return job.getConfiguration().getInt(KAFKA_FETCH_REQUEST_CORRELATION_ID, -1);
+    }
+
+    public static String getKafkaClientName(JobContext job) {
+        return job.getConfiguration().get(KAFKA_CLIENT_NAME);
+    }
+
+    public static String getKafkaFetchRequestBufferSize(JobContext job) {
+        return job.getConfiguration().get(KAFKA_FETCH_BUFFER_SIZE);
+    }
+
+    public static int getKafkaTimeoutValue(JobContext job) {
+        int timeOut = job.getConfiguration().getInt(KAFKA_TIMEOUT_VALUE, 30000);
+        return timeOut;
+    }
+
+    public static int getKafkaBufferSize(JobContext job) {
+        return job.getConfiguration().getInt(KAFKA_FETCH_BUFFER_SIZE, 1024 * 1024);
+    }
+
+    public static boolean getLog4jConfigure(JobContext job) {
+        return job.getConfiguration().getBoolean(LOG4J_CONFIGURATION, false);
+    }
 }

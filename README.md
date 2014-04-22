@@ -117,6 +117,13 @@ Output path example for monthly partition:
  * etl.destination.path.topic.sub.dir=monthly
  * etl.partitioner.class=com.linkedin.camus.etl.kafka.coders.CustomOutputPathPartitioner
  * etl.output.date.format=YYYY/MM
+
+* Using avro schema repository server
+ * Schema registry class to use
+  * kafka.message.coder.schema.registry.class=com.linkedin.camus.schemaregistry.AvroRestSchemaRegistry
+ * URL of avro schema repository server
+  * etl.schema.registry.url=
+ 
  
 
 ### Running Camus

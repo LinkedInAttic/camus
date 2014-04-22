@@ -102,6 +102,22 @@ Here is an abbreviated list of commonly used parameters.
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
  * kafka.blacklist.topics=
  * kafka.whitelist.topics=
+ 
+### Extra configuration
+
+* Sub directory, recommended to use with etl.output.date.format (default: hourly)
+ * etl.destination.path.topic.sub.dir=
+* Partitioner class used to create destination paths (default: com.linkedin.camus.etl.kafka.coders.DefaultPartitioner)
+* If whe want to specify a custom data path use com.linkedin.camus.etl.kafka.coders.CustomOutputPathPartitioner with etl.output.date.format property
+ * etl.partitioner.class=
+* Format date to build destination path (default: YYYY/MM/dd/HH)
+ * etl.output.date.format=
+
+Output path example for monthly partition:  
+ * etl.destination.path.topic.sub.dir=monthly
+ * etl.partitioner.class=com.linkedin.camus.etl.kafka.coders.CustomOutputPathPartitioner
+ * etl.output.date.format=YYYY/MM
+ 
 
 ### Running Camus
 

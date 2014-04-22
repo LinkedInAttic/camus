@@ -84,14 +84,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 			timestamp = now;
 		}
 
-		// If timestamp is from >12hours ago, reset it.
-		if (now - timestamp > 12 * 60 * 60 * 1000) {
-			timestamp = now;
-		} else if (timestamp > now) {
-			// Can't be in the future, right?
-			timestamp = now;
-		}
-
 		return new CamusWrapper<String>(payloadString, timestamp);
 	}
 }

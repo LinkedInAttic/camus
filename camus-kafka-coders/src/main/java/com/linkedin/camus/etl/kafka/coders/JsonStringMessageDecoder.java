@@ -17,9 +17,17 @@ import org.apache.log4j.Logger;
 
 /**
  * MessageDecoder class that will convert the payload into a JSON object,
- * look for a field named 'timestamp', and then set the CamusWrapper's
+ * look for a the camus.message.timestamp.field, convert that timestamp to
+ * a unix epoch long using camus.message.timestamp.format, and then set the CamusWrapper's
  * timestamp property to the record's timestamp.  If the JSON does not have
- * a timestamp, then System.currentTimeMillis() will be used.
+ * a timestamp or if the timestamp could not be parsed properly, then
+ * System.currentTimeMillis() will be used.
+ *
+ * camus.message.timestamp.format will be used with SimpleDateFormat.  If your
+ * camus.message.timestamp.field is stored in JSON as a long, then you may
+ * set camus.message.timestamp.format to 'unix' to avoid having your timestamp
+ * converted.
+ *
  * This MessageDecoder returns a CamusWrapper that works with Strings payloads,
  * since JSON data is always a String.
  */
@@ -64,11 +72,19 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 
 		// Attempt to read and parse the timestamp element into a long.
 		if (jsonObject.has(timestampField)) {
-			String timestampString = jsonObject.get(timestampField).getAsString();
-			try {
-				timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
-			} catch (Exception e) {
-				log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
+			// If timestampFormat is 'unix',
+			// then the timestamp should be stored as unix epoch timestamp.
+			if (timestampFormat.equals("unix")) {
+				timestamp = jsonObject.get(timestampField).getAsLong();
+			}
+			// Otherwise parse the timestamp as a string in timestampFormat.
+			else {
+				String timestampString = jsonObject.get(timestampField).getAsString();
+				try {
+					timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+				} catch (Exception e) {
+					log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
+				}
 			}
 		}
 

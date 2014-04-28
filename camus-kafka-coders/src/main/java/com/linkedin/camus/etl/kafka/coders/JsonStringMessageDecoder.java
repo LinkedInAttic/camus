@@ -76,6 +76,14 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 			// then the timestamp should be stored as unix epoch timestamp.
 			if (timestampFormat.equals("unix")) {
 				timestamp = jsonObject.get(timestampField).getAsLong();
+				// if timestamp is larger than 1000000000000, it is
+				// already in milliseconds...unless the timestamp
+				// is meant to be after the year 33658 :p
+				if (timestamp < 1000000000000L) {
+					// This timestamp is in seconds!
+					// Convert it to milliseconds.
+					timestamp = timestamp * 1000;
+				}
 			}
 			// Otherwise parse the timestamp as a string in timestampFormat.
 			else {

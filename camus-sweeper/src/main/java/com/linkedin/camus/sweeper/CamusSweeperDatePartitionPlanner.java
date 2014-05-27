@@ -33,8 +33,7 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner
     int daysAgo = Integer.parseInt(props.getProperty("days.ago", "0"));
     int numDays = Integer.parseInt(props.getProperty("num.days", "15"));
 
-    DateTime time = new DateTime();
-    DateTime midnight = new DateTime(time.getYear(), time.getMonthOfYear(), time.getDayOfMonth(), 0, 0, 0, 0);
+    DateTime midnight = dUtils.getMidnight();
     DateTime startDate = midnight.minusDays(daysAgo);
 
     List<Properties> jobPropsList = new ArrayList<Properties>();

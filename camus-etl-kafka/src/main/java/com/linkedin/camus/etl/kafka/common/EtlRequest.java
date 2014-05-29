@@ -207,13 +207,23 @@ public class EtlRequest implements Writable {
     }
 
     @Override
-    public int hashCode() {
-        return (partition + topic).hashCode();
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (!(o instanceof EtlRequest)) return false;
+
+      EtlRequest that = (EtlRequest) o;
+
+      if (partition != that.partition) return false;
+      if (!topic.equals(that.topic)) return false;
+
+      return true;
     }
 
     @Override
-    public boolean equals(Object other) {
-        return this.hashCode() == other.hashCode();
+    public int hashCode() {
+      int result = topic.hashCode();
+      result = 31 * result + partition;
+      return result;
     }
 
     /**

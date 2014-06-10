@@ -24,9 +24,10 @@ import org.apache.log4j.Logger;
  * System.currentTimeMillis() will be used.
  *
  * camus.message.timestamp.format will be used with SimpleDateFormat.  If your
- * camus.message.timestamp.field is stored in JSON as a long, then you may
- * set camus.message.timestamp.format to 'unix' to avoid having your timestamp
- * converted.
+ * camus.message.timestamp.field is stored in JSON as a unix epoch timestamp,
+ * you should set camus.message.timestamp.format to 'unix_seconds' (if your
+ * timestamp units are seconds) or 'unix_milliseconds' (if your timestamp units
+ * are milliseconds).
  *
  * This MessageDecoder returns a CamusWrapper that works with Strings payloads,
  * since JSON data is always a String.
@@ -72,9 +73,17 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 
 		// Attempt to read and parse the timestamp element into a long.
 		if (jsonObject.has(timestampField)) {
-			// If timestampFormat is 'unix',
-			// then the timestamp should be stored as unix epoch timestamp.
-			if (timestampFormat.equals("unix")) {
+			// If timestampFormat is 'unix_seconds',
+			// then the timestamp only needs converted to milliseconds.
+			// Also support 'unix' for backwards compatibility.
+			if (timestampFormat.equals("unix_seconds") || timestampFormat.equals("unix")) {
+				timestamp = jsonObject.get(timestampField).getAsLong();
+				// This timestamp is in seconds, convert it to milliseconds.
+				timestamp = timestamp * 1000L;
+			}
+			// Else if this timestamp is already in milliseconds,
+			// just save it as is.
+			else if (timestampFormat.equals("unix_milliseconds")) {
 				timestamp = jsonObject.get(timestampField).getAsLong();
 			}
 			// Otherwise parse the timestamp as a string in timestampFormat.

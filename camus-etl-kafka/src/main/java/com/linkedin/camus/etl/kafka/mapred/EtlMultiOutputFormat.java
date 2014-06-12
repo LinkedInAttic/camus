@@ -45,6 +45,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_OUTPUT_CODEC = "etl.output.codec";
     public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
     public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
+    public static final String ETL_OUTPUT_DATE_FORMAT = "etl.output.date.format";
 
     public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
             .getDateTimeFormatter("YYYYMMddHH");

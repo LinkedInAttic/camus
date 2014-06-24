@@ -3,6 +3,7 @@ package com.linkedin.camus.etl.kafka.mapred;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,7 +54,10 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         super(outputPath, context);
         this.context = context;
         try {
-            recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
+            //recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
+            Class<RecordWriterProvider> rwp = EtlMultiOutputFormat.getRecordWriterProviderClass(context);
+            Constructor<RecordWriterProvider> crwp = rwp.getConstructor(TaskAttemptContext.class);
+            recordWriterProvider = crwp.newInstance(context);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

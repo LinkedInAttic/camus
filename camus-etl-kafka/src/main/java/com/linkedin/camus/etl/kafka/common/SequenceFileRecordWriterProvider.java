@@ -40,6 +40,10 @@ public class SequenceFileRecordWriterProvider implements RecordWriterProvider {
     private static Logger log = Logger.getLogger(SequenceFileRecordWriterProvider.class);
 
     protected String recordDelimiter = null;
+    
+    public SequenceFileRecordWriterProvider(TaskAttemptContext  context) {
+    	
+    }
 
     // TODO: Make this configurable somehow.
     // To do this, we'd have to make SequenceFileRecordWriterProvider have an

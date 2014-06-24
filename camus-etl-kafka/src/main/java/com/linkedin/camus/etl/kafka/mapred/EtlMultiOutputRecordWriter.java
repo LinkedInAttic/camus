@@ -1,6 +1,7 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.HashMap;
 
 import org.apache.hadoop.fs.FileSystem;
@@ -117,7 +118,10 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
     RecordWriterProvider recordWriterProvider = null;
     try
     {
-      recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
+      //recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
+      Class<RecordWriterProvider> rwp = EtlMultiOutputFormat.getRecordWriterProviderClass(context);
+      Constructor<RecordWriterProvider> crwp = rwp.getConstructor(TaskAttemptContext.class);
+      recordWriterProvider = crwp.newInstance(context);
     }
     catch (InstantiationException e)
     {
@@ -126,6 +130,10 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
     catch (IllegalAccessException e)
     {
       throw new IllegalStateException(e);
+    }
+    catch (Exception e) 
+    {
+        throw new IllegalStateException(e);
     }
     return recordWriterProvider.getDataRecordWriter(context, fileName, value, committer);
   }

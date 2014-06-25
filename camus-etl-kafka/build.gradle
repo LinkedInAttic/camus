@@ -13,6 +13,7 @@ dependencies {
 	compile spec.external.avroIpc
 	compile spec.external.jodaTime
 	compile spec.external.hadoopCore
+	compile spec.external.hadoopCommon
 	compile spec.external.kafka
 	compile spec.external.zkclient
 	compile spec.external.zookeeper

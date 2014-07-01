@@ -15,7 +15,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.SnappyCodec;
-import org.apache.hadoop.io.compress.DeflateCodec;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
@@ -55,7 +55,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         	if ("snappy".equals(EtlMultiOutputFormat.getEtlOutputCodec(context))) {
         		codecClass = SnappyCodec.class;
             } else {
-                codecClass = DeflateCodec.class;
+                codecClass = DefaultCodec.class;
             }
             codec = ReflectionUtils.newInstance(codecClass, conf);
             extension = codec.getDefaultExtension();

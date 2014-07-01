@@ -12,8 +12,6 @@ dependencies {
 	compile spec.external.avroMapred
 	compile spec.external.avroIpc
 	compile spec.external.jodaTime
-	compile spec.external.hadoopCore
-	compile spec.external.hadoopCommon
 	compile spec.external.kafka
 	compile spec.external.zkclient
 	compile spec.external.zookeeper
@@ -23,7 +21,6 @@ dependencies {
 	compile spec.external.junit
 	compile spec.external.snappyJava
 	compile fileTree(dir: '../lib', includes: ['*.jar'])
-
 }
  
 classification="library"

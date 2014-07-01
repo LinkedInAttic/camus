@@ -11,7 +11,6 @@ dependencies {
 	compile spec.external.avroIpc
 	compile fileTree(dir: '../lib', includes: ['*.jar'])
 	compile spec.external.jodaTime
-	compile spec.external.hadoopCore
 	compile spec.external.paranamer
 	compile spec.external.junit
 	compile spec.external.snappyJava

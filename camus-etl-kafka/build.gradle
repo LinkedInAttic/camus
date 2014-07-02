@@ -8,7 +8,7 @@ dependencies {
 	compile(project(":camus-external:camus-kafka-coders"))
 
 	compile spec.external.log4j
-	compile spec.external.avro17
+	compile spec.external.avro
 	compile spec.external.avroMapred
 	compile spec.external.avroIpc
 	compile spec.external.jodaTime

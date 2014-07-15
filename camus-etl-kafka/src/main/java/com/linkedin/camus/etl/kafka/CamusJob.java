@@ -72,6 +72,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
 	public static final String ETL_COUNTS_PATH = "etl.counts.path";
 	public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
+	public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
 	public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
 	public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
 	public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
@@ -91,6 +92,9 @@ public class CamusJob extends Configured implements Tool {
 	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
+	
+	private DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter(
+      "YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
 
 	public CamusJob() throws IOException {
 		this(new Properties());
@@ -225,6 +229,10 @@ public class CamusJob extends Configured implements Tool {
 		long limit = (long) (content.getQuota() * job.getConfiguration()
 				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
+		
+		if (props.contains(ETL_BASEDIR_QUOTA_OVERIDE)){
+		  limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
+		}
 
 		long currentCount = content.getFileCount()
 				+ content.getDirectoryCount();
@@ -245,6 +253,36 @@ public class CamusJob extends Configured implements Tool {
 			currentCount -= execContent.getFileCount()
 					- execContent.getDirectoryCount();
 			fs.delete(stat.getPath(), true);
+		}
+		
+		// removing failed exectutions if we need room
+		if (limit < currentCount){
+		  FileStatus[] failedExecutions = fs.listStatus(execBasePath, new PathFilter() {
+		    
+		    public boolean accept(Path path) {
+		      try {
+		        dateFmt.parseDateTime(path.getName());
+		        return true;
+		      } catch (IllegalArgumentException e){
+		        return false;
+		      }
+		    }
+		  });
+		  
+		  Arrays.sort(failedExecutions, new Comparator<FileStatus>() {
+	      public int compare(FileStatus f1, FileStatus f2) {
+	        return f1.getPath().getName().compareTo(f2.getPath().getName());
+	      }
+	    });
+		  
+	    for (int i = 0; i < failedExecutions.length && limit < currentCount; i++) {
+	      FileStatus stat = failedExecutions[i];
+	      log.info("removing failed execution: " + stat.getPath().getName());
+	      ContentSummary execContent = fs.getContentSummary(stat.getPath());
+	      currentCount -= execContent.getFileCount()
+	          - execContent.getDirectoryCount();
+	      fs.delete(stat.getPath(), true);
+	    }
 		}
 
 		// determining most recent execution and using as the starting point for

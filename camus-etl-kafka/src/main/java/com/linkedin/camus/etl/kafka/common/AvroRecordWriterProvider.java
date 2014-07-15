@@ -22,6 +22,9 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 public class AvroRecordWriterProvider implements RecordWriterProvider {
     public final static String EXT = ".avro";
 
+    public AvroRecordWriterProvider(TaskAttemptContext context) {
+    }
+    
     @Override
     public String getFilenameExtension() {
         return EXT;

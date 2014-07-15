@@ -85,8 +85,12 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
 		private ByteBuffer getByteBuffer(byte[] payload) {
 			ByteBuffer buffer = ByteBuffer.wrap(payload);
-			if (buffer.get() != MAGIC_BYTE)
-				throw new IllegalArgumentException("Unknown magic byte!");
+			if (buffer.get() != MAGIC_BYTE) {
+                String dump = "";
+                for(int i=0; i<10 && i<payload.length; i++)
+                    dump += String.format("%02X ", payload[i]);
+                throw new IllegalArgumentException("Unknown magic byte! " + dump);
+            }
 			return buffer;
 		}
 

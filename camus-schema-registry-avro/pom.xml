@@ -38,12 +38,12 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
-    <dependency>
+    <!--<dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>
       <type>test-jar</type>
       <scope>test</scope>
-    </dependency>
+    </dependency>-->
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>

@@ -40,7 +40,6 @@ public class UnifiedPartitioner extends Partitioner {
         sb.append("month=").append(month).append("/");
         sb.append("day=").append(day).append("/");
         sb.append("hour=").append(hour).append("/");
-//        sb.append(bucket.toString(outputDateFormatter));
         return sb.toString();
     }
 

@@ -52,7 +52,8 @@ public class TestJsonStringMessageDecoder {
         assertEquals(expectedTimestamp, actualTimestamp);
     }
 
-    @Test public void testDecodeWithTimestampFormat() {
+    @Test
+    public void testDecodeWithTimestampFormat() {
 
         // Test that we can specify a date and a pattern and
         // get back unix timestamp milliseconds
@@ -73,7 +74,14 @@ public class TestJsonStringMessageDecoder {
 
         assertEquals(expectedTimestamp, actualTimestamp);
 
+    }
 
+    @Test(expected=RuntimeException.class)
+    public void testBadJsonInput() {
+        byte[] bytePayload = "{\"key: value}".getBytes();
+
+        JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
+        CamusWrapper actualResult = testDecoder.decode(bytePayload);
     }
 
 }

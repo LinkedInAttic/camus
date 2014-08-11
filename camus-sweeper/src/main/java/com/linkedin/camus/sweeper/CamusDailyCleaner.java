@@ -60,7 +60,7 @@ public class CamusDailyCleaner extends Configured implements Tool
   public CamusDailyCleaner(Properties props)
   {
     this.props = props;
-    DateUtils dUtils = new DateUtils(props);
+    dUtils = new DateUtils(props);
     outputDailyFormat = dUtils.getDateTimeFormatter(OUTPUT_DAILY_FORMAT_STR);
     outputMonthFormat = dUtils.getDateTimeFormatter("YYYY/MM");
     outputYearFormat = dUtils.getDateTimeFormatter("YYYY");

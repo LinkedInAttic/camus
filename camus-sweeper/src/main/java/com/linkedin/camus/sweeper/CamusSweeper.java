@@ -130,6 +130,9 @@ public class CamusSweeper extends Configured implements Tool
     if (destLocation.isEmpty())
       destLocation = fromLocation;
 
+    System.out.println("fromLocation: " + fromLocation);
+    System.out.println("destLocation: " + destLocation);
+
     List<String> blacklist = Utils.getStringList(props, "camus.sweeper.blacklist");
     List<String> whitelist = Utils.getStringList(props, "camus.sweeper.whitelist");
     Configuration conf = new Configuration();
@@ -232,7 +235,7 @@ public class CamusSweeper extends Configured implements Tool
         System.out.println("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       }
-      catch (Exception e)
+      catch (Throwable e) // Sometimes the error is the Throwable, e.g. java.lang.NoClassDefFoundError
       {
         System.out.println("Failed for " + name + " failed for " + props.getProperty("input.paths") + " Exception:"
             + e.getLocalizedMessage());
@@ -321,10 +324,8 @@ public class CamusSweeper extends Configured implements Tool
       Path outputPath = new Path(job.getConfiguration().get("dest.path"));
 
       FileOutputFormat.setOutputPath(job, tmpPath);
-      
       ((CamusSweeperJob) Class.forName(props.getProperty("camus.sweeper.io.configurer.class"))
           .newInstance()).setLogger(log).configureJob(topicName, job);
-
       job.submit();
       runningJobs.add(job);
       System.out.println("job running: " + job.getTrackingURL());
@@ -425,13 +426,14 @@ public class CamusSweeper extends Configured implements Tool
         this.blacklist = Pattern.compile("a^");  //blacklist nothing
       else
         this.blacklist = compileMultiPattern(blacklist);
+      System.out.println("whitelist: " + whitelist);
+      System.out.println("blacklist: " + blacklist);
     }
 
     @Override
     public boolean accept(Path path)
     {
       String name = path.getName();
-
       return whitelist.matcher(name).matches() && ! ( blacklist.matcher(name).matches()
           || name.startsWith(".") || name.startsWith("_"));
     }
@@ -441,9 +443,9 @@ public class CamusSweeper extends Configured implements Tool
   {
     private final String topic;
     private final String input;
-    private final Exception e;
+    private final Throwable e;
 
-    public SweeperError(String topic, String input, Exception e)
+    public SweeperError(String topic, String input, Throwable e)
     {
       this.topic = topic;
       this.input = input;
@@ -460,7 +462,7 @@ public class CamusSweeper extends Configured implements Tool
       return input;
     }
 
-    public Exception getException()
+    public Throwable getException()
     {
       return e;
     }

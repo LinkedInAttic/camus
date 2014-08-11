@@ -102,6 +102,7 @@ public class CamusJobTest {
         props.setProperty(CamusJob.KAFKA_BROKERS, props.getProperty("metadata.broker.list"));
         
         // Run Map/Reduce tests in process.
+        //props.setProperty("mapreduce.framework.name", "local");
         props.setProperty("mapreduce.jobtracker.address", "local");
         
         job = new CamusJob(props);

@@ -20,6 +20,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -57,11 +58,19 @@ public class CamusHourlyCleaner extends Configured implements Tool
 
   public CamusHourlyCleaner(Properties props)
   {
+    this.props = props;
     dUtils = new DateUtils(props);
     outputDailyFormat = dUtils.getDateTimeFormatter("YYYY/MM/dd");
     outputMonthFormat = dUtils.getDateTimeFormatter("YYYY/MM");
   }
 
+  public static void main(String args[]) throws Exception
+  {
+    CamusHourlyCleaner job = new CamusHourlyCleaner();
+    ToolRunner.run(job, args);
+
+  }
+  
   public void run() throws Exception
   {
     System.out.println("Cleaning");
@@ -138,11 +147,14 @@ public class CamusHourlyCleaner extends Configured implements Tool
         System.out.println("Checking month to see if we need to clean up");
         Path monthPath = new Path(sourcePath, topic + "/hourly/" + outputMonthFormat.print(currentTime));
 
-        FileStatus[] status = sourceFS.listStatus(monthPath);
-        if (!simulate && status != null && status.length == 0)
+        if (sourceFS.exists(monthPath))
         {
-          System.out.println("Deleting " + monthPath);
-          sourceFS.delete(monthPath, true);
+          FileStatus[] status = sourceFS.listStatus(monthPath);
+          if (!simulate && status != null && status.length == 0)
+          {
+            System.out.println("Deleting " + monthPath);
+            sourceFS.delete(monthPath, true);
+          }
         }
 
         currentMonth = newTime.getMonthOfYear();

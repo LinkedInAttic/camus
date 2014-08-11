@@ -321,6 +321,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			}
 		});
 
+		log.info("The requests from kafka metadata are: \n" + finalRequests);		
 		writeRequests(finalRequests, context);
 		Map<EtlRequest, EtlKey> offsetKeys = getPreviousOffsets(
 				FileInputFormat.getInputPaths(context), context);
@@ -328,6 +329,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		for (EtlRequest request : finalRequests) {
 			if (moveLatest.contains(request.getTopic())
 					|| moveLatest.contains("all")) {
+			    log.info("Moving to latest for topic: " + request.getTopic());
 				offsetKeys.put(
 						request,
 						new EtlKey(request.getTopic(), request.getLeaderId(),
@@ -345,12 +347,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 					|| request.getOffset() > request.getLastOffset()) {
 				if(request.getEarliestOffset() > request.getOffset())
 				{
-					log.error("The earliest offset was found to be more than the current offset");
+					log.error("The earliest offset was found to be more than the current offset: " + request);
 					log.error("Moving to the earliest offset available");
 				}
 				else
 				{
-					log.error("The current offset was found to be more than the latest offset");
+					log.error("The current offset was found to be more than the latest offset: " + request);
 					log.error("Moving to the earliest offset available");
 				}
 				request.setOffset(request.getEarliestOffset());

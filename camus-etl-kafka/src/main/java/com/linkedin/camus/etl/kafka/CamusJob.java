@@ -30,7 +30,6 @@ import java.util.Arrays;
 
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -311,9 +310,7 @@ public class CamusJob extends Configured implements Tool {
 		if (countersPathString != null) {
 			Path countersPath = new Path(countersPathString);
 			fs.delete(countersPath, true);
-			if (!fs.exists(countersPath)) {
-				fs.mkdirs(countersPath);
-			}
+			fs.mkdirs(countersPath);
 
 			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
 							fs.create(new Path(countersPath, "counters.json"))));

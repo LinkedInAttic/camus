@@ -8,7 +8,6 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.mapred.AvroKey;
-import org.apache.avro.mapreduce.AvroJob;
 import org.apache.avro.mapreduce.AvroKeyRecordReader;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -19,6 +18,8 @@ import org.apache.hadoop.mapreduce.lib.input.CombineFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.CombineFileRecordReader;
 import org.apache.hadoop.mapreduce.lib.input.CombineFileSplit;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+
+import com.linkedin.camus.sweeper.utils.RelaxedSchemaUtils;
 
 public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKey<GenericRecord>, NullWritable>
 {
@@ -66,7 +67,7 @@ public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKe
       this.split = split;
       this.context = arg1;
       this.idx = idx;
-      Schema schema = AvroJob.getInputKeySchema(arg1.getConfiguration());
+      Schema schema = RelaxedSchemaUtils.getInputKeySchema(arg1.getConfiguration());
       //System.err.println(schema);
       innerReader = new AvroKeyRecordReader<GenericRecord>(schema);
     }

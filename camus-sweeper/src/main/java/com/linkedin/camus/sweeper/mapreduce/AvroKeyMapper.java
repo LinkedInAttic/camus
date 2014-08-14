@@ -10,11 +10,16 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.mapred.AvroKey;
 import org.apache.avro.mapred.AvroValue;
 import org.apache.avro.mapreduce.AvroJob;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Mapper;
 
 public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, AvroKey<GenericRecord>, Object>
 {
+  private static final Log LOG =
+      LogFactory.getLog(AvroKeyMapper.class.getName());
+
   private AvroKey<GenericRecord> outKey;
   private AvroValue<GenericRecord> outValue;
   private boolean mapOnly = false;
@@ -24,6 +29,11 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
   protected void setup(Context context) throws IOException,
       InterruptedException
   {
+    // For class path debugging
+    LOG.info("classpath: " + System.getProperty("java.class.path"));
+    ClassLoader loader = AvroKeyMapper.class.getClassLoader();
+    LOG.info("com.linkedin.events.fixed_16: " + loader.getResource("com/linkedin/events/fixed_16.class"));
+
     keySchema = AvroJob.getMapOutputKeySchema(context.getConfiguration());
 
     outValue = new AvroValue<GenericRecord>();

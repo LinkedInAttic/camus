@@ -250,8 +250,7 @@ public class CamusJob extends Configured implements Tool {
 			FileStatus stat = executions[i];
 			log.info("removing old execution: " + stat.getPath().getName());
 			ContentSummary execContent = fs.getContentSummary(stat.getPath());
-			currentCount -= execContent.getFileCount()
-					- execContent.getDirectoryCount();
+			currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
 			fs.delete(stat.getPath(), true);
 		}
 		
@@ -279,8 +278,7 @@ public class CamusJob extends Configured implements Tool {
 	      FileStatus stat = failedExecutions[i];
 	      log.info("removing failed execution: " + stat.getPath().getName());
 	      ContentSummary execContent = fs.getContentSummary(stat.getPath());
-	      currentCount -= execContent.getFileCount()
-	          - execContent.getDirectoryCount();
+	      currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
 	      fs.delete(stat.getPath(), true);
 	    }
 		}

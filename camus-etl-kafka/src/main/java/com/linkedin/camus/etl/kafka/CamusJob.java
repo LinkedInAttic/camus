@@ -9,10 +9,12 @@ import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
@@ -26,6 +28,8 @@ import java.util.TreeMap;
 import java.util.Comparator;
 import java.util.Arrays;
 
+import net.minidev.json.JSONArray;
+import net.minidev.json.JSONObject;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -90,6 +94,8 @@ public class CamusJob extends Configured implements Tool {
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
 	public static final String LOG4J_PATH = "log4j.path";
 	private static org.apache.log4j.Logger log;
+
+	public static final String CAMUS_COUNTERS_PATH = "camus.counters.path";
 
 	private final Properties props;
 
@@ -283,12 +289,33 @@ public class CamusJob extends Configured implements Tool {
 
 		// dump all counters
 		Counters counters = job.getCounters();
+		JSONArray jsonData = new JSONArray();
+
 		for (String groupName : counters.getGroupNames()) {
 			CounterGroup group = counters.getGroup(groupName);
-			System.out.println("Group: " + group.getDisplayName());
+			String groupDisplayName = group.getDisplayName();
+			System.out.println("Group: " + groupDisplayName);
 			for (Counter counter : group) {
-				System.out.println(counter.getDisplayName() + ":\t" + counter.getValue());
+				System.out.println(counter.getDisplayName() + ":\t"
+								+ counter.getValue());
+				JSONObject oneJsonNode = new JSONObject();
+				oneJsonNode.put("group", groupDisplayName);
+				oneJsonNode.put("countername", counter.getDisplayName());
+				oneJsonNode.put("countervalue", counter.getValue());
+				jsonData.add(oneJsonNode);
 			}
+		}
+
+		String countersPathString = props.getProperty(CAMUS_COUNTERS_PATH);
+		if (countersPathString != null) {
+			Path countersPath = new Path(countersPathString);
+			fs.delete(countersPath, true);
+			fs.mkdirs(countersPath);
+
+			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+							fs.create(new Path(countersPath, "counters.json"))));
+			writer.write(jsonData.toJSONString());
+			writer.close();
 		}
 
 		stopTiming("hadoop");

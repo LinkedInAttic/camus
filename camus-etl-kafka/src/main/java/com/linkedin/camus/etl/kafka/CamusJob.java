@@ -230,7 +230,7 @@ public class CamusJob extends Configured implements Tool {
 				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
 		
-		if (props.contains(ETL_BASEDIR_QUOTA_OVERIDE)){
+		if (props.containsKey(ETL_BASEDIR_QUOTA_OVERIDE)){
 		  limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
 		}
 

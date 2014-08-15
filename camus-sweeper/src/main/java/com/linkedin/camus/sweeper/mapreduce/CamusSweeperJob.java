@@ -7,6 +7,8 @@ import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.log4j.Logger;
 
+import com.linkedin.camus.sweeper.utils.RelaxedAvroSerialization;
+
 @SuppressWarnings("rawtypes")
 public abstract class CamusSweeperJob
 {
@@ -29,6 +31,7 @@ public abstract class CamusSweeperJob
     job.setMapperClass(mapper);
     job.setMapOutputKeyClass(mapOutKey);
     job.setMapOutputValueClass(mapOutValue);
+    RelaxedAvroSerialization.addToConfiguration(job.getConfiguration());
   }
 
   protected void configureOutput(Job job,

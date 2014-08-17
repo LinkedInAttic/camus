@@ -16,6 +16,9 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 public class JSONRecordWriterProvider implements RecordWriterProvider {
     public final static String EXT = ".gz";
 
+    public JSONRecordWriterProvider(TaskAttemptContext context) {
+    }
+
     @Override
     public String getFilenameExtension() {
         return EXT;

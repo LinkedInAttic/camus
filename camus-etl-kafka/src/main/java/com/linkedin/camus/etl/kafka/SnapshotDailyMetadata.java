@@ -1,5 +1,31 @@
 package com.linkedin.camus.etl.kafka;
 
+import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+import kafka.api.PartitionOffsetRequestInfo;
+import kafka.common.TopicAndPartition;
+import kafka.javaapi.OffsetRequest;
+import kafka.javaapi.OffsetResponse;
+import kafka.javaapi.PartitionMetadata;
+import kafka.javaapi.TopicMetadata;
+import kafka.javaapi.TopicMetadataRequest;
+import kafka.javaapi.consumer.SimpleConsumer;
+import net.minidev.json.JSONArray;
+import net.minidev.json.JSONObject;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.util.StringUtils;
+
 import java.io.BufferedWriter;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -18,30 +44,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.regex.Pattern;
-
-import net.minidev.json.JSONArray;
-import net.minidev.json.JSONObject;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.util.StringUtils;
-
-import com.linkedin.camus.etl.kafka.common.LeaderInfo;
-
-import kafka.api.PartitionOffsetRequestInfo;
-import kafka.common.TopicAndPartition;
-import kafka.javaapi.OffsetRequest;
-import kafka.javaapi.OffsetResponse;
-import kafka.javaapi.PartitionMetadata;
-import kafka.javaapi.TopicMetadata;
-import kafka.javaapi.TopicMetadataRequest;
-import kafka.javaapi.consumer.SimpleConsumer;
 
 /**
  * A simple consumer to consume metadata from kafka and write our the difference
@@ -120,7 +124,7 @@ class OffsetInfo
   public int compareTo(OffsetInfo o)
   {
     if (partition != o.partition) {
-      return partition = o.partition;
+      return partition - o.partition;
     }
     else {
       if (latestOffset > o.latestOffset) {
@@ -140,29 +144,38 @@ public class SnapshotDailyMetadata
 {
   public static final String KAFKA_BLACKLIST_TOPIC = "kafka.blacklist.topics";
   public static final String KAFKA_WHITELIST_TOPIC = "kafka.whitelist.topics";
-  public static final String DAILY_METADATA_LOCATION = "daily.metadata.location";
+  public static final String KAFKA_METADATA_CONSUMER_PATH = "kafka.metadata.consumer.path";
   static Properties props = new Properties();
+  final static org.apache.log4j.Logger log = org.apache.log4j.Logger.getLogger(SnapshotDailyMetadata.class);
 
   public static void main(String[] args)
           throws URISyntaxException,
-          IOException
+          IOException, ParseException
   {
-    if (args.length != 1) {
-      System.out
-              .println("Usage: SnapshotDailyMetadata <properties-file>");
+    Options options = new Options();
+
+    options.addOption("p", true, "properties file for Camus");
+    options.addOption("h", false, "help");
+
+    CommandLineParser parser = new PosixParser();
+    CommandLine cmd = parser.parse(options, args);
+
+    if (!(cmd.hasOption('p'))) {
+      HelpFormatter formatter = new HelpFormatter();
+      formatter.printHelp("SnapshotDailyMetadata.java", options);
       System.exit(1);
     }
 
-    File file = new File(args[0]);
+    File file = new File(cmd.getOptionValue('p'));
     FileInputStream fStream;
     fStream = new FileInputStream(file);
     props.load(fStream);
 
     // Get topic metadata for all topics; this gives back the various
     // topics, and for each topic the partitions and the corresponding
-    // learders
+    // leaders
     List<TopicMetadata> topicMetadataList = getTopicMetadataFromKafka();
-    System.out.println("got " + topicMetadataList.size()
+    log.info("Got " + topicMetadataList.size()
             + " topic metadata list: "
             + StringUtils.join(",", topicMetadataList));
 
@@ -183,12 +196,11 @@ public class SnapshotDailyMetadata
 
         JSONObject oneJsonNode = new JSONObject();
         oneJsonNode.put("topic", key.getTopic());
-        oneJsonNode.put("parittion", key.getPartition());
+        oneJsonNode.put("partition", key.getPartition());
         oneJsonNode.put("difference", diff);
         jsonData.add(oneJsonNode);
 
-        System.out.println(String.format(
-                "Topic: %s OffsetDifference: %d", pk, diff));
+        log.info(String.format("Topic: %s OffsetDifference: %d", pk, diff));
       }
     }
 
@@ -239,7 +251,7 @@ public class SnapshotDailyMetadata
         fs.rename(getCurrentOffsetsPath(), getOldOffsetsPath());
       }
 
-      System.out.println("Successfully renamed "
+      log.info("Successfully renamed "
               + getCurrentOffsetsPath() + " to " + getOldOffsetsPath());
     }
     catch (IOException e) {
@@ -250,9 +262,9 @@ public class SnapshotDailyMetadata
   public static String getMetadataDir()
           throws IOException
   {
-    String metadataDir = props.getProperty(DAILY_METADATA_LOCATION);
+    String metadataDir = props.getProperty(KAFKA_METADATA_CONSUMER_PATH);
     if (metadataDir == null) {
-      throw new IOException(DAILY_METADATA_LOCATION
+      throw new IOException(KAFKA_METADATA_CONSUMER_PATH
               + " is not specified.");
     }
     return metadataDir;
@@ -327,13 +339,13 @@ public class SnapshotDailyMetadata
     String metadataDir = getMetadataDir();
 
     if (!fs.exists(new Path(metadataDir))) {
-      System.out.println("creating directory " + metadataDir);
+      log.info("creating directory " + metadataDir);
       fs.mkdirs(new Path(metadataDir));
     }
 
     Path newOutputPath = getCurrentOffsetsPath();
 
-    System.out.println("creating file " + newOutputPath.toString());
+    log.info("creating file " + newOutputPath.toString());
     SequenceFile.Writer writer = SequenceFile.createWriter(fs, conf,
             newOutputPath, OffsetInfo.class, NullWritable.class);
 
@@ -344,17 +356,19 @@ public class SnapshotDailyMetadata
     writer.close();
   }
 
-  public static String createTopicRegEx(HashSet<String> topicsSet)
+  public static String createTopicRegEx(Set<String> topicsSet)
   {
+    if (topicsSet.isEmpty()) {
+      return "";
+    }
+
     String regex = "";
     StringBuilder stringbuilder = new StringBuilder();
     for (String whiteList : topicsSet) {
       stringbuilder.append(whiteList);
       stringbuilder.append("|");
     }
-    regex = "(" + stringbuilder.substring(0, stringbuilder.length() - 1)
-            + ")";
-    Pattern.compile(regex);
+    regex = "(" + stringbuilder.substring(0, stringbuilder.length() - 1) + ")";
     return regex;
   }
 
@@ -384,7 +398,7 @@ public class SnapshotDailyMetadata
 
   public static List<TopicMetadata> filterWhitelistTopics(
           List<TopicMetadata> topicMetadataList,
-          HashSet<String> whiteListTopics)
+          Set<String> whiteListTopics)
   {
     ArrayList<TopicMetadata> filteredTopics = new ArrayList<TopicMetadata>();
     String regex = createTopicRegEx(whiteListTopics);
@@ -400,29 +414,27 @@ public class SnapshotDailyMetadata
           List<TopicMetadata> topicMetadataList)
           throws URISyntaxException
   {
-
     // Filter any white list topics
-    HashSet<String> whiteListTopics = new HashSet<String>(
+    Set<String> whiteListTopics = new HashSet<String>(
             Arrays.asList(getKafkaWhitelistTopic()));
     if (!whiteListTopics.isEmpty()) {
-      topicMetadataList = filterWhitelistTopics(topicMetadataList,
-              whiteListTopics);
+      topicMetadataList = filterWhitelistTopics(topicMetadataList, whiteListTopics);
     }
 
     // Filter all blacklist topics
-    HashSet<String> blackListTopics = new HashSet<String>(
+    Set<String> blackListTopics = new HashSet<String>(
             Arrays.asList(getKafkaBlacklistTopic()));
     String regex = "";
     if (!blackListTopics.isEmpty()) {
       regex = createTopicRegEx(blackListTopics);
     }
 
-    HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo = new HashMap<LeaderInfo, ArrayList<TopicAndPartition>>();
+    Map<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo = new HashMap<LeaderInfo, ArrayList<TopicAndPartition>>();
 
     // create the list of partition offset requests to the leaders
     for (TopicMetadata mdata : topicMetadataList) {
       if (Pattern.matches(regex, mdata.topic())) {
-        System.out.println("Discarding topic (blacklisted): "
+        log.info("Discarding topic (blacklisted): "
                 + mdata.topic());
       }
       else {
@@ -493,18 +505,19 @@ public class SnapshotDailyMetadata
 
       consumer.close();
 
-      for (TopicAndPartition topicAndPartition : topicAndPartitions) {
-        long latestOffset = 0;
-        long offsets[] = latestOffsetResponse.offsets(
-                topicAndPartition.topic(),
-                topicAndPartition.partition());
-        if (offsets.length > 0) {
-          latestOffset = offsets[0];
-        }
+      if (latestOffsetResponse != null) {
+        for (TopicAndPartition topicAndPartition : topicAndPartitions) {
+          long latestOffset = 0;
+          long offsets[] = latestOffsetResponse.offsets(
+                  topicAndPartition.topic(),
+                  topicAndPartition.partition());
+          if (offsets.length > 0) {
+            latestOffset = offsets[0];
+          }
 
-        offsetList.add(new OffsetInfo(topicAndPartition.topic()
-                .toString(), topicAndPartition.partition(),
-                latestOffset));
+          offsetList.add(new OffsetInfo(topicAndPartition.topic().toString(),
+                  topicAndPartition.partition(), latestOffset));
+        }
       }
     }
 
@@ -544,9 +557,7 @@ public class SnapshotDailyMetadata
     Exception savedException = null;
     while (i < brokers.size() && !fetchMetaDataSucceeded) {
       SimpleConsumer consumer = createConsumer(brokers.get(i));
-      System.out
-              .println(String
-                      .format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
+      log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
                               brokers.get(i), consumer.clientId(),
                               metaRequestTopics.size(), metaRequestTopics));
       try {

@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.OutputCommitter;
@@ -192,18 +193,20 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     }
     
     public static Partitioner getDefaultPartitioner(JobContext job) {
-        return ReflectionUtils.newInstance(job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class), job.getConfiguration());
+        return ReflectionUtils.newInstance(getDefaultPartitionerClass(job), job.getConfiguration());
     }    
+
+    public static Class<? extends Partitioner> getDefaultPartitionerClass(JobContext job) {
+        return job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class);
+    }
 
     public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
         String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
-        if(partitionersByTopic.get(customPartitionerProperty) == null) {
-            List<Partitioner> partitioners = new ArrayList<Partitioner>();
-            if(partitioners.isEmpty()) {
-                return getDefaultPartitioner(job);
-            } else {
-                partitionersByTopic.put(customPartitionerProperty, partitioners.get(0));
-            }
+        if (partitionersByTopic.get(customPartitionerProperty) == null) {
+            Configuration conf = job.getConfiguration();
+            Partitioner partitioner = ReflectionUtils.newInstance(
+                    conf.getClass(customPartitionerProperty, getDefaultPartitionerClass(job), Partitioner.class), conf);
+            partitionersByTopic.put(customPartitionerProperty, partitioner);
         }
         return partitionersByTopic.get(customPartitionerProperty);
     }
@@ -211,7 +214,5 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static void resetPartitioners() {
         partitionersByTopic = new HashMap<String, Partitioner>();
     }
-
-
 
 }

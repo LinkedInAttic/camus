@@ -10,7 +10,9 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
+
 
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
@@ -24,13 +26,15 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
   private Writer errorWriter = null;
   private String currentTopic = "";
   private long beginTimeStamp = 0;
+  private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
 
   private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
       new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
 
   private EtlMultiOutputCommitter committer;
 
-  public EtlMultiOutputRecordWriter(TaskAttemptContext context, EtlMultiOutputCommitter committer) throws IOException,
+  public EtlMultiOutputRecordWriter(TaskAttemptContext context, 
+                                    EtlMultiOutputCommitter committer) throws IOException,
       InterruptedException
   {
     this.context = context;
@@ -54,6 +58,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
     {
       beginTimeStamp = 0;
     }
+    log.info("beginTimeStamp set to: " + beginTimeStamp);
   }
 
   @Override
@@ -75,6 +80,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
     {
       if (key.getTime() < beginTimeStamp)
       {
+        log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
         // ((Mapper.Context)context).getCounter("total",
         // "skip-old").increment(1);
         committer.addOffset(key);
@@ -97,6 +103,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
         if (!dataWriters.containsKey(workingFileName))
         {
           dataWriters.put(workingFileName, getDataRecordWriter(context, workingFileName, value));
+          log.info("Writing to data file: " + workingFileName);
         }
         dataWriters.get(workingFileName).write(key, value);
       }
@@ -104,9 +111,12 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
     else if (val instanceof ExceptionWritable)
     {
       committer.addOffset(key);
-      System.err.println(key.toString());
-      System.err.println(val.toString());
+      log.warn("ExceptionWritable key: " + key + " value: " + val);
       errorWriter.append(key, (ExceptionWritable) val);
+    }
+    else
+    {
+      log.warn("Unknow type of record: " + val);
     }
   }
 

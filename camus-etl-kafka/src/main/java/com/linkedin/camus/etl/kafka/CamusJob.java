@@ -336,7 +336,7 @@ public class CamusJob extends Configured implements Tool {
 		printErrors(fs, newExecutionOutput);
 
 		Path newHistory = new Path(execHistory, executionDate);
-		log.debug("Moving execution to history : " + newHistory);
+		log.info("Moving execution to history : " + newHistory);
 		fs.rename(newExecutionOutput, newHistory);
 
 		log.info("Job finished");

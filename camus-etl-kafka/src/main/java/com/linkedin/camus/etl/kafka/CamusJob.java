@@ -308,12 +308,14 @@ public class CamusJob extends Configured implements Tool {
 
 		String countersPathString = props.getProperty(CAMUS_COUNTERS_PATH);
 		if (countersPathString != null) {
-			Path countersPath = new Path(countersPathString);
+			Path countersDir = new Path(countersPathString);
+                       if (!fs.exists(countersDir))
+                         fs.mkdirs(countersDir);
+			Path countersPath = new Path(countersPathString, "counters.json");
 			fs.delete(countersPath, true);
-			fs.mkdirs(countersPath);
 
 			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
-							fs.create(new Path(countersPath, "counters.json"))));
+							fs.create(countersPath)));
 			writer.write(jsonData.toJSONString());
 			writer.close();
 		}

@@ -4,6 +4,7 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
@@ -25,6 +26,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
@@ -307,6 +309,13 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     long decodeTime = ((secondTime - tempTime));
 
                     mapperContext.getCounter("total", "decode-time(ms)").increment(decodeTime);
+
+                    // timestamp of the nearest hour in our configuration
+                    long datePartition = DateUtils.getPartition(EtlMultiOutputFormat.getEtlOutputFileTimePartitionMins(context) * 60000L, timeStamp);
+                    // more readable form
+                    String datePartitionString = new DateTime(datePartition, DateTimeZone.UTC).toString("YYYY/MM/dd/HH");
+
+                    mapperContext.getCounter("total", datePartition + "_" + datePartitionString).increment(1);
 
                     if (reader != null) {
                         mapperContext.getCounter("total", "request-time(ms)").increment(

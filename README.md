@@ -86,11 +86,13 @@ Here is an abbreviated list of commonly used parameters.
     * `etl.execution.base.path=`
 * Where completed Camus job output directories are kept, usually a sub-dir in the base.path
     * `etl.execution.history.path=`
+* Filesystem for the above folders. This can be a hdfs:// or s3:// address.
+    * `fs.default.name=`
 * Zookeeper configurations:
     * `zookeeper.hosts=`
     * `zookeeper.broker.topics=/brokers/topics`
     * `zookeeper.broker.nodes=/brokers/ids`
-* All files in this dir will be added to the distributed cache and placed on the classpath for hadoop tasks
+* All files in this dir will be added to the distributed cache and placed on the classpath for Hadoop tasks
     * `hdfs.default.classpath.dir=`
 * Max hadoop tasks to use, each task can pull multiple topic partitions
     * `mapred.map.tasks=30`
@@ -105,6 +107,10 @@ Here is an abbreviated list of commonly used parameters.
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
     * `kafka.blacklist.topics=`
     * `kafka.whitelist.topics=`
+* Class for writing records to HDFS/S3
+    * `etl.record.writer.provider.class=`
+* Delimiter for writing string records (default is "\n")
+    * `etl.output.record.delimiter=`
 
 ### Running Camus
 

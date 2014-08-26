@@ -26,11 +26,11 @@ import org.apache.log4j.Logger;
 
 /**
  * Provides a RecordWriter that uses FSDataOutputStream to write
- * a String record as bytes to HDFS without any reformatting or compession.
+ * a String record as bytes to HDFS without any reformatting or compression.
  */
 public class StringRecordWriterProvider implements RecordWriterProvider {
     public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";
-    public static final String DEFAULT_RECORD_DELIMITER    = "";
+    public static final String DEFAULT_RECORD_DELIMITER    = "\n";
 
     protected String recordDelimiter = null;
     
@@ -136,7 +136,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         public void write(IEtlKey ignore, CamusWrapper value) throws IOException {
             boolean nullValue = value == null;
             if (!nullValue) {
-            	String record = (String)value.getRecord() + recordDelimiter;
+            	String record = (String) value.getRecord() + recordDelimiter;
                 out.write(record.getBytes());
             }
         }

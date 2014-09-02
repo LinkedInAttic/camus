@@ -74,6 +74,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
 	public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
 	public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
+    public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
 	public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
 	public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
 	public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -332,8 +333,13 @@ public class CamusJob extends Configured implements Tool {
 		// Send Tracking counts to Kafka
 		sendTrackingCounts(job, fs, newExecutionOutput);
 
-		// Print any potentail errors encountered
-		printErrors(fs, newExecutionOutput);
+        Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
+
+		// Print any potential errors encountered
+        for(Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
+            System.err.println(entry.getKey().toString());
+            System.err.println(entry.getValue().toString());
+        }
 
 		Path newHistory = new Path(execHistory, executionDate);
 		log.info("Moving execution to history : " + newHistory);
@@ -360,10 +366,17 @@ public class CamusJob extends Configured implements Tool {
 			}
 			throw new RuntimeException("hadoop job failed");
 		}
+
+        if(props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString()).equalsIgnoreCase(Boolean.TRUE.toString()) &&
+                !errors.isEmpty()) {
+            throw new RuntimeException("Camus saw errors, check stderr");
+        }
 	}
 
-	public void printErrors(FileSystem fs, Path newExecutionOutput)
+	public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs, Path newExecutionOutput)
 			throws IOException {
+        Map<EtlKey, ExceptionWritable> errors = new HashMap<EtlKey, ExceptionWritable>();
+
 		for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
 				EtlMultiOutputFormat.ERRORS_PREFIX))) {
 			SequenceFile.Reader reader = new SequenceFile.Reader(fs,
@@ -373,11 +386,14 @@ public class CamusJob extends Configured implements Tool {
 			ExceptionWritable value = new ExceptionWritable();
 
 			while (reader.next(key, value)) {
-				System.err.println(key.toString());
-				System.err.println(value.toString());
+                ExceptionWritable exceptionWritable = new ExceptionWritable();
+                exceptionWritable.set(value.toString());
+                errors.put(new EtlKey(key), exceptionWritable);
 			}
 			reader.close();
 		}
+
+        return errors;
 	}
 
 	// Posts the tracking counts to Kafka

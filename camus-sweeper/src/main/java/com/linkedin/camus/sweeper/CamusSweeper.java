@@ -119,7 +119,7 @@ public class CamusSweeper extends Configured implements Tool
 
   public void run() throws Exception
   {
-    System.out.println("Starting kafka sweeper");
+    log.info("Starting kafka sweeper");
     int numThreads = Integer.parseInt(props.getProperty("num.threads", DEFAULT_NUM_THREADS));
 
     executorService = Executors.newFixedThreadPool(numThreads);
@@ -130,8 +130,8 @@ public class CamusSweeper extends Configured implements Tool
     if (destLocation.isEmpty())
       destLocation = fromLocation;
 
-    System.out.println("fromLocation: " + fromLocation);
-    System.out.println("destLocation: " + destLocation);
+    log.info("fromLocation: " + fromLocation);
+    log.info("destLocation: " + destLocation);
 
     List<String> blacklist = Utils.getStringList(props, "camus.sweeper.blacklist");
     List<String> whitelist = Utils.getStringList(props, "camus.sweeper.whitelist");
@@ -149,7 +149,7 @@ public class CamusSweeper extends Configured implements Tool
     for (FileStatus topic : topics)
     {
       String topicName = topic.getPath().getName();
-      System.out.println("Processing topic " + topicName);
+      log.info("Processing topic " + topicName);
 
       Path destinationPath = new Path(destLocation + "/" + topic.getPath().getName() + "/" + destSubdir);
       try
@@ -163,14 +163,14 @@ public class CamusSweeper extends Configured implements Tool
       }
     }
 
-    System.out.println("Shutting down executor");
+    log.info("Shutting down executor");
     executorService.shutdown();
     while (!executorService.isTerminated())
     {
       executorService.awaitTermination(30, TimeUnit.SECONDS);
     }
 
-    System.out.println("Shutting down");
+    log.info("Shutting down");
 
     if (!errorMessages.isEmpty())
     {
@@ -186,7 +186,7 @@ public class CamusSweeper extends Configured implements Tool
 
   private void runCollectorForTopicDir(FileSystem fs, String topic, Path topicSourceDir, Path topicDestDir) throws Exception
   {
-    System.out.println("Running collector for topic " + topic + " source:" + topicSourceDir + " dest:" + topicDestDir);
+    log.info("Running collector for topic " + topic + " source:" + topicSourceDir + " dest:" + topicDestDir);
     ArrayList<Future<?>> tasksToComplete = new ArrayList<Future<?>>();
     
     List<Properties> jobPropsList = planner.createSweeperJobProps(topic, topicSourceDir, topicDestDir, fs);
@@ -195,7 +195,7 @@ public class CamusSweeper extends Configured implements Tool
       tasksToComplete.add(runCollector(jobProps, topic));
     }
 
-    System.out.println("Finishing processing for topic " + topic);
+    log.info("Finishing processing for topic " + topic);
   }
 
   @SuppressWarnings("unchecked")
@@ -207,7 +207,7 @@ public class CamusSweeper extends Configured implements Tool
     if (props.containsKey("reduce.count.override." + topic))
       props.put("reducer.count", Integer.parseInt(props.getProperty("reduce.count.override." + topic)));
 
-    System.out.println("Processing " + props.get("input.paths"));
+    log.info("Processing " + props.get("input.paths"));
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
@@ -228,17 +228,21 @@ public class CamusSweeper extends Configured implements Tool
 
     public void run()
     {
+      KafkaCollector collector = null;
       try
       {
-        System.out.println("Starting runner for " + name);
-        KafkaCollector collector = new KafkaCollector("test", props, name, topic);
-        System.out.println("Running " + name + " for input " + props.getProperty("input.paths"));
+        log.info("Starting runner for " + name);
+        collector = new KafkaCollector("test", props, name, topic);
+        log.info("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       }
       catch (Throwable e) // Sometimes the error is the Throwable, e.g. java.lang.NoClassDefFoundError
       {
-        System.out.println("Failed for " + name + " failed for " + props.getProperty("input.paths") + " Exception:"
-            + e.getLocalizedMessage());
+        e.printStackTrace();
+        log.error("Failed for " + name 
+                  + " ,job: " + collector == null ? null : collector.getJob() 
+                  + " failed for " + props.getProperty("input.paths") + " Exception:"
+                  + e.getLocalizedMessage());
         errorQueue.add(new SweeperError(name, props.get("input.paths").toString(), e));
       }
     }
@@ -249,9 +253,11 @@ public class CamusSweeper extends Configured implements Tool
 
     // About 1.5 gig
     private static final long AVERAGE_FILE_SIZE = 1536l * 1024l * 1024l;
-    private String jobName;
-    private Properties props;
-    private String topicName;
+    private final String jobName;
+    private final Properties props;
+    private final String topicName;
+    
+    private Job job;
 
     public KafkaCollector(String name, Properties props, String jobName, String topicName)
     {
@@ -277,7 +283,7 @@ public class CamusSweeper extends Configured implements Tool
 
     public void run() throws Exception
     {
-      Job job = new Job(getConf());
+      job = new Job(getConf());
       job.setJarByClass(CamusSweeper.class);
       job.setJobName(jobName);
 
@@ -316,7 +322,7 @@ public class CamusSweeper extends Configured implements Tool
         numReducers = Math.min((int) (dus / AVERAGE_FILE_SIZE) + 1, maxFiles);
       }
 
-      System.out.println("Setting reducer " + numReducers);
+      log.info("Setting reducer " + numReducers);
       job.setNumReduceTasks(numReducers);
       job.getConfiguration().set("mapred.compress.map.output", "true");
 
@@ -328,7 +334,7 @@ public class CamusSweeper extends Configured implements Tool
           .newInstance()).setLogger(log).configureJob(topicName, job);
       job.submit();
       runningJobs.add(job);
-      System.out.println("job running: " + job.getTrackingURL());
+      log.info("job running: " + job.getTrackingURL() + " for: " + jobName);
       job.waitForCompletion(false);
 
       if (!job.isSuccessful())
@@ -341,7 +347,7 @@ public class CamusSweeper extends Configured implements Tool
       if (fs.exists(outputPath))
       {
         oldPath = new Path("/tmp", "_old_" + job.getJobID());
-        System.out.println("Path " + outputPath + " exists. Overwriting.");
+        log.info("Path " + outputPath + " exists. Overwriting.");
         if (!fs.rename(outputPath, oldPath))
         {
           fs.delete(tmpPath, true);
@@ -349,7 +355,7 @@ public class CamusSweeper extends Configured implements Tool
         }
       }
 
-      System.out.println("Swapping " + tmpPath + " to " + outputPath);
+      log.info("Swapping " + tmpPath + " to " + outputPath);
       mkdirs(fs, outputPath.getParent(), perm);
       fs.mkdirs(outputPath.getParent(), perm);
       if (!fs.rename(tmpPath, outputPath))
@@ -361,11 +367,15 @@ public class CamusSweeper extends Configured implements Tool
 
       if (oldPath != null && fs.exists(oldPath))
       {
-        System.out.println("Deleting " + oldPath);
+        log.info("Deleting " + oldPath);
         fs.delete(oldPath, true);
       }
     }
 
+    protected Job getJob() {
+      return job;
+    }
+    
     private long duDirectory(FileSystem fs, Path dir) throws IOException
     {
       String name = dir.getName();
@@ -393,7 +403,7 @@ public class CamusSweeper extends Configured implements Tool
   }
   
   private void mkdirs(FileSystem fs, Path path, FsPermission perm) throws IOException{
-    System.err.println(path.toString());
+    log.info("mkdir: " + path);
     if (! fs.exists(path.getParent()))
       mkdirs(fs, path.getParent(), perm);
     fs.mkdirs(path, perm);
@@ -426,8 +436,8 @@ public class CamusSweeper extends Configured implements Tool
         this.blacklist = Pattern.compile("a^");  //blacklist nothing
       else
         this.blacklist = compileMultiPattern(blacklist);
-      System.out.println("whitelist: " + whitelist);
-      System.out.println("blacklist: " + blacklist);
+      log.info("whitelist: " + whitelist);
+      log.info("blacklist: " + blacklist);
     }
 
     @Override

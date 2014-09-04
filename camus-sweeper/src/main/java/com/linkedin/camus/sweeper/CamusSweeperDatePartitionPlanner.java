@@ -67,11 +67,6 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner
       else if (shouldReprocess(fs, sourcePaths.get(0), destPath))
       {
         System.out.println(topic + " dest dir " + directory + " has a modified time before the source. Reprocessing.");
-        sourcePaths.add(destPath);
-        
-        source = sourcePaths.toString().substring(1, sourcePaths.toString().length() - 1);
-        jobProps.put("input.paths", source);
-        
         jobPropsList.add(jobProps);
       }
       else

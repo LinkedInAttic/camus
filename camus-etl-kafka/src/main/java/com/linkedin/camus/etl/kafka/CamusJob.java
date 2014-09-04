@@ -337,8 +337,8 @@ public class CamusJob extends Configured implements Tool {
 
 		// Print any potential errors encountered
         for(Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
-            System.err.println(entry.getKey().toString());
-            System.err.println(entry.getValue().toString());
+            log.error(entry.getKey().toString());
+            log.error(entry.getValue().toString());
         }
 
 		Path newHistory = new Path(execHistory, executionDate);

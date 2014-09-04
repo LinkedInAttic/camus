@@ -152,7 +152,7 @@ public class CamusJobTest {
     public void runJobWithoutErrorsAndFailOnErrors() throws Exception {
         props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
         job = new CamusJob(props);
-        job.run();
+        runJob();
     }
 
     @Test (expected = RuntimeException.class)

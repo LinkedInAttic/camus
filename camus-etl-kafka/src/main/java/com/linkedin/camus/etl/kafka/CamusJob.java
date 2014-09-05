@@ -336,6 +336,9 @@ public class CamusJob extends Configured implements Tool {
         Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 
 		// Print any potential errors encountered
+        if (!errors.isEmpty())
+            log.error("Errors encountered during job run:");
+
         for(Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
             log.error(entry.getKey().toString());
             log.error(entry.getValue().toString());
@@ -367,8 +370,8 @@ public class CamusJob extends Configured implements Tool {
 			throw new RuntimeException("hadoop job failed");
 		}
 
-        if(props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString()).equalsIgnoreCase(Boolean.TRUE.toString()) &&
-                !errors.isEmpty()) {
+        if(!errors.isEmpty() && props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString())
+                .equalsIgnoreCase(Boolean.TRUE.toString())) {
             throw new RuntimeException("Camus saw errors, check stderr");
         }
 	}
@@ -386,7 +389,7 @@ public class CamusJob extends Configured implements Tool {
 			ExceptionWritable value = new ExceptionWritable();
 
 			while (reader.next(key, value)) {
-                ExceptionWritable exceptionWritable = new ExceptionWritable();
+                ExceptionWritable exceptionWritable = new ExceptionWritable(value);
                 exceptionWritable.set(value.toString());
                 errors.put(new EtlKey(key), exceptionWritable);
 			}

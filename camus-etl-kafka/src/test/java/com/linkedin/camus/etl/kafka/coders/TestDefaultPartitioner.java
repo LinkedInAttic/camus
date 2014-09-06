@@ -1,6 +1,8 @@
 package com.linkedin.camus.etl.kafka.coders;
 
 import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
@@ -22,9 +24,14 @@ public class TestDefaultPartitioner {
         DefaultPartitioner testPartitioner = new DefaultPartitioner();
         testPartitioner.setConf(testConfiguration);
 
-        String actualResult = testPartitioner.generatePartitionedPath(testJob, "testTopic", "testBrokerId", 123, "1406777693000");
+        String actualResult = testPartitioner.generatePartitionedPath(testJob, "testTopic", "1406777693000");
         String expectedResult = "testTopic/hourly/2014/07/30/20";
-
+        
+        assertTrue(actualResult.equals(expectedResult));
+        
+        actualResult = testPartitioner.generateFileName(testJob, "testTopic", "testBrokerId", 123, 100, 500, "1406777693000");
+        expectedResult = "testTopic.testBrokerId.123.100.500.1406777693000";
+        
         assertTrue(actualResult.equals(expectedResult));
     }
 

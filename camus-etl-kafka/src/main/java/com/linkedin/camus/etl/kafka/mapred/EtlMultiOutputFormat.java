@@ -16,12 +16,12 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.linkedin.camus.coders.Partitioner;
+import com.linkedin.camus.etl.Partitioner;
 import com.linkedin.camus.etl.RecordWriterProvider;
-import com.linkedin.camus.etl.kafka.coders.DefaultPartitioner;
 import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
 
 /**
  * MultipleAvroOutputFormat.
@@ -184,7 +184,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
     public static String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
         Partitioner partitioner = getPartitioner(context, key.getTopic());
-        return "data." + key.getTopic().replaceAll("\\.", "_") + "." + key.getLeaderId() + "." + key.getPartition() + "." + partitioner.encodePartition(context, key);
+        return partitioner.getWorkingFileName(context, key.getTopic(), key.getLeaderId(), key.getPartition(), partitioner.encodePartition(context, key));
     }
     
     public static void setDefaultPartitioner(JobContext job, Class<?> cls) {
@@ -211,7 +211,4 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static void resetPartitioners() {
         partitionersByTopic = new HashMap<String, Partitioner>();
     }
-
-
-
 }

@@ -389,8 +389,7 @@ public class CamusJob extends Configured implements Tool {
 			ExceptionWritable value = new ExceptionWritable();
 
 			while (reader.next(key, value)) {
-                ExceptionWritable exceptionWritable = new ExceptionWritable(value);
-                exceptionWritable.set(value.toString());
+                ExceptionWritable exceptionWritable = new ExceptionWritable(value.toString());
                 errors.put(new EtlKey(key), exceptionWritable);
 			}
 			reader.close();

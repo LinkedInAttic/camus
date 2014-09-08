@@ -10,6 +10,10 @@ public class ExceptionWritable extends Text {
 	public ExceptionWritable() {
 		super();
 	}
+
+    public ExceptionWritable(String exception) {
+        super(exception);
+    }
 	
 	public ExceptionWritable(Exception e) {
 		set(null, e);

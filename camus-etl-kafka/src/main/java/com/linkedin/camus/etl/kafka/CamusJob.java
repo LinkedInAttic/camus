@@ -385,11 +385,13 @@ public class CamusJob extends Configured implements Tool {
 			SequenceFile.Reader reader = new SequenceFile.Reader(fs,
 					f.getPath(), fs.getConf());
 
+            String errorFrom = "\nError from file [" + f.getPath() + "]";
+
 			EtlKey key = new EtlKey();
 			ExceptionWritable value = new ExceptionWritable();
 
 			while (reader.next(key, value)) {
-                ExceptionWritable exceptionWritable = new ExceptionWritable(value.toString());
+                ExceptionWritable exceptionWritable = new ExceptionWritable(value.toString() + errorFrom);
                 errors.put(new EtlKey(key), exceptionWritable);
 			}
 			reader.close();

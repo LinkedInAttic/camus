@@ -4,7 +4,9 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
+import com.linkedin.camus.etl.kafka.coders.FailDecoder;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -28,6 +31,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -79,7 +83,9 @@ public class CamusJobTest {
     private String destinationPath;
     
     @Before
-    public void before() throws IOException {
+    public void before() throws IOException, NoSuchFieldException, IllegalAccessException {
+        resetCamus();
+
         folder = new TemporaryFolder();
         folder.create();
         
@@ -113,7 +119,7 @@ public class CamusJobTest {
         // Delete all camus data
         folder.delete();
     }
-    
+
     @Test
     public void runJob() throws Exception {
         job.run();
@@ -129,6 +135,32 @@ public class CamusJobTest {
         assertCamusContains(TOPIC_1);
         assertCamusContains(TOPIC_2);
         assertCamusContains(TOPIC_3);
+    }
+
+    @Test
+    public void runJobWithErrors() throws Exception {
+        props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+        job = new CamusJob(props);
+        job.run();
+
+        assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
+        assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
+        assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
+    }
+
+    @Test
+    public void runJobWithoutErrorsAndFailOnErrors() throws Exception {
+        props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
+        job = new CamusJob(props);
+        runJob();
+    }
+
+    @Test (expected = RuntimeException.class)
+    public void runJobWithErrorsAndFailOnErrors() throws Exception {
+        props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
+        props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+        job = new CamusJob(props);
+        job.run();
     }
     
     private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {
@@ -174,24 +206,28 @@ public class CamusJobTest {
     
     private List<Message> readMessages(Path path) throws IOException, InstantiationException, IllegalAccessException {
         List<Message> messages = new ArrayList<Message>();
-        
-        for(FileStatus file : fs.listStatus(path)) {
-            if(file.isDir()) {
-                messages.addAll(readMessages(file.getPath()));
-            }
-            else {
-                SequenceFile.Reader reader = new SequenceFile.Reader(fs, file.getPath(), new Configuration());
-                try{
-                    LongWritable key = (LongWritable) reader.getKeyClass().newInstance();
-                    Text value = (Text) reader.getValueClass().newInstance();
-                    
-                    while (reader.next(key, value)){
-                        messages.add(gson.fromJson(value.toString(), Message.class));
+
+        try {
+            for(FileStatus file : fs.listStatus(path)) {
+                if(file.isDir()) {
+                    messages.addAll(readMessages(file.getPath()));
+                }
+                else {
+                    SequenceFile.Reader reader = new SequenceFile.Reader(fs, file.getPath(), new Configuration());
+                    try {
+                        LongWritable key = (LongWritable) reader.getKeyClass().newInstance();
+                        Text value = (Text) reader.getValueClass().newInstance();
+
+                        while (reader.next(key, value)) {
+                            messages.add(gson.fromJson(value.toString(), Message.class));
+                        }
+                    } finally {
+                            reader.close();
                     }
-                } finally {
-                    reader.close();
                 }
             }
+        } catch(FileNotFoundException e) {
+            System.out.println("No camus messages were found in [" + path + "]");
         }
         
         return messages;
@@ -218,6 +254,17 @@ public class CamusJobTest {
             
             return number == other.number;
         }
+    }
+
+    private static void resetCamus() throws NoSuchFieldException, IllegalAccessException {
+        // The EtlMultiOutputFormat has a static private field called committer which is only created if null. The problem is this
+        // writes the Camus metadata meaning the first execution of the camus job defines where all committed output goes causing us
+        // problems if you want to run Camus again using the meta data (i.e. what offsets we processed). Setting it null here forces
+        // it to re-instantiate the object with the appropriate output path
+
+        Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
+        field.setAccessible(true);
+        field.set(null, null);
     }
 
 }

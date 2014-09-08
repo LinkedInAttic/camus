@@ -264,11 +264,19 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 				} else if (!createMessageDecoder(context, topicMetadata.topic())) {
 					log.info("Discarding topic (Decoder generation failed) : "
 							+ topicMetadata.topic());
+				} else if (topicMetadata.errorCode() != ErrorMapping.NoError()) {
+                  log.info("Skipping the creation of ETL request for Whole Topic : "
+                      + topicMetadata.topic()
+                      + " Exception : "
+                      + ErrorMapping
+                              .exceptionFor(topicMetadata
+                                      .errorCode()));
 				} else {
 					for (PartitionMetadata partitionMetadata : topicMetadata
 							.partitionsMetadata()) {
-						if (partitionMetadata.errorCode() != ErrorMapping
-								.NoError()) {
+					      // We only care about LeaderNotAvailableCode error on partitionMetadata level
+					      // Error codes such as ReplicaNotAvailableCode should not stop us.
+						if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
 							log.info("Skipping the creation of ETL request for Topic : "
 									+ topicMetadata.topic()
 									+ " and Partition : "
@@ -277,9 +285,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 									+ ErrorMapping
 											.exceptionFor(partitionMetadata
 													.errorCode()));
-							continue;
 						} else {
-
+	                        if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
+	                          log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "
+                                    + topicMetadata.topic()
+                                    + " and Partition : "
+                                    + partitionMetadata.partitionId()
+                                    + " Exception : "
+                                    + ErrorMapping
+                                            .exceptionFor(partitionMetadata
+                                                    .errorCode()));
+	                        }
 							LeaderInfo leader = new LeaderInfo(new URI("tcp://"
 									+ partitionMetadata.leader()
 											.getConnectionString()),

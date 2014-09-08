@@ -230,7 +230,7 @@ public class CamusJob extends Configured implements Tool {
 				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
 		
-		if (props.containsKey(ETL_BASEDIR_QUOTA_OVERIDE)){
+		if (props.contains(ETL_BASEDIR_QUOTA_OVERIDE)){
 		  limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
 		}
 
@@ -250,7 +250,8 @@ public class CamusJob extends Configured implements Tool {
 			FileStatus stat = executions[i];
 			log.info("removing old execution: " + stat.getPath().getName());
 			ContentSummary execContent = fs.getContentSummary(stat.getPath());
-			currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
+			currentCount -= execContent.getFileCount()
+					- execContent.getDirectoryCount();
 			fs.delete(stat.getPath(), true);
 		}
 		
@@ -278,7 +279,8 @@ public class CamusJob extends Configured implements Tool {
 	      FileStatus stat = failedExecutions[i];
 	      log.info("removing failed execution: " + stat.getPath().getName());
 	      ContentSummary execContent = fs.getContentSummary(stat.getPath());
-	      currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
+	      currentCount -= execContent.getFileCount()
+	          - execContent.getDirectoryCount();
 	      fs.delete(stat.getPath(), true);
 	    }
 		}
@@ -329,8 +331,8 @@ public class CamusJob extends Configured implements Tool {
 		stopTiming("hadoop");
 		startTiming("commit");
 
-		// Send Tracking counts to Kafka
-		sendTrackingCounts(job, fs, newExecutionOutput);
+        // Send Tracking counts to Kafka
+        sendTrackingCounts(job, fs, newExecutionOutput);
 
 		// Print any potentail errors encountered
 		printErrors(fs, newExecutionOutput);

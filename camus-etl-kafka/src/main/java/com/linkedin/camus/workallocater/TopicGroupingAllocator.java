@@ -19,6 +19,7 @@ import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.mapred.EtlSplit;
 
 public class TopicGroupingAllocator extends BaseAllocator {
+  public static final String CAMUS_TOPIC_GROUP_TARGET_PERCENTAGE = "camus.topic.group.target.percentage";
 
   @Override
   public List<InputSplit> allocateWork(List<CamusRequest> requests, JobContext context) throws IOException {
@@ -33,9 +34,8 @@ public class TopicGroupingAllocator extends BaseAllocator {
     }
     
     long avgSize = getAvgRequestSize(requests);
-    Set<String> smallTopics = getSmallTopicList(requests, avgSize);
     
-    List<CamusRequest> groupedRequests = groupSmallRequest(requests, smallTopics);
+    List<CamusRequest> groupedRequests = groupSmallRequest(requests, avgSize);
     
     reverseSortRequests(groupedRequests);
 
@@ -64,24 +64,16 @@ public class TopicGroupingAllocator extends BaseAllocator {
     return size / requests.size();
   }
   
-  private Set<String> getSmallTopicList(List<CamusRequest> requests, long avgSize){
-    Set<String> topics = new HashSet<String>();
-    
-    for (CamusRequest cr : requests){
-      if (cr.estimateDataSize() < avgSize)
-        topics.add(cr.getTopic());
-    }
-    
-    return topics;
-  }
-  
-  private List<CamusRequest> groupSmallRequest(List<CamusRequest> requests, Set<String> smallTopics){
+  private List<CamusRequest> groupSmallRequest(List<CamusRequest> requests, long avgSize){
     List<CamusRequest> finalRequests = new ArrayList<CamusRequest>();
     
     Map<String, List<CamusRequest>> groupedRequests = new HashMap<String, List<CamusRequest>>();
     
+    double targetPercent = Long.valueOf(props.getProperty(CAMUS_TOPIC_GROUP_TARGET_PERCENTAGE, "50")) / 100.0;
+    long targetSize = (long) (avgSize * targetPercent);
+    
     for (CamusRequest cr : requests){
-      if (smallTopics.contains(cr.getTopic())){
+      if (cr.estimateDataSize() < targetSize){
         if (! groupedRequests.containsKey(cr.getTopic())){
           groupedRequests.put(cr.getTopic(), new ArrayList<CamusRequest>());
         }

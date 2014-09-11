@@ -330,8 +330,8 @@ public class CamusJob extends Configured implements Tool {
 		stopTiming("hadoop");
 		startTiming("commit");
 
-		// Send Tracking counts to Kafka
-		sendTrackingCounts(job, fs, newExecutionOutput);
+        // Send Tracking counts to Kafka
+        sendTrackingCounts(job, fs, newExecutionOutput);
 
         Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 

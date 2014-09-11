@@ -32,7 +32,7 @@ import com.linkedin.camus.sweeper.utils.Utils;
 
 public class CamusHourlyCleaner extends Configured implements Tool
 {
-  
+
   public static final String SIMULATE = "camus.sweeper.clean.simulate";
   public static final String KAFKA_FORCE_DELETE = "kafka.force.delete";
 
@@ -53,7 +53,7 @@ public class CamusHourlyCleaner extends Configured implements Tool
 
   public CamusHourlyCleaner()
   {
-    // TODO Auto-generated constructor stub
+    this.props = new Properties();
   }
 
   public CamusHourlyCleaner(Properties props)
@@ -70,7 +70,7 @@ public class CamusHourlyCleaner extends Configured implements Tool
     ToolRunner.run(job, args);
 
   }
-  
+
   public void run() throws Exception
   {
     System.out.println("Cleaning");
@@ -82,10 +82,10 @@ public class CamusHourlyCleaner extends Configured implements Tool
 
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
-    
+
     if (destLocation.isEmpty())
       destLocation = fromLocation;
-    
+
     sourcePath = new Path(destLocation);
 
     numDays = Integer.parseInt((String) props.getProperty("camus.sweeper.clean.retention.hourly.num.days", "14"));

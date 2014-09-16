@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.UUID;
@@ -116,6 +118,19 @@ public class CamusSweeper extends Configured implements Tool
       }
     }
   }
+  
+  private Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs) throws IOException{
+    Map<FileStatus, String> topics = new HashMap<FileStatus, String>();
+    
+    for (FileStatus f : fs.listStatus(input, filter)){
+      if (fs.exists(new Path(f.getPath(), topicSubdir))){
+        topics.put(f, topicNameSpace);
+      } else {
+        findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getName(), fs);
+      }
+    }
+    return topics;
+  }
 
   public void run() throws Exception
   {
@@ -144,14 +159,14 @@ public class CamusSweeper extends Configured implements Tool
     }
 
     FileSystem fs = FileSystem.get(conf);
-    FileStatus[] topics = fs.listStatus(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist));
+    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist), sourceSubdir, "", fs);
 
-    for (FileStatus topic : topics)
+    for (FileStatus topic : topics.keySet())
     {
-      String topicName = topic.getPath().getName();
+      String topicName = topics.get(topic).replaceAll("/", "_") + "_" + topic.getPath().getName();
       log.info("Processing topic " + topicName);
 
-      Path destinationPath = new Path(destLocation + "/" + topic.getPath().getName() + "/" + destSubdir);
+      Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
       try
       {
         runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);

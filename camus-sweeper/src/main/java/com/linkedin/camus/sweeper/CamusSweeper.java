@@ -125,7 +125,7 @@ public class CamusSweeper extends Configured implements Tool
     for (FileStatus f : fs.listStatus(input, filter)){
       if (fs.exists(new Path(f.getPath(), topicSubdir))){
         topics.put(f, topicNameSpace);
-      } else {
+      } else if (! input.toString().equals(f.getPath().toString())) {
         findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getName(), fs);
       }
     }

@@ -18,7 +18,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 
-import com.linkedin.camus.coders.MessageEncoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 
 @JsonIgnoreProperties({"trackingCount", "lastKey", "eventCount", "RANDOM"})

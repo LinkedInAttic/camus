@@ -77,7 +77,6 @@ public class CamusJob extends Configured implements Tool {
     public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
 	public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
 	public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
-	public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
 	public static final String BROKER_URI_FILE = "brokers.uri";
 	public static final String POST_TRACKING_COUNTS_TO_KAFKA = "post.tracking.counts.to.kafka";
 	public static final String KAFKA_FETCH_REQUEST_MAX_WAIT = "kafka.fetch.request.max.wait";

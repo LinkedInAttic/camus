@@ -35,7 +35,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private long totalBytes;
     private long readBytes = 0;
 
-    private boolean skipSchemaErrors = false;
     private final BytesWritable msgValue = new BytesWritable();
     private final BytesWritable msgKey = new BytesWritable();
     private final EtlKey key = new EtlKey();
@@ -46,7 +45,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private long maxPullTime = 0;
     private long beginTimeStamp = 0;
     private long endTimeStamp = 0;
-    private HashSet<String> ignoreServerServiceList = null;
 
     private String statusMsg = "";
 
@@ -76,8 +74,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             mapperContext = (Context) context;
         }
 
-        this.skipSchemaErrors = EtlInputFormat.getEtlIgnoreSchemaErrors(context);
-
         if (EtlInputFormat.getKafkaMaxPullHrs(context) != -1) {
             this.maxPullHours = EtlInputFormat.getKafkaMaxPullHrs(context);
         } else {
@@ -97,12 +93,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             beginTimeStamp = (new DateTime()).minusDays(maxDays).getMillis();
         } else {
             beginTimeStamp = 0;
-        }
-
-        ignoreServerServiceList = new HashSet<String>();
-        for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
-        {
-            ignoreServerServiceList.add(ignoreServerServiceTopic);
         }
 
         this.totalBytes = this.split.getLength();
@@ -238,7 +228,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     try {
                         key.setTime(timeStamp);
                         key.setPartition(wrapper.getPartitionMap());
-                        setServerService();
                     } catch (Exception e) {
                         mapperContext.write(key, new ExceptionWritable(e));
                         continue;
@@ -301,15 +290,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             } finally {
                 reader = null;
             }
-        }
-    }
-
-    public void setServerService()
-    {
-        if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
-        {
-            key.setServer(DEFAULT_SERVER);
-            key.setService(DEFAULT_SERVICE);
         }
     }
 }

@@ -60,9 +60,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String KAFKA_MAX_PULL_MINUTES_PER_TASK = "kafka.max.pull.minutes.per.task";
 	public static final String KAFKA_MAX_HISTORICAL_DAYS = "kafka.max.historical.days";
 
-	public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
-	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
-
 	private static Logger log = null;
 	
 	public EtlInputFormat()
@@ -598,25 +595,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		} else {
 			return new String[] {};
 		}
-	}
-
-	public static void setEtlIgnoreSchemaErrors(JobContext job, boolean val) {
-		job.getConfiguration().setBoolean(ETL_IGNORE_SCHEMA_ERRORS, val);
-	}
-
-	public static boolean getEtlIgnoreSchemaErrors(JobContext job) {
-		return job.getConfiguration().getBoolean(ETL_IGNORE_SCHEMA_ERRORS,
-				false);
-	}
-
-	public static void setEtlAuditIgnoreServiceTopicList(JobContext job,
-			String topics) {
-		job.getConfiguration().set(ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, topics);
-	}
-
-	public static String[] getEtlAuditIgnoreServiceTopicList(JobContext job) {
-		return job.getConfiguration().getStrings(
-				ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, "");
 	}
 
 	private class OffsetFileFilter implements PathFilter {

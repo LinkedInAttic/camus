@@ -93,22 +93,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
                     commitFile(context, f.getPath(), dest);
                     log.info("Moved file from: " + f.getPath() + " to: " + dest);
-
-                    if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-                            count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
-                                    + dest.getName().replace(recordWriterProvider.getFilenameExtension(), "")));
-                    }
                 }
-            }
-
-            if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-              Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
-              OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
-              ObjectMapper mapper= new ObjectMapper();
-              log.info("Writing counts to : " + tempPath.toString());
-              long time = System.currentTimeMillis();
-              mapper.writeValue(outputStream, allCountObject);
-              log.debug("Time taken : " + (System.currentTimeMillis() - time)/1000);
             }
         }
         else {

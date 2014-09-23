@@ -27,7 +27,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_DESTINATION_PATH = "etl.destination.path";
     public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRECTORY = "etl.destination.path.topic.sub.dir";
     public static final String ETL_RUN_MOVE_DATA = "etl.run.move.data";
-    public static final String ETL_RUN_TRACKING_POST = "etl.run.tracking.post";
 
     public static final String ETL_DEFAULT_TIMEZONE = "etl.default.timezone";
     public static final String ETL_DEFLATE_LEVEL = "etl.deflate.level";
@@ -157,14 +156,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
     public static void setRunMoveData(JobContext job, boolean value) {
         job.getConfiguration().setBoolean(ETL_RUN_MOVE_DATA, value);
-    }
-
-    public static boolean isRunTrackingPost(JobContext job) {
-        return job.getConfiguration().getBoolean(ETL_RUN_TRACKING_POST, false);
-    }
-
-    public static void setRunTrackingPost(JobContext job, boolean value) {
-        job.getConfiguration().setBoolean(ETL_RUN_TRACKING_POST, value);
     }
 
     public static String getWorkingFileName(JobContext context, EtlKey key) throws IOException {

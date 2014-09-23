@@ -99,7 +99,6 @@ public class CamusJobTest {
         props.setProperty(EtlMultiOutputFormat.ETL_RECORD_WRITER_PROVIDER_CLASS,
                 SequenceFileRecordWriterProvider.class.getName());
         
-        props.setProperty(EtlMultiOutputFormat.ETL_RUN_TRACKING_POST, Boolean.toString(false));
         props.setProperty(CamusJob.KAFKA_CLIENT_NAME, "Camus");
         
         props.setProperty(CamusJob.KAFKA_BROKERS, props.getProperty("metadata.broker.list"));

@@ -1,10 +1,12 @@
 package com.linkedin.camus.etl;
 
-import com.linkedin.camus.coders.CamusWrapper;
 import java.io.IOException;
+
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
+
+import com.linkedin.camus.coders.CamusWrapper;
 
 /**
  *
@@ -12,9 +14,10 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
  */
 public interface RecordWriterProvider {
 
-    String getFilenameExtension();
+	String getFilenameExtension();
 
-    RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(
-            TaskAttemptContext context, String fileName, CamusWrapper data, FileOutputCommitter committer) throws IOException,
-            InterruptedException;
+	RecordWriter<IEtlKey, CamusWrapper<String>> getDataRecordWriter(
+			TaskAttemptContext context, String fileName,
+			CamusWrapper<String> data, FileOutputCommitter committer)
+			throws IOException, InterruptedException;
 }

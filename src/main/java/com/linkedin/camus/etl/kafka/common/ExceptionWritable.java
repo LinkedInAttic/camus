@@ -11,10 +11,10 @@ public class ExceptionWritable extends Text {
 		super();
 	}
 
-    public ExceptionWritable(String exception) {
-        super(exception);
-    }
-	
+	public ExceptionWritable(String exception) {
+		super(exception);
+	}
+
 	public ExceptionWritable(Exception e) {
 		set(null, e);
 	}
@@ -22,26 +22,26 @@ public class ExceptionWritable extends Text {
 	public ExceptionWritable(String message, Exception e) {
 		set(message, e);
 	}
-	
-	public void set(String message, Throwable e){
+
+	public void set(String message, Throwable e) {
 		StringWriter strWriter = new StringWriter();
 		PrintWriter printer = new PrintWriter(strWriter);
-		
-		if (message != null){
+
+		if (message != null) {
 			printer.write(message);
 			printer.write("\n");
 		}
 
 		e.printStackTrace(printer);
-		
+
 		super.set(strWriter.toString());
 		printer.close();
 	}
-	
-	public void set(Exception e){
+
+	public void set(Exception e) {
 		set(null, e);
 	}
-	
+
 	public void set(ExceptionWritable other) {
 		super.set(other.getBytes());
 	}

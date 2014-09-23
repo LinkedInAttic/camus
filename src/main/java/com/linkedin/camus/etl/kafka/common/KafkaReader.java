@@ -29,7 +29,7 @@ import com.linkedin.camus.etl.kafka.CamusJob;
  */
 public class KafkaReader {
 	// index of context
-	private static Logger log =  Logger.getLogger(KafkaReader.class);
+	private static Logger log = Logger.getLogger(KafkaReader.class);
 	private EtlRequest kafkaRequest = null;
 	private SimpleConsumer simpleConsumer = null;
 
@@ -75,9 +75,8 @@ public class KafkaReader {
 				CamusJob.getKafkaTimeoutValue(context),
 				CamusJob.getKafkaBufferSize(context),
 				CamusJob.getKafkaClientName(context));
-		log.info("Connected to leader " + uri
-				+ " beginning reading at offset " + beginOffset
-				+ " latest offset=" + lastOffset);
+		log.info("Connected to leader " + uri + " beginning reading at offset "
+				+ beginOffset + " latest offset=" + lastOffset);
 		fetch();
 	}
 
@@ -99,7 +98,8 @@ public class KafkaReader {
 	 * @return true if there exists more events
 	 * @throws IOException
 	 */
-	public boolean getNext(EtlKey key, BytesWritable payload ,BytesWritable pKey) throws IOException {
+	public boolean getNext(EtlKey key, BytesWritable payload, BytesWritable pKey)
+			throws IOException {
 		if (hasNext()) {
 
 			MessageAndOffset msgAndOffset = messageIter.next();
@@ -112,7 +112,7 @@ public class KafkaReader {
 			payload.set(bytes, 0, origSize);
 
 			buf = message.key();
-			if(buf != null){
+			if (buf != null) {
 				origSize = buf.remaining();
 				bytes = new byte[origSize];
 				buf.get(bytes, buf.position(), origSize);
@@ -173,33 +173,32 @@ public class KafkaReader {
 				ByteBufferMessageSet messageBuffer = fetchResponse.messageSet(
 						kafkaRequest.getTopic(), kafkaRequest.getPartition());
 				lastFetchTime = (System.currentTimeMillis() - tempTime);
-				log.debug("Time taken to fetch : "
-						+ (lastFetchTime / 1000) + " seconds");
-				log.debug("The size of the ByteBufferMessageSet returned is : " + messageBuffer.sizeInBytes());
+				log.debug("Time taken to fetch : " + (lastFetchTime / 1000)
+						+ " seconds");
+				log.debug("The size of the ByteBufferMessageSet returned is : "
+						+ messageBuffer.sizeInBytes());
 				int skipped = 0;
 				totalFetchTime += lastFetchTime;
 				messageIter = messageBuffer.iterator();
-				//boolean flag = false;
+				// boolean flag = false;
 				Iterator<MessageAndOffset> messageIter2 = messageBuffer
 						.iterator();
 				MessageAndOffset message = null;
 				while (messageIter2.hasNext()) {
 					message = messageIter2.next();
 					if (message.offset() < currentOffset) {
-						//flag = true;
+						// flag = true;
 						skipped++;
 					} else {
-						log.debug("Skipped offsets till : "
-								+ message.offset());
+						log.debug("Skipped offsets till : " + message.offset());
 						break;
 					}
 				}
 				log.debug("Number of offsets to be skipped: " + skipped);
-				while(skipped !=0 )
-				{
+				while (skipped != 0) {
 					MessageAndOffset skippedMessage = messageIter.next();
 					log.debug("Skipping offset : " + skippedMessage.offset());
-					skipped --;
+					skipped--;
 				}
 
 				if (!messageIter.hasNext()) {

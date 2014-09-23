@@ -15,8 +15,6 @@ public class EtlSplit extends InputSplit implements Writable {
 	private List<EtlRequest> requests = new ArrayList<EtlRequest>();
 	private long length = 0;
 
-	
-	
 	@Override
 	public void readFields(DataInput in) throws IOException {
 		int size = in.readInt();

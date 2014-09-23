@@ -1,10 +1,5 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.EtlRequest;
-import com.linkedin.camus.etl.kafka.common.LeaderInfo;
 import java.io.IOException;
 import java.net.URI;
 import java.security.InvalidParameterException;
@@ -19,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+
 import kafka.api.PartitionOffsetRequestInfo;
 import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
@@ -28,6 +24,7 @@ import kafka.javaapi.PartitionMetadata;
 import kafka.javaapi.TopicMetadata;
 import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -43,10 +40,16 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.log4j.Logger;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+
 /**
  * Input format for a Kafka pull job.
  */
-public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
+public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper<String>> {
 
 	public static final String KAFKA_BLACKLIST_TOPIC = "kafka.blacklist.topics";
 	public static final String KAFKA_WHITELIST_TOPIC = "kafka.whitelist.topics";
@@ -61,19 +64,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String KAFKA_MAX_HISTORICAL_DAYS = "kafka.max.historical.days";
 
 	private static Logger log = null;
-	
-	public EtlInputFormat()
-  {
-	  if (log == null)
-	    log = Logger.getLogger(getClass());
-  }
-	
-	public static void setLogger(Logger log){
-	  EtlInputFormat.log = log;
+
+	public EtlInputFormat() {
+		if (log == null)
+			log = Logger.getLogger(getClass());
+	}
+
+	public static void setLogger(Logger log) {
+		EtlInputFormat.log = log;
 	}
 
 	@Override
-	public RecordReader<EtlKey, CamusWrapper> createRecordReader(
+	public RecordReader<EtlKey, CamusWrapper<String>> createRecordReader(
 			InputSplit split, TaskAttemptContext context) throws IOException,
 			InterruptedException {
 		return new EtlRecordReader(split, context);
@@ -90,8 +92,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		CamusJob.startTiming("kafkaSetupTime");
 		String brokerString = CamusJob.getKafkaBrokers(context);
 		if (brokerString.isEmpty())
-			throw new InvalidParameterException("kafka.brokers must contain at least one node");
-                List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
+			throw new InvalidParameterException(
+					"kafka.brokers must contain at least one node");
+		List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
 		Collections.shuffle(brokers);
 		boolean fetchMetaDataSucceeded = false;
 		int i = 0;
@@ -99,37 +102,45 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		Exception savedException = null;
 		while (i < brokers.size() && !fetchMetaDataSucceeded) {
 			SimpleConsumer consumer = createConsumer(context, brokers.get(i));
-			log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
-			brokers.get(i), consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
+			log.info(String
+					.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s",
+							brokers.get(i), consumer.clientId(),
+							metaRequestTopics.size(), metaRequestTopics));
 			try {
-				topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
+				topicMetadataList = consumer.send(
+						new TopicMetadataRequest(metaRequestTopics))
+						.topicsMetadata();
 				fetchMetaDataSucceeded = true;
 			} catch (Exception e) {
 				savedException = e;
-				log.warn(String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed",
-					consumer.clientId(), metaRequestTopics, brokers.get(i)), e);
+				log.warn(
+						String.format(
+								"Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed",
+								consumer.clientId(), metaRequestTopics,
+								brokers.get(i)), e);
 			} finally {
 				consumer.close();
 				i++;
 			}
 		}
 		if (!fetchMetaDataSucceeded) {
-			throw new RuntimeException("Failed to obtain metadata!", savedException);
+			throw new RuntimeException("Failed to obtain metadata!",
+					savedException);
 		}
 		CamusJob.stopTiming("kafkaSetupTime");
 		return topicMetadataList;
 	}
- 
+
 	private SimpleConsumer createConsumer(JobContext context, String broker) {
 		if (!broker.matches(".+:\\d+"))
-			throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
+			throw new InvalidParameterException("The kakfa broker " + broker
+					+ " must follow address:port pattern");
 		String[] hostPort = broker.split(":");
-		SimpleConsumer consumer = new SimpleConsumer(
-			hostPort[0],
-			Integer.valueOf(hostPort[1]),
-			CamusJob.getKafkaTimeoutValue(context),
-			CamusJob.getKafkaBufferSize(context),
-			CamusJob.getKafkaClientName(context));
+		SimpleConsumer consumer = new SimpleConsumer(hostPort[0],
+				Integer.valueOf(hostPort[1]),
+				CamusJob.getKafkaTimeoutValue(context),
+				CamusJob.getKafkaBufferSize(context),
+				CamusJob.getKafkaClientName(context));
 		return consumer;
 	}
 
@@ -255,18 +266,20 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 					log.info("Discarding topic (blacklisted): "
 							+ topicMetadata.topic());
 				} else if (topicMetadata.errorCode() != ErrorMapping.NoError()) {
-                  log.info("Skipping the creation of ETL request for Whole Topic : "
-                      + topicMetadata.topic()
-                      + " Exception : "
-                      + ErrorMapping
-                              .exceptionFor(topicMetadata
-                                      .errorCode()));
+					log.info("Skipping the creation of ETL request for Whole Topic : "
+							+ topicMetadata.topic()
+							+ " Exception : "
+							+ ErrorMapping.exceptionFor(topicMetadata
+									.errorCode()));
 				} else {
 					for (PartitionMetadata partitionMetadata : topicMetadata
 							.partitionsMetadata()) {
-					      // We only care about LeaderNotAvailableCode error on partitionMetadata level
-					      // Error codes such as ReplicaNotAvailableCode should not stop us.
-						if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
+						// We only care about LeaderNotAvailableCode error on
+						// partitionMetadata level
+						// Error codes such as ReplicaNotAvailableCode should
+						// not stop us.
+						if (partitionMetadata.errorCode() == ErrorMapping
+								.LeaderNotAvailableCode()) {
 							log.info("Skipping the creation of ETL request for Topic : "
 									+ topicMetadata.topic()
 									+ " and Partition : "
@@ -276,16 +289,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 											.exceptionFor(partitionMetadata
 													.errorCode()));
 						} else {
-	                        if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
-	                          log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "
-                                    + topicMetadata.topic()
-                                    + " and Partition : "
-                                    + partitionMetadata.partitionId()
-                                    + " Exception : "
-                                    + ErrorMapping
-                                            .exceptionFor(partitionMetadata
-                                                    .errorCode()));
-	                        }
+							if (partitionMetadata.errorCode() != ErrorMapping
+									.NoError()) {
+								log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "
+										+ topicMetadata.topic()
+										+ " and Partition : "
+										+ partitionMetadata.partitionId()
+										+ " Exception : "
+										+ ErrorMapping
+												.exceptionFor(partitionMetadata
+														.errorCode()));
+							}
 							LeaderInfo leader = new LeaderInfo(new URI("tcp://"
 									+ partitionMetadata.leader()
 											.getConnectionString()),
@@ -327,7 +341,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 			}
 		});
 
-		log.info("The requests from kafka metadata are: \n" + finalRequests);		
+		log.info("The requests from kafka metadata are: \n" + finalRequests);
 		writeRequests(finalRequests, context);
 		Map<EtlRequest, EtlKey> offsetKeys = getPreviousOffsets(
 				FileInputFormat.getInputPaths(context), context);
@@ -335,7 +349,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		for (EtlRequest request : finalRequests) {
 			if (moveLatest.contains(request.getTopic())
 					|| moveLatest.contains("all")) {
-			    log.info("Moving to latest for topic: " + request.getTopic());
+				log.info("Moving to latest for topic: " + request.getTopic());
 				offsetKeys.put(
 						request,
 						new EtlKey(request.getTopic(), request.getLeaderId(),
@@ -351,22 +365,21 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 			if (request.getEarliestOffset() > request.getOffset()
 					|| request.getOffset() > request.getLastOffset()) {
-				if(request.getEarliestOffset() > request.getOffset())
-				{
-					log.error("The earliest offset was found to be more than the current offset: " + request);
+				if (request.getEarliestOffset() > request.getOffset()) {
+					log.error("The earliest offset was found to be more than the current offset: "
+							+ request);
 					log.error("Moving to the earliest offset available");
-				}
-				else
-				{
-					log.error("The current offset was found to be more than the latest offset: " + request);
+				} else {
+					log.error("The current offset was found to be more than the latest offset: "
+							+ request);
 					log.error("Moving to the earliest offset available");
 				}
 				request.setOffset(request.getEarliestOffset());
-				offsetKeys.put(
-						request,
-						new EtlKey(request.getTopic(), request.getLeaderId(),
-								request.getPartition(), 0, request
-										.getOffset()));
+				offsetKeys
+						.put(request,
+								new EtlKey(request.getTopic(), request
+										.getLeaderId(), request.getPartition(),
+										0, request.getOffset()));
 			}
 			log.info(request);
 		}

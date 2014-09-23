@@ -13,138 +13,118 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 
-
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 
-public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object>
-{
-  private TaskAttemptContext context;
-  private Writer errorWriter = null;
-  private String currentTopic = "";
-  private long beginTimeStamp = 0;
-  private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
+public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
+	private TaskAttemptContext context;
+	private Writer errorWriter = null;
+	private String currentTopic = "";
+	private long beginTimeStamp = 0;
+	private static Logger log = Logger
+			.getLogger(EtlMultiOutputRecordWriter.class);
 
-  private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
-      new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
+	private HashMap<String, RecordWriter<IEtlKey, CamusWrapper<String>>> dataWriters = new HashMap<String, RecordWriter<IEtlKey, CamusWrapper<String>>>();
 
-  private EtlMultiOutputCommitter committer;
+	private EtlMultiOutputCommitter committer;
 
-  public EtlMultiOutputRecordWriter(TaskAttemptContext context, 
-                                    EtlMultiOutputCommitter committer) throws IOException,
-      InterruptedException
-  {
-    this.context = context;
-    this.committer = committer;
-    errorWriter =
-        SequenceFile.createWriter(FileSystem.get(context.getConfiguration()),
-                                  context.getConfiguration(),
-                                  new Path(committer.getWorkPath(),
-                                           EtlMultiOutputFormat.getUniqueFile(context,
-                                                                              EtlMultiOutputFormat.ERRORS_PREFIX,
-                                                                              "")),
-                                  EtlKey.class,
-                                  ExceptionWritable.class);
+	public EtlMultiOutputRecordWriter(TaskAttemptContext context,
+			EtlMultiOutputCommitter committer) throws IOException,
+			InterruptedException {
+		this.context = context;
+		this.committer = committer;
+		errorWriter = SequenceFile.createWriter(
+				FileSystem.get(context.getConfiguration()),
+				context.getConfiguration(),
+				new Path(committer.getWorkPath(), EtlMultiOutputFormat
+						.getUniqueFile(context,
+								EtlMultiOutputFormat.ERRORS_PREFIX, "")),
+				EtlKey.class, ExceptionWritable.class);
 
-    if (EtlInputFormat.getKafkaMaxHistoricalDays(context) != -1)
-    {
-      int maxDays = EtlInputFormat.getKafkaMaxHistoricalDays(context);
-      beginTimeStamp = (new DateTime()).minusDays(maxDays).getMillis();
-    }
-    else
-    {
-      beginTimeStamp = 0;
-    }
-    log.info("beginTimeStamp set to: " + beginTimeStamp);
-  }
+		if (EtlInputFormat.getKafkaMaxHistoricalDays(context) != -1) {
+			int maxDays = EtlInputFormat.getKafkaMaxHistoricalDays(context);
+			beginTimeStamp = (new DateTime()).minusDays(maxDays).getMillis();
+		} else {
+			beginTimeStamp = 0;
+		}
+		log.info("beginTimeStamp set to: " + beginTimeStamp);
+	}
 
-  @Override
-  public void close(TaskAttemptContext context) throws IOException,
-      InterruptedException
-  {
-    for (String w : dataWriters.keySet())
-    {
-      dataWriters.get(w).close(context);
-    }
-    errorWriter.close();
-  }
+	@Override
+	public void close(TaskAttemptContext context) throws IOException,
+			InterruptedException {
+		for (String w : dataWriters.keySet()) {
+			dataWriters.get(w).close(context);
+		}
+		errorWriter.close();
+	}
 
-  @Override
-  public void write(EtlKey key, Object val) throws IOException,
-      InterruptedException
-  {
-    if (val instanceof CamusWrapper<?>)
-    {
-      if (key.getTime() < beginTimeStamp)
-      {
-        log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        // ((Mapper.Context)context).getCounter("total",
-        // "skip-old").increment(1);
-        committer.addOffset(key);
-      }
-      else
-      {
-        if (!key.getTopic().equals(currentTopic))
-        {
-          for (RecordWriter<IEtlKey, CamusWrapper> writer : dataWriters.values())
-          {
-            writer.close(context);
-          }
-          dataWriters.clear();
-          currentTopic = key.getTopic();
-        }
+	@Override
+	public void write(EtlKey key, Object val) throws IOException,
+			InterruptedException {
+		if (val instanceof CamusWrapper<?>) {
+			if (key.getTime() < beginTimeStamp) {
+				log.warn("Key's time: " + key + " is less than beginTime: "
+						+ beginTimeStamp);
+				// ((Mapper.Context)context).getCounter("total",
+				// "skip-old").increment(1);
+				committer.addOffset(key);
+			} else {
+				if (!key.getTopic().equals(currentTopic)) {
+					for (RecordWriter<IEtlKey, CamusWrapper<String>> writer : dataWriters
+							.values()) {
+						writer.close(context);
+					}
+					dataWriters.clear();
+					currentTopic = key.getTopic();
+				}
 
-        committer.addCounts(key);
-        CamusWrapper value = (CamusWrapper) val;
-        String workingFileName = EtlMultiOutputFormat.getWorkingFileName(context, key);
-        if (!dataWriters.containsKey(workingFileName))
-        {
-          dataWriters.put(workingFileName, getDataRecordWriter(context, workingFileName, value));
-          log.info("Writing to data file: " + workingFileName);
-        }
-        dataWriters.get(workingFileName).write(key, value);
-      }
-    }
-    else if (val instanceof ExceptionWritable)
-    {
-      committer.addOffset(key);
-      log.warn("ExceptionWritable key: " + key + " value: " + val);
-      errorWriter.append(key, (ExceptionWritable) val);
-    }
-    else
-    {
-      log.warn("Unknow type of record: " + val);
-    }
-  }
+				committer.addCounts(key);
+				CamusWrapper<String> value = (CamusWrapper<String>) val;
+				String workingFileName = EtlMultiOutputFormat
+						.getWorkingFileName(context, key);
+				if (!dataWriters.containsKey(workingFileName)) {
+					dataWriters
+							.put(workingFileName,
+									getDataRecordWriter(context,
+											workingFileName, value));
+					log.info("Writing to data file: " + workingFileName);
+				}
+				dataWriters.get(workingFileName).write(key, value);
+			}
+		} else if (val instanceof ExceptionWritable) {
+			committer.addOffset(key);
+			log.warn("ExceptionWritable key: " + key + " value: " + val);
+			errorWriter.append(key, (ExceptionWritable) val);
+		} else {
+			log.warn("Unknow type of record: " + val);
+		}
+	}
 
-  private RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context,
-                                                                  String fileName,
-                                                                  CamusWrapper value) throws IOException,
-      InterruptedException
-  {
-    RecordWriterProvider recordWriterProvider = null;
-    try
-    {
-      //recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
-      Class<RecordWriterProvider> rwp = EtlMultiOutputFormat.getRecordWriterProviderClass(context);
-      Constructor<RecordWriterProvider> crwp = rwp.getConstructor(TaskAttemptContext.class);
-      recordWriterProvider = crwp.newInstance(context);
-    }
-    catch (InstantiationException e)
-    {
-      throw new IllegalStateException(e);
-    }
-    catch (IllegalAccessException e)
-    {
-      throw new IllegalStateException(e);
-    }
-    catch (Exception e) 
-    {
-        throw new IllegalStateException(e);
-    }
-    return recordWriterProvider.getDataRecordWriter(context, fileName, value, committer);
-  }
+	private RecordWriter<IEtlKey, CamusWrapper<String>> getDataRecordWriter(
+			TaskAttemptContext context, String fileName,
+			CamusWrapper<String> value) throws IOException,
+			InterruptedException {
+		RecordWriterProvider recordWriterProvider = null;
+		try {
+			// recordWriterProvider =
+			// EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
+			Class<RecordWriterProvider> rwp = EtlMultiOutputFormat
+					.getRecordWriterProviderClass(context);
+			Constructor<RecordWriterProvider> crwp = rwp
+					.getConstructor(TaskAttemptContext.class);
+			recordWriterProvider = crwp.newInstance(context);
+		} catch (InstantiationException e) {
+			throw new IllegalStateException(e);
+		} catch (IllegalAccessException e) {
+			throw new IllegalStateException(e);
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
+		return recordWriterProvider.getDataRecordWriter(context, fileName,
+				value, committer);
+	}
 }

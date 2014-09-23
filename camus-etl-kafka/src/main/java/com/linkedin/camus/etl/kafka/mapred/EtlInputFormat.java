@@ -1,10 +1,7 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
-import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
@@ -63,7 +60,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String KAFKA_MAX_PULL_MINUTES_PER_TASK = "kafka.max.pull.minutes.per.task";
 	public static final String KAFKA_MAX_HISTORICAL_DAYS = "kafka.max.historical.days";
 
-	public static final String CAMUS_MESSAGE_DECODER_CLASS = "camus.message.decoder.class";
 	public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
 	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
@@ -261,9 +257,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 				if (Pattern.matches(regex, topicMetadata.topic())) {
 					log.info("Discarding topic (blacklisted): "
 							+ topicMetadata.topic());
-				} else if (!createMessageDecoder(context, topicMetadata.topic())) {
-					log.info("Discarding topic (Decoder generation failed) : "
-							+ topicMetadata.topic());
 				} else if (topicMetadata.errorCode() != ErrorMapping.NoError()) {
                   log.info("Skipping the creation of ETL request for Whole Topic : "
                       + topicMetadata.topic()
@@ -401,16 +394,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		}
 
 		return topics;
-	}
-
-	private boolean createMessageDecoder(JobContext context, String topic) {
-		try {
-			MessageDecoderFactory.createMessageDecoder(context, topic);
-			return true;
-		} catch (Exception e) {
-		  log.error("failed to create decoder", e);
-			return false;
-		}
 	}
 
 	private List<InputSplit> allocateWork(List<EtlRequest> requests,
@@ -634,17 +617,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static String[] getEtlAuditIgnoreServiceTopicList(JobContext job) {
 		return job.getConfiguration().getStrings(
 				ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST, "");
-	}
-
-	public static void setMessageDecoderClass(JobContext job,
-			Class<MessageDecoder> cls) {
-		job.getConfiguration().setClass(CAMUS_MESSAGE_DECODER_CLASS, cls,
-				MessageDecoder.class);
-	}
-
-	public static Class<MessageDecoder> getMessageDecoderClass(JobContext job) {
-		return (Class<MessageDecoder>) job.getConfiguration().getClass(
-				CAMUS_MESSAGE_DECODER_CLASS, JsonStringMessageDecoder.class);
 	}
 
 	private class OffsetFileFilter implements PathFilter {

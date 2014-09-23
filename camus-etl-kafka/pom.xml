@@ -17,6 +17,10 @@
 			<artifactId>camus-api</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>joda-time</groupId>
 			<artifactId>joda-time</artifactId>
 		</dependency>

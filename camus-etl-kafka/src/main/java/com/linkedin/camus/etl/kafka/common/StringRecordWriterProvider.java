@@ -44,7 +44,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         return new RecordWriter<IEtlKey, CamusWrapper>() {
             @Override
             public void write(IEtlKey ignore, CamusWrapper data) throws IOException {
-                String record = (String) value.getRecord() + "\n";
+                String record = (String) data.getRecord() + "\n";
                 writer.write(record.getBytes());
             }
 

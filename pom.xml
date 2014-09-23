@@ -98,8 +98,6 @@
 	</dependencyManagement>
 
 	<modules>
-		<module>camus-api</module>
-		<module>camus-etl-kafka</module>
 		<module>camus</module>
 	</modules>
 

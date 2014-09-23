@@ -27,7 +27,7 @@ public class TestJsonStringMessageDecoder {
 
         CamusWrapper actualResult = testDecoder.decode(bytePayload);
         long actualTimestamp = actualResult.getTimestamp();
-        assertEquals(actualTimestamp, expectedTimestamp);
+        assertEquals(expectedTimestamp, actualTimestamp);
     }
 
     @Test
@@ -48,9 +48,40 @@ public class TestJsonStringMessageDecoder {
         byte[] bytePayload = payload.getBytes();
         CamusWrapper actualResult = testDecoder.decode(bytePayload);
         long actualTimestamp = actualResult.getTimestamp();
-        System.out.println(actualTimestamp);
 
         assertEquals(expectedTimestamp, actualTimestamp);
+    }
+
+    @Test
+    public void testDecodeWithTimestampFormat() {
+
+        // Test that we can specify a date and a pattern and
+        // get back unix timestamp milliseconds
+
+        String testFormat = "yyyy-MM-dd HH:mm:ss Z";
+        String testTimestamp = "2014-02-01 01:15:27 UTC";
+        long expectedTimestamp = 1391217327000L;
+
+        Properties testProperties = new Properties();
+        testProperties.setProperty("camus.message.timestamp.format", testFormat);
+
+        JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
+        testDecoder.init(testProperties, "testTopic");
+        String payload = "{\"timestamp\":  \""+ testTimestamp + "\", \"myData\": \"myValue\"}";
+        byte[] bytePayload = payload.getBytes();
+        CamusWrapper actualResult = testDecoder.decode(bytePayload);
+        long actualTimestamp = actualResult.getTimestamp();
+
+        assertEquals(expectedTimestamp, actualTimestamp);
+
+    }
+
+    @Test(expected=RuntimeException.class)
+    public void testBadJsonInput() {
+        byte[] bytePayload = "{\"key: value}".getBytes();
+
+        JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
+        CamusWrapper actualResult = testDecoder.decode(bytePayload);
     }
 
 }

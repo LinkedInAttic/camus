@@ -8,6 +8,8 @@ import java.util.Comparator;
 import java.util.List;
 
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Field;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.SchemaParseException;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericDatumReader;
@@ -71,6 +73,7 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     // job and set the key schema
     // to the newest input schema
     String keySchemaStr = getConfValue(job, topic, "camus.sweeper.avro.key.schema");
+    
     Schema keySchema;
     if (keySchemaStr == null || keySchemaStr.isEmpty())
     {
@@ -80,6 +83,12 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     else
     {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
+      
+      if (! validateKeySchema(schema, keySchema))
+      {
+        job.setNumReduceTasks(0);
+        keySchema = schema;
+      }
     }
 
     setupSchemas(topic, job, schema, keySchema);
@@ -87,6 +96,41 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     // setting the compression level. Only used if compression is enabled. default is 6
     job.getConfiguration().setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY,
                                   job.getConfiguration().getInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, 6));
+  }
+  
+  private boolean validateKeySchema(Schema schema, Schema keySchema)
+  {
+    for (Field fld : keySchema.getFields())
+    {
+      Field schemaFld = schema.getField(fld.name());
+
+      if (schemaFld == null)
+        return false;
+
+      Type fldType = fld.schema().getType();
+
+      if (fldType.equals(Type.UNION))
+      {
+        for (Schema s : fld.schema().getTypes())
+        {
+          if (s.getType().equals(Type.RECORD))
+          {
+            fldType = Type.RECORD;
+            break;
+          }
+        }
+      }
+
+      if (fldType.equals(Type.RECORD))
+      {
+        if (! validateKeySchema(schemaFld.schema(), fld.schema()))
+        {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema)

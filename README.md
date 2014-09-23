@@ -74,6 +74,10 @@ Note that there are two jars that are not currently in a public Maven repo. Thes
 
 We hope to eventually create a more out of the box solution, but until we get there you will need to create a custom decoder for handling Kafka messages.  You can do this by implementing the abstract class com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder.  Internally, we use a schema registry that enables obtaining an Avro schema using an identifier included in the Kafka byte payload. For more information on other options, you can email camus_etl@googlegroups.com.  Once you have created a decoder, you will need to specify that decoder in the properties as described below.
 
+### Decoding JSON messages
+
+Camus can also process JSON messages. Set "camus.message.decoder.class=com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder" in camus.properties. Additionally, there are two more options "camus.message.timestamp.format" (default value: "[dd/MMM/yyyy:HH:mm:ss Z]") and "camus.message.timestamp.field" (default value: "timestamp").
+
 ### Configuration
 
 Camus can be run from the command line as Java App. You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath), or from the command line itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
@@ -86,11 +90,11 @@ Here is an abbreviated list of commonly used parameters.
     * `etl.execution.base.path=`
 * Where completed Camus job output directories are kept, usually a sub-dir in the base.path
     * `etl.execution.history.path=`
-* Zookeeper configurations:
-    * `zookeeper.hosts=`
-    * `zookeeper.broker.topics=/brokers/topics`
-    * `zookeeper.broker.nodes=/brokers/ids`
-* All files in this dir will be added to the distributed cache and placed on the classpath for hadoop tasks
+* Filesystem for the above folders. This can be a hdfs:// or s3:// address.
+    * `fs.default.name=`
+* List of at least one Kafka broker for Camus to pull metadata from
+    * `kafka.brokers=`    
+* All files in this dir will be added to the distributed cache and placed on the classpath for Hadoop tasks
     * `hdfs.default.classpath.dir=`
 * Max hadoop tasks to use, each task can pull multiple topic partitions
     * `mapred.map.tasks=30`
@@ -105,12 +109,16 @@ Here is an abbreviated list of commonly used parameters.
 * If whitelist has values, only whitelisted topic are pulled.  Nothing on the blacklist is pulled
     * `kafka.blacklist.topics=`
     * `kafka.whitelist.topics=`
+* Class for writing records to HDFS/S3
+    * `etl.record.writer.provider.class=`
+* Delimiter for writing string records (default is "\n")
+    * `etl.output.record.delimiter=`
 
 ### Running Camus
 
-Camus can be run from the command line using java jar.  Here is the usage:
+Camus can be run from the command line using hadoop jar.  Here is the usage:
 ```
-usage: CamusJob.java<br/>
+usage: hadoop jar camus-example-<version>-SNAPSHOT.jar com.linkedin.camus.etl.kafka.CamusJob  <br/>
  -D <property=value>   use value for given property<br/>
  -P <arg>              external properties filename<br/>
  -p <arg>              properties filename from the classpath<br/>

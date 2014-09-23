@@ -16,6 +16,8 @@ import com.linkedin.camus.sweeper.utils.DateUtils;
 
 public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner
 {
+  private static final Logger _log = Logger.getLogger(CamusSweeperDatePartitionPlanner.class);
+  
   private DateTimeFormatter dayFormatter;
   private DateUtils dUtils;
   
@@ -47,36 +49,35 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner
       DateTime currentDate = startDate.minusDays(i);
       String directory = dayFormatter.print(currentDate);
 
-      List<Path> sourcePaths = Collections.singletonList(new Path(inputDir, directory));
-      if (!fs.exists(sourcePaths.get(0)))
+      Path sourcePath = new Path(inputDir, directory);
+      if (!fs.exists(sourcePath))
       {
+        _log.info("Source path: " + sourcePath + " does not exist.");
         continue;
       }
 
+      List<Path> sourcePaths = new ArrayList<Path>();
+      sourcePaths.add(sourcePath);
+
       Path destPath = new Path(outputDir, directory);
 
-      String source = sourcePaths.toString().substring(1, sourcePaths.toString().length() - 1);
-      jobProps.put("input.paths", source);
+      jobProps.put("input.paths", sourcePath.toString());
       jobProps.put("dest.path", destPath.toString());
       
       if (!fs.exists(destPath))
       {
-        System.out.println(topic + " dest dir " + directory + " doesn't exist or . Processing.");
+        _log.info(topic + " dest dir " + directory + " doesn't exist or . Processing.");
         jobPropsList.add(jobProps);
       }
       else if (shouldReprocess(fs, sourcePaths.get(0), destPath))
       {
-        System.out.println(topic + " dest dir " + directory + " has a modified time before the source. Reprocessing.");
-        sourcePaths.add(destPath);
-        
-        source = sourcePaths.toString().substring(1, sourcePaths.toString().length() - 1);
-        jobProps.put("input.paths", source);
-        
+        _log.info(topic + " dest dir " + directory + " has a modified time before the source. Reprocessing.");
+        jobProps.put("input.paths", sourcePath.toString() + "," + destPath.toString());
         jobPropsList.add(jobProps);
       }
       else
       {
-        System.out.println(topic + " skipping " + directory);
+        _log.info(topic + " skipping " + directory);
       }
     }
     

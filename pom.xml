@@ -100,7 +100,7 @@
 	<modules>
 		<module>camus-api</module>
 		<module>camus-etl-kafka</module>
-		<module>camus-example</module>
+		<module>camus</module>
 	</modules>
 
 	<licenses>

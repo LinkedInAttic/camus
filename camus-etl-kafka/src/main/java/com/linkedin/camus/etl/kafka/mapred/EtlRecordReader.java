@@ -197,7 +197,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         while (true) {
             try {
                 if (reader == null || !reader.hasNext()) {
-                    EtlRequest request = split.popRequest();
+                    EtlRequest request = (EtlRequest) split.popRequest();
                     if (request == null) {
                         return false;
                     }

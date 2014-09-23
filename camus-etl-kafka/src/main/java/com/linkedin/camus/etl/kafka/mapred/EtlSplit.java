@@ -10,18 +10,17 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
 
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.workallocater.CamusRequest;
 
 public class EtlSplit extends InputSplit implements Writable {
-	private List<EtlRequest> requests = new ArrayList<EtlRequest>();
+	private List<CamusRequest> requests = new ArrayList<CamusRequest>();
 	private long length = 0;
 
-	
-	
 	@Override
 	public void readFields(DataInput in) throws IOException {
 		int size = in.readInt();
 		for (int i = 0; i < size; i++) {
-			EtlRequest r = new EtlRequest();
+			CamusRequest r = new EtlRequest();
 			r.readFields(in);
 			requests.add(r);
 			length += r.estimateDataSize();
@@ -31,7 +30,7 @@ public class EtlSplit extends InputSplit implements Writable {
 	@Override
 	public void write(DataOutput out) throws IOException {
 		out.writeInt(requests.size());
-		for (EtlRequest r : requests)
+		for (CamusRequest r : requests)
 			r.write(out);
 	}
 
@@ -49,12 +48,12 @@ public class EtlSplit extends InputSplit implements Writable {
 		return new String[] {};
 	}
 
-	public void addRequest(EtlRequest request) {
+	public void addRequest(CamusRequest request) {
 		requests.add(request);
 		length += request.estimateDataSize();
 	}
 
-	public EtlRequest popRequest() {
+	public CamusRequest popRequest() {
 		if (requests.size() > 0)
 			return requests.remove(0);
 		else

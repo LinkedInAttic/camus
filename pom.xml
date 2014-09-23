@@ -34,11 +34,6 @@
 				<version>0.1.0-SNAPSHOT</version>
 			</dependency>
 			<dependency>
-				<groupId>com.linkedin.camus</groupId>
-				<artifactId>camus-kafka-coders</artifactId>
-				<version>0.1.0-SNAPSHOT</version>
-			</dependency>
-			<dependency>
 				<groupId>log4j</groupId>
 				<artifactId>log4j</artifactId>
 				<version>1.2.17</version>
@@ -104,7 +99,6 @@
 
 	<modules>
 		<module>camus-api</module>
-		<module>camus-kafka-coders</module>
 		<module>camus-etl-kafka</module>
 		<module>camus-example</module>
 	</modules>

@@ -19,7 +19,7 @@ import org.joda.time.format.DateTimeFormatter;
 import com.linkedin.camus.coders.Partitioner;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.coders.DefaultPartitioner;
-import com.linkedin.camus.etl.kafka.common.JSONRecordWriterProvider;
+import com.linkedin.camus.etl.kafka.common.StringRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 
@@ -75,7 +75,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
             JobContext job) {
         return (Class<RecordWriterProvider>) job.getConfiguration()
                 .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
-                        JSONRecordWriterProvider.class);
+                        StringRecordWriterProvider.class);
     }
     
     public static RecordWriterProvider getRecordWriterProvider(JobContext job) {
@@ -83,7 +83,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         {
           return (RecordWriterProvider) job.getConfiguration()
                    .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
-                           JSONRecordWriterProvider.class).newInstance();
+                           StringRecordWriterProvider.class).newInstance();
         }
         catch (Exception e)
         {

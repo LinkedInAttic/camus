@@ -17,10 +17,6 @@
 			<artifactId>camus-api</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.linkedin.camus</groupId>
-			<artifactId>camus-kafka-coders</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>joda-time</groupId>
 			<artifactId>joda-time</artifactId>
 		</dependency>

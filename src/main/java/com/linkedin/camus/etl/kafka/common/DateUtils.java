@@ -6,11 +6,11 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 public class DateUtils {
-	public static DateTimeZone PST = DateTimeZone.forID("America/Los_Angeles");
+	public static DateTimeZone UTC = DateTimeZone.forID("UTC");
 	public static DateTimeFormatter MINUTE_FORMATTER = getDateTimeFormatter("YYYY-MM-dd-HH-mm");
 
 	public static DateTimeFormatter getDateTimeFormatter(String str) {
-		return getDateTimeFormatter(str, PST);
+		return getDateTimeFormatter(str, UTC);
 	}
 	
 	public static DateTimeFormatter getDateTimeFormatter(String str, DateTimeZone timeZone) {
@@ -25,10 +25,5 @@ public class DateUtils {
 		long adjustedTimeStamp = outputDateTimeZone.convertUTCToLocal(timestamp);
 		long partitionedTime = (adjustedTimeStamp / timeGranularityMs) * timeGranularityMs;
 		return outputDateTimeZone.convertLocalToUTC(partitionedTime, false);
-	}
-
-	public static DateTime getMidnight() {
-		DateTime time = new DateTime(PST);
-		return new DateTime(time.getYear(), time.getMonthOfYear(), time.getDayOfMonth(), 0, 0, 0, 0, PST);
 	}
 }

@@ -24,15 +24,6 @@ import com.linkedin.camus.etl.kafka.CamusJob;
 public class EtlCounts {
 
 	private static Logger log = Logger.getLogger(EtlCounts.class);
-	private static final String TOPIC = "topic";
-	private static final String GRANULARITY = "granularity";
-	private static final String COUNTS = "counts";
-	private static final String START_TIME = "startTime";
-	private static final String END_TIME = "endTime";
-	private static final String FIRST_TIMESTAMP = "firstTimestamp";
-	private static final String LAST_TIMESTAMP = "lastTimestamp";
-	private static final String ERROR_COUNT = "errorCount";
-	private static final String MONITORING_EVENT_CLASS = "monitoring.event.class";
 	
 	private String topic;
 	private long startTime;
@@ -172,20 +163,5 @@ public class EtlCounts {
 
 		lastKey = new EtlKey(key);
 		eventCount++;
-	}
-	
-	
-	
-	public void writeCountsToMap(ArrayList<Map<String,Object>> allCountObject, FileSystem fs, Path path) throws IOException {
-		Map<String, Object> countFile = new HashMap<String, Object>();
-		countFile.put(TOPIC, topic);
-		countFile.put(GRANULARITY, granularity);
-		countFile.put(COUNTS, counts);
-		countFile.put(START_TIME, startTime);
-		countFile.put(END_TIME, endTime);
-		countFile.put(FIRST_TIMESTAMP, firstTimestamp);
-		countFile.put(LAST_TIMESTAMP, lastTimestamp);
-		countFile.put(ERROR_COUNT, errorCount);	
-		allCountObject.add(countFile);
 	}
 }

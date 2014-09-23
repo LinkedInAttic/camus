@@ -27,16 +27,11 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_DESTINATION_PATH = "etl.destination.path";
     public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRECTORY = "etl.destination.path.topic.sub.dir";
     public static final String ETL_RUN_MOVE_DATA = "etl.run.move.data";
-
-    public static final String ETL_DEFAULT_TIMEZONE = "etl.default.timezone";
-    public static final String ETL_DEFLATE_LEVEL = "etl.deflate.level";
     public static final String ETL_OUTPUT_FILE_TIME_PARTITION_MINS = "etl.output.file.time.partition.mins";
-
     public static final String KAFKA_MONITOR_TIME_GRANULARITY_MS = "kafka.monitor.time.granularity";
     public static final String ETL_DEFAULT_PARTITIONER_CLASS = "etl.partitioner.class";
-    public static final String ETL_OUTPUT_CODEC = "etl.output.codec";
-    public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
     public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
+    public static final String REQUESTS_FILE = "requests.previous";
 
     public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
             .getDateTimeFormatter("YYYYMMddHH");
@@ -44,7 +39,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ERRORS_PREFIX = "errors";
     public static final String COUNTS_PREFIX = "counts";
 
-    public static final String REQUESTS_FILE = "requests.previous";
     private static EtlMultiOutputCommitter committer = null;
     private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
 
@@ -90,14 +84,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         }
     }
 
-    public static void setDefaultTimeZone(JobContext job, String tz) {
-        job.getConfiguration().set(ETL_DEFAULT_TIMEZONE, tz);
-    }
-
-    public static String getDefaultTimeZone(JobContext job) {
-        return job.getConfiguration().get(ETL_DEFAULT_TIMEZONE, "America/Los_Angeles");
-    }
-
     public static void setDestinationPath(JobContext job, Path dest) {
         job.getConfiguration().set(ETL_DESTINATION_PATH, dest.toString());
     }
@@ -114,40 +100,12 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         return new Path(job.getConfiguration().get(ETL_DESTINATION_PATH_TOPIC_SUBDIRECTORY, "hourly"));
     }
 
-    public static void setMonitorTimeGranularityMins(JobContext job, int mins) {
-        job.getConfiguration().setInt(KAFKA_MONITOR_TIME_GRANULARITY_MS, mins);
-    }
-
-    public static int getMonitorTimeGranularityMins(JobContext job) {
-        return job.getConfiguration().getInt(KAFKA_MONITOR_TIME_GRANULARITY_MS, 10);
-    }
-
     public static long getMonitorTimeGranularityMs(JobContext job) {
       return job.getConfiguration().getInt(KAFKA_MONITOR_TIME_GRANULARITY_MS, 10) * 60000L;
     }
     
-    public static void setEtlDeflateLevel(JobContext job, int val) {
-        job.getConfiguration().setInt(ETL_DEFLATE_LEVEL, val);
-    }
-
-    public static void setEtlOutputCodec(JobContext job, String codec) {
-        job.getConfiguration().set(ETL_OUTPUT_CODEC, codec);
-    }
-
-    public static String getEtlOutputCodec(JobContext job) {
-        return job.getConfiguration().get(ETL_OUTPUT_CODEC, ETL_DEFAULT_OUTPUT_CODEC);
-
-    }
-    public static int getEtlDeflateLevel(JobContext job) {
-        return job.getConfiguration().getInt(ETL_DEFLATE_LEVEL, 6);
-    }
-
     public static int getEtlOutputFileTimePartitionMins(JobContext job) {
         return job.getConfiguration().getInt(ETL_OUTPUT_FILE_TIME_PARTITION_MINS, 60);
-    }
-
-    public static void setEtlOutputFileTimePartitionMins(JobContext job, int val) {
-        job.getConfiguration().setInt(ETL_OUTPUT_FILE_TIME_PARTITION_MINS, val);
     }
 
     public static boolean isRunMoveData(JobContext job) {

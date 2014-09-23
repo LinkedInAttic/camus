@@ -1,18 +1,30 @@
 package com.linkedin.camus.etl.kafka;
 
+import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EtlCounts;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.Source;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.TreeMap;
+import java.util.Comparator;
+import java.util.Arrays;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -24,6 +36,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -46,15 +59,12 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 import org.apache.log4j.xml.DOMConfigurator;
+import org.codehaus.jackson.map.DeserializationConfig;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
-
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -74,9 +84,9 @@ public class CamusJob extends Configured implements Tool {
 	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
-
+	
 	private DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter(
-			"YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
+      "YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
 
 	public CamusJob() throws IOException {
 		this(new Properties());
@@ -85,11 +95,11 @@ public class CamusJob extends Configured implements Tool {
 	public CamusJob(Properties props) throws IOException {
 		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
 	}
-
-	public CamusJob(Properties props, Logger log) throws IOException {
-		this.props = props;
-		this.log = log;
-	}
+	
+	 public CamusJob(Properties props, Logger log) throws IOException {
+	    this.props = props;
+	    this.log = log;
+	  }
 
 	private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
 
@@ -110,47 +120,53 @@ public class CamusJob extends Configured implements Tool {
 				(timingMap.get(name) == null ? 0 : timingMap.get(name))
 						+ System.currentTimeMillis());
 	}
-
+	
 	private Job createJob(Properties props) throws IOException {
-		Job job;
-		if (getConf() == null) {
-			setConf(new Configuration());
-		}
-
-		populateConf(props, getConf(), log);
-
-		job = new Job(getConf());
-		job.setJarByClass(CamusJob.class);
-
-		if (job.getConfiguration().get("camus.job.name") != null) {
-			job.setJobName(job.getConfiguration().get("camus.job.name"));
-		} else {
-			job.setJobName("Camus Job");
-		}
-
-		return job;
+	  Job job; 
+	  if(getConf() == null)
+	    {
+	      setConf(new Configuration()); 
+	    }
+	  
+	  populateConf(props, getConf(), log);
+	  
+	  job = new Job(getConf());
+	  job.setJarByClass(CamusJob.class);
+	  
+	   if(job.getConfiguration().get("camus.job.name") != null)
+	    {
+	      job.setJobName(job.getConfiguration().get("camus.job.name"));
+	    }
+	   else
+	   {
+	     job.setJobName("Camus Job");
+	   }
+	   
+	  return job;
 	}
 
-	public static void populateConf(Properties props, Configuration conf,
-			Logger log) throws IOException {
-		for (Object key : props.keySet()) {
-			conf.set(key.toString(), props.getProperty(key.toString()));
-		}
+	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
+	  for(Object key : props.keySet())
+    {
+      conf.set(key.toString(), props.getProperty(key.toString()));
+    }
 
 		FileSystem fs = FileSystem.get(conf);
 
-		String hadoopCacheJarDir = conf.get("hdfs.default.classpath.dir", null);
+		String hadoopCacheJarDir = conf.get(
+				"hdfs.default.classpath.dir", null);
 		if (hadoopCacheJarDir != null) {
 			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
 
 			if (status != null) {
 				for (int i = 0; i < status.length; ++i) {
-					if (!status[i].isDirectory()) {
+					if (!status[i].isDir()) {
 						log.info("Adding Jar to Distributed Cache Archive File:"
 								+ status[i].getPath());
 
-						DistributedCache.addFileToClassPath(
-								status[i].getPath(), conf, fs);
+						DistributedCache
+								.addFileToClassPath(status[i].getPath(),
+										conf, fs);
 					}
 				}
 			} else {
@@ -160,13 +176,14 @@ public class CamusJob extends Configured implements Tool {
 		}
 
 		// Adds External jars to hadoop classpath
-		String externalJarList = conf.get("hadoop.external.jarFiles", null);
+		String externalJarList = conf.get(
+				"hadoop.external.jarFiles", null);
 		if (externalJarList != null) {
 			String[] jarFiles = externalJarList.split(",");
 			for (String jarFile : jarFiles) {
 				log.info("Adding external jar File:" + jarFile);
-				DistributedCache
-						.addFileToClassPath(new Path(jarFile), conf, fs);
+				DistributedCache.addFileToClassPath(new Path(jarFile),
+						conf, fs);
 			}
 		}
 	}
@@ -204,9 +221,9 @@ public class CamusJob extends Configured implements Tool {
 		long limit = (long) (content.getQuota() * job.getConfiguration()
 				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
-
-		if (props.containsKey(ETL_BASEDIR_QUOTA_OVERIDE)) {
-			limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
+		
+		if (props.containsKey(ETL_BASEDIR_QUOTA_OVERIDE)){
+		  limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
 		}
 
 		long currentCount = content.getFileCount()
@@ -218,50 +235,44 @@ public class CamusJob extends Configured implements Tool {
 				return f1.getPath().getName().compareTo(f2.getPath().getName());
 			}
 		});
-
+		
 		// removes oldest directory until we get under required % of count
 		// quota. Won't delete the most recent directory.
 		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
 			FileStatus stat = executions[i];
 			log.info("removing old execution: " + stat.getPath().getName());
 			ContentSummary execContent = fs.getContentSummary(stat.getPath());
-			currentCount -= execContent.getFileCount()
-					+ execContent.getDirectoryCount();
+			currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
 			fs.delete(stat.getPath(), true);
 		}
-
+		
 		// removing failed exectutions if we need room
-		if (limit < currentCount) {
-			FileStatus[] failedExecutions = fs.listStatus(execBasePath,
-					new PathFilter() {
-
-						public boolean accept(Path path) {
-							try {
-								dateFmt.parseDateTime(path.getName());
-								return true;
-							} catch (IllegalArgumentException e) {
-								return false;
-							}
-						}
-					});
-
-			Arrays.sort(failedExecutions, new Comparator<FileStatus>() {
-				public int compare(FileStatus f1, FileStatus f2) {
-					return f1.getPath().getName()
-							.compareTo(f2.getPath().getName());
-				}
-			});
-
-			for (int i = 0; i < failedExecutions.length && limit < currentCount; i++) {
-				FileStatus stat = failedExecutions[i];
-				log.info("removing failed execution: "
-						+ stat.getPath().getName());
-				ContentSummary execContent = fs.getContentSummary(stat
-						.getPath());
-				currentCount -= execContent.getFileCount()
-						+ execContent.getDirectoryCount();
-				fs.delete(stat.getPath(), true);
-			}
+		if (limit < currentCount){
+		  FileStatus[] failedExecutions = fs.listStatus(execBasePath, new PathFilter() {
+		    
+		    public boolean accept(Path path) {
+		      try {
+		        dateFmt.parseDateTime(path.getName());
+		        return true;
+		      } catch (IllegalArgumentException e){
+		        return false;
+		      }
+		    }
+		  });
+		  
+		  Arrays.sort(failedExecutions, new Comparator<FileStatus>() {
+	      public int compare(FileStatus f1, FileStatus f2) {
+	        return f1.getPath().getName().compareTo(f2.getPath().getName());
+	      }
+	    });
+		  
+	    for (int i = 0; i < failedExecutions.length && limit < currentCount; i++) {
+	      FileStatus stat = failedExecutions[i];
+	      log.info("removing failed execution: " + stat.getPath().getName());
+	      ContentSummary execContent = fs.getContentSummary(stat.getPath());
+	      currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
+	      fs.delete(stat.getPath(), true);
+	    }
 		}
 
 		// determining most recent execution and using as the starting point for
@@ -288,7 +299,7 @@ public class CamusJob extends Configured implements Tool {
 				+ newExecutionOutput.toString());
 
 		EtlInputFormat.setLogger(log);
-
+		
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setNumReduceTasks(0);
@@ -310,17 +321,16 @@ public class CamusJob extends Configured implements Tool {
 		stopTiming("hadoop");
 		startTiming("commit");
 
-		Map<EtlKey, ExceptionWritable> errors = readErrors(fs,
-				newExecutionOutput);
+        Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 
 		// Print any potential errors encountered
-		if (!errors.isEmpty())
-			log.error("Errors encountered during job run:");
+        if (!errors.isEmpty())
+            log.error("Errors encountered during job run:");
 
-		for (Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
-			log.error(entry.getKey().toString());
-			log.error(entry.getValue().toString());
-		}
+        for(Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
+            log.error(entry.getKey().toString());
+            log.error(entry.getValue().toString());
+        }
 
 		Path newHistory = new Path(execHistory, executionDate);
 		log.info("Moving execution to history : " + newHistory);
@@ -348,37 +358,34 @@ public class CamusJob extends Configured implements Tool {
 			throw new RuntimeException("hadoop job failed");
 		}
 
-		if (!errors.isEmpty()
-				&& props.getProperty(ETL_FAIL_ON_ERRORS,
-						Boolean.FALSE.toString()).equalsIgnoreCase(
-						Boolean.TRUE.toString())) {
-			throw new RuntimeException("Camus saw errors, check stderr");
-		}
+        if(!errors.isEmpty() && props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString())
+                .equalsIgnoreCase(Boolean.TRUE.toString())) {
+            throw new RuntimeException("Camus saw errors, check stderr");
+        }
 	}
 
-	public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs,
-			Path newExecutionOutput) throws IOException {
-		Map<EtlKey, ExceptionWritable> errors = new HashMap<EtlKey, ExceptionWritable>();
+	public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs, Path newExecutionOutput)
+			throws IOException {
+        Map<EtlKey, ExceptionWritable> errors = new HashMap<EtlKey, ExceptionWritable>();
 
 		for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(
 				EtlMultiOutputFormat.ERRORS_PREFIX))) {
 			SequenceFile.Reader reader = new SequenceFile.Reader(fs,
 					f.getPath(), fs.getConf());
 
-			String errorFrom = "\nError from file [" + f.getPath() + "]";
+            String errorFrom = "\nError from file [" + f.getPath() + "]";
 
 			EtlKey key = new EtlKey();
 			ExceptionWritable value = new ExceptionWritable();
 
 			while (reader.next(key, value)) {
-				ExceptionWritable exceptionWritable = new ExceptionWritable(
-						value.toString() + errorFrom);
-				errors.put(new EtlKey(key), exceptionWritable);
+                ExceptionWritable exceptionWritable = new ExceptionWritable(value.toString() + errorFrom);
+                errors.put(new EtlKey(key), exceptionWritable);
 			}
 			reader.close();
 		}
 
-		return errors;
+        return errors;
 	}
 
 	/**
@@ -542,8 +549,8 @@ public class CamusJob extends Configured implements Tool {
 		}
 
 		if (cmd.hasOption('p'))
-			props.load(this.getClass().getClassLoader()
-					.getResourceAsStream(cmd.getOptionValue('p')));
+		    props.load(this.getClass().getClassLoader().getResourceAsStream(
+                    cmd.getOptionValue('p')));
 
 		if (cmd.hasOption('P')) {
 			File file = new File(cmd.getOptionValue('P'));

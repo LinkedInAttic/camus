@@ -4,25 +4,25 @@ import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.Writable;
 
 public interface IEtlKey {
-	String getServer();
+    String getServer();
 
-	String getService();
+    String getService();
 
-	long getTime();
+    long getTime();
 
-	String getTopic();
+    String getTopic();
 
-	// String getNodeId();
+    //String getNodeId();
 
-	int getPartition();
+    int getPartition();
 
-	long getBeginOffset();
+    long getBeginOffset();
 
-	long getOffset();
+    long getOffset();
 
-	long getChecksum();
+    long getChecksum();
 
-	MapWritable getPartitionMap();
+    MapWritable getPartitionMap();
 
-	void put(Writable key, Writable value);
+    void put(Writable key, Writable value);
 }

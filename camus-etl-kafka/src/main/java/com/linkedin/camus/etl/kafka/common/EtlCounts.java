@@ -12,8 +12,6 @@ import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
 
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -191,80 +189,4 @@ public class EtlCounts {
 		countFile.put(ERROR_COUNT, errorCount);	
 		allCountObject.add(countFile);
 	}
-	
-	
-	public void postTrackingCountToKafka(Configuration conf , String tier, String brokerList) {
-		MessageEncoder<IndexedRecord, byte[]> encoder;
-		AbstractMonitoringEvent monitoringDetails;
-		try {
-			encoder = (MessageEncoder<IndexedRecord, byte[]>) Class.forName(
-					conf.get(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS))
-					.newInstance();
-
-			Properties props = new Properties();
-			for (Entry<String, String> entry : conf) {
-				props.put(entry.getKey(), entry.getValue());
-			}
-
-			encoder.init(props, "TrackingMonitoringEvent");
-			monitoringDetails = (AbstractMonitoringEvent) Class.forName(conf.get(MONITORING_EVENT_CLASS))
-					.getDeclaredConstructor(Configuration.class).newInstance(conf);
-		} catch (Exception e1) {
-			throw new RuntimeException(e1);
-		}
-
-		ArrayList<byte[]> monitorSet = new ArrayList<byte[]>();
-		int counts = 0;
-		
-		for (Map.Entry<String, Source> singleCount : this.getCounts().entrySet()) {
-			Source countEntry = singleCount.getValue();
-			GenericRecord monitoringRecord = monitoringDetails
-					.createMonitoringEventRecord(countEntry, topic,
-							granularity, tier);
-			byte[] message = encoder.toBytes((IndexedRecord) monitoringRecord);
-			monitorSet.add(message);
-
-			if (monitorSet.size() >= 2000) {
-				counts += monitorSet.size();
-				produceCount(brokerList, monitorSet);
-				monitorSet.clear();
-			}
-		}
-
-		if (monitorSet.size() > 0) {
-			counts += monitorSet.size();
-			produceCount(brokerList, monitorSet);
-		}
-
-		log.info(topic + " sent " + counts + " counts");
-	}
-
-	private void produceCount(String brokerList, ArrayList<byte[]> monitorSet) {
-		// Shuffle the broker
-
-		Properties props = new Properties();
-		props.put("metadata.broker.list", brokerList);
-		props.put("producer.type", "async");
-		props.put("request.required.acks", "1");
-		props.put("request.timeout.ms", "30000");
-		log.debug("Broker list: " + brokerList);
-		Producer producer = new Producer(new ProducerConfig(props));
-		try {
-			for (byte[] message : monitorSet) {
-				KeyedMessage keyedMessage = new KeyedMessage(
-						"TrackingMonitoringEvent", message);
-				producer.send(keyedMessage);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.out.println(topic + " issue sending tracking to "
-                    + brokerList.toString());
-		} finally {
-			if (producer != null) {
-				producer.close();
-			}
-		}
-
-	}
-	
 }

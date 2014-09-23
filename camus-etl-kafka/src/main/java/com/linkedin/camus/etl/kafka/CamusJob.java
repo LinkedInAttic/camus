@@ -330,9 +330,6 @@ public class CamusJob extends Configured implements Tool {
 		stopTiming("hadoop");
 		startTiming("commit");
 
-        // Send Tracking counts to Kafka
-        sendTrackingCounts(job, fs, newExecutionOutput);
-
         Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 
 		// Print any potential errors encountered
@@ -398,95 +395,6 @@ public class CamusJob extends Configured implements Tool {
 		}
 
         return errors;
-	}
-
-	// Posts the tracking counts to Kafka
-	public void sendTrackingCounts(JobContext job, FileSystem fs,
-			Path newExecutionOutput) throws IOException, URISyntaxException {
-		if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
-			FileStatus[] gstatuses = fs.listStatus(newExecutionOutput,
-					new PrefixFilter("counts"));
-			HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
-			for (FileStatus gfileStatus : gstatuses) {
-				FSDataInputStream fdsis = fs.open(gfileStatus.getPath());
-
-				BufferedReader br = new BufferedReader(new InputStreamReader(
-						fdsis), 1048576);
-				StringBuffer buffer = new StringBuffer();
-				String temp = "";
-				while ((temp = br.readLine()) != null) {
-					buffer.append(temp);
-				}
-				ObjectMapper mapper = new ObjectMapper();
-				mapper.configure(
-						DeserializationConfig.Feature.FAIL_ON_UNKNOWN_PROPERTIES,
-						false);
-				ArrayList<EtlCounts> countsObjects = mapper.readValue(
-						buffer.toString(),
-						new TypeReference<ArrayList<EtlCounts>>() {
-						});
-
-				for (EtlCounts count : countsObjects) {
-					String topic = count.getTopic();
-					if (allCounts.containsKey(topic)) {
-						EtlCounts existingCounts = allCounts.get(topic);
-						existingCounts
-								.setEndTime(Math.max(
-										existingCounts.getEndTime(),
-										count.getEndTime()));
-						existingCounts.setLastTimestamp(Math.max(
-								existingCounts.getLastTimestamp(),
-								count.getLastTimestamp()));
-						existingCounts.setStartTime(Math.min(
-								existingCounts.getStartTime(),
-								count.getStartTime()));
-						existingCounts.setFirstTimestamp(Math.min(
-								existingCounts.getFirstTimestamp(),
-								count.getFirstTimestamp()));
-						existingCounts.setErrorCount(existingCounts
-								.getErrorCount() + count.getErrorCount());
-						existingCounts.setGranularity(count.getGranularity());
-						existingCounts.setTopic(count.getTopic());
-						for (Entry<String, Source> entry : count.getCounts()
-								.entrySet()) {
-							Source source = entry.getValue();
-							if (existingCounts.getCounts().containsKey(
-									source.toString())) {
-								Source old = existingCounts.getCounts().get(
-										source.toString());
-								old.setCount(old.getCount() + source.getCount());
-								existingCounts.getCounts().put(old.toString(),
-										old);
-							} else {
-								existingCounts.getCounts().put(
-										source.toString(), source);
-							}
-							allCounts.put(topic, existingCounts);
-						}
-					} else {
-						allCounts.put(topic, count);
-					}
-				}
-			}
-
-			for (FileStatus countFile : fs.listStatus(newExecutionOutput,
-					new PrefixFilter("counts"))) {
-				if (props.getProperty(ETL_KEEP_COUNT_FILES, "false").equals(
-						"true")) {
-					fs.rename(countFile.getPath(),
-							new Path(props.getProperty(ETL_COUNTS_PATH),
-									countFile.getPath().getName()));
-				} else {
-					fs.delete(countFile.getPath(), true);
-				}
-			}
-
-			String brokerList = getKafkaBrokers(job);
-			for (EtlCounts finalCounts : allCounts.values()) {
-				finalCounts.postTrackingCountToKafka(job.getConfiguration(),
-						props.getProperty(KAFKA_MONITOR_TIER), brokerList);
-			}
-		}
 	}
 
 	/**

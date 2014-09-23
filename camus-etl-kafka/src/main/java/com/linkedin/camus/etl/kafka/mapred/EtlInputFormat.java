@@ -3,7 +3,7 @@ package com.linkedin.camus.etl.kafka.mapred;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
@@ -644,7 +644,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
 	public static Class<MessageDecoder> getMessageDecoderClass(JobContext job) {
 		return (Class<MessageDecoder>) job.getConfiguration().getClass(
-				CAMUS_MESSAGE_DECODER_CLASS, KafkaAvroMessageDecoder.class);
+				CAMUS_MESSAGE_DECODER_CLASS, JsonStringMessageDecoder.class);
 	}
 
 	private class OffsetFileFilter implements PathFilter {

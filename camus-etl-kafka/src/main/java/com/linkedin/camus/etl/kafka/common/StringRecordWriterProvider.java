@@ -8,7 +8,6 @@ import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.avro.file.CodecFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;

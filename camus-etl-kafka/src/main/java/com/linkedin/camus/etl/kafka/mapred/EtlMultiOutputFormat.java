@@ -19,15 +19,9 @@ import org.joda.time.format.DateTimeFormatter;
 import com.linkedin.camus.coders.Partitioner;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.coders.DefaultPartitioner;
-import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
+import com.linkedin.camus.etl.kafka.common.JSONRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
-
-/**
- * MultipleAvroOutputFormat.
- *
- * File names are determined by output keys.
- */
 
 public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     public static final String ETL_DESTINATION_PATH = "etl.destination.path";
@@ -37,7 +31,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
     public static final String ETL_DEFAULT_TIMEZONE = "etl.default.timezone";
     public static final String ETL_DEFLATE_LEVEL = "etl.deflate.level";
-    public static final String ETL_AVRO_WRITER_SYNC_INTERVAL = "etl.avro.writer.sync.interval";
     public static final String ETL_OUTPUT_FILE_TIME_PARTITION_MINS = "etl.output.file.time.partition.mins";
 
     public static final String KAFKA_MONITOR_TIME_GRANULARITY_MS = "kafka.monitor.time.granularity";
@@ -82,7 +75,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
             JobContext job) {
         return (Class<RecordWriterProvider>) job.getConfiguration()
                 .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
-                        AvroRecordWriterProvider.class);
+                        JSONRecordWriterProvider.class);
     }
     
     public static RecordWriterProvider getRecordWriterProvider(JobContext job) {
@@ -90,7 +83,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
         {
           return (RecordWriterProvider) job.getConfiguration()
                    .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
-                           AvroRecordWriterProvider.class).newInstance();
+                           JSONRecordWriterProvider.class).newInstance();
         }
         catch (Exception e)
         {
@@ -134,14 +127,6 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
       return job.getConfiguration().getInt(KAFKA_MONITOR_TIME_GRANULARITY_MS, 10) * 60000L;
     }
     
-    public static void setEtlAvroWriterSyncInterval(JobContext job, int val) {
-        job.getConfiguration().setInt(ETL_AVRO_WRITER_SYNC_INTERVAL, val);
-    }
-
-    public static int getEtlAvroWriterSyncInterval(JobContext job) {
-        return job.getConfiguration().getInt(ETL_AVRO_WRITER_SYNC_INTERVAL, 16000);
-    }
-
     public static void setEtlDeflateLevel(JobContext job, int val) {
         job.getConfiguration().setInt(ETL_DEFLATE_LEVEL, val);
     }

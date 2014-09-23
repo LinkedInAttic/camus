@@ -25,5 +25,3 @@ target
 # target dirs
 camus-api/target/
 camus-etl-kafka/target/
-camus-example/target/
-camus-schema-registry/target/

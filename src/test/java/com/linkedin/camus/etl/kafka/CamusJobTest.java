@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 
+import com.linkedin.camus.etl.kafka.coders.FailDecoder;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -35,6 +36,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.google.gson.Gson;
+import com.linkedin.camus.etl.kafka.coders.HybridMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
@@ -96,6 +98,7 @@ public class CamusJobTest {
         props.setProperty(CamusJob.ETL_EXECUTION_BASE_PATH, path + EXECUTION_BASE_PATH);
         props.setProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH, path + EXECUTION_HISTORY_PATH);
         
+        props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, HybridMessageDecoder.class.getName());
         props.setProperty(EtlMultiOutputFormat.ETL_RECORD_WRITER_PROVIDER_CLASS,
                 SequenceFileRecordWriterProvider.class.getName());
         
@@ -134,12 +137,31 @@ public class CamusJobTest {
     }
 
     @Test
+    public void runJobWithErrors() throws Exception {
+        props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+        job = new CamusJob(props);
+        job.run();
+
+        assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
+        assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
+        assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
+    }
+
+    @Test
     public void runJobWithoutErrorsAndFailOnErrors() throws Exception {
         props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
         job = new CamusJob(props);
         runJob();
     }
 
+    @Test (expected = RuntimeException.class)
+    public void runJobWithErrorsAndFailOnErrors() throws Exception {
+        props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
+        props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+        job = new CamusJob(props);
+        job.run();
+    }
+    
     private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {
         assertCamusContains(topic, messagesWritten.get(topic));
     }

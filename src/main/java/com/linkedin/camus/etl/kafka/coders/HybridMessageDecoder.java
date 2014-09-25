@@ -70,7 +70,11 @@ public class HybridMessageDecoder extends MessageDecoder<byte[], String> {
                 timestamp = jsonObject.get(timestampField).getAsLong();
             } else {
                 String timestampString = jsonObject.get(timestampField).getAsString();
-                timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                try {
+                    timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
 

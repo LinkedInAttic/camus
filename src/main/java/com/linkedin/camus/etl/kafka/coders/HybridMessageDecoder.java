@@ -31,8 +31,12 @@ public class HybridMessageDecoder extends MessageDecoder<byte[], String> {
         this.props = props;
         this.topicName = topicName;
 
-        timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
         timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD,  DEFAULT_TIMESTAMP_FIELD);
+        timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
+
+        if (timestampFormat.equals("iso")) {
+            timestampFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+        }
     }
 
     @Override
@@ -61,22 +65,17 @@ public class HybridMessageDecoder extends MessageDecoder<byte[], String> {
 
         if (jsonObject.has(timestampField)) {
             if (timestampFormat.equals("unix_seconds") || timestampFormat.equals("unix")) {
-                timestamp = jsonObject.get(timestampField).getAsLong();
-                timestamp = timestamp * 1000L;
+                timestamp = jsonObject.get(timestampField).getAsLong() * 1000L;
             } else if (timestampFormat.equals("unix_milliseconds")) {
                 timestamp = jsonObject.get(timestampField).getAsLong();
             } else {
                 String timestampString = jsonObject.get(timestampField).getAsString();
-                try {
-                    timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
-                } catch (Exception e) {
-                    log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
-                }
+                timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
             }
         }
 
         if (timestamp == 0) {
-            log.warn("Couldn't find or parse timestamp field '" + timestampField + "' in JSON message, defaulting to current time.");
+            log.warn("Couldn't find timestamp field '" + timestampField + "' in JSON message, defaulting to current time.");
             timestamp = System.currentTimeMillis();
         }
 

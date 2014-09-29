@@ -72,17 +72,21 @@ Note that there are two jars that are not currently in a public Maven repo. Thes
 
 ### First, Create a Custom Kafka Message to Avro Record Decoder
 
-We hope to eventually create a more out of the box solution, but until we get there you will need to create a custom decoder for handling Kafka messages.  You can do this by implementing the abstract class com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder.  Internally, we use a schema registry that enables obtaining an Avro schema using an identifier included in the Kafka byte payload. For more information on other options, you can email camus_etl@googlegroups.com.  Once you have created a decoder, you will need to specify that decoder in the properties as described below.
+We hope to eventually create a more out of the box solution, but until we get there you will need to create a custom decoder for handling Kafka messages.  You can do this by implementing the abstract class com.linkedin.batch.etl.kafka.coders.KafkaMessageDecoder.  Internally, we use a schema registry that enables obtaining an Avro schema using an identifier included in the Kafka byte payload. For more information on other options, you can email camus_etl@googlegroups.com.  Once you have created a decoder, you will need to specify that decoder in the properties as described below.  You can also start by taking a look at the existing Decoders to see if they will work for you, or as examples if you need to implement a new one.  
 
 ### Decoding JSON messages
 
 Camus can also process JSON messages. Set "camus.message.decoder.class=com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder" in camus.properties. Additionally, there are two more options "camus.message.timestamp.format" (default value: "[dd/MMM/yyyy:HH:mm:ss Z]") and "camus.message.timestamp.field" (default value: "timestamp").
 
+### Writing to different formats
+
+By default Camus writes Avro data.  But you can also write to different formats by implementing and RecordWriterProvider.  For examples see https://github.com/linkedin/camus/blob/master/camus-etl-kafka/src/main/java/com/linkedin/camus/etl/kafka/common/AvroRecordWriterProvider.java and https://github.com/linkedin/camus/blob/master/camus-etl-kafka/src/main/java/com/linkedin/camus/etl/kafka/common/StringRecordWriterProvider.java.  You can specify which writer to use with "etl.record.writer.provider.class".
+
 ### Configuration
 
 Camus can be run from the command line as Java App. You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath), or from the command line itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
 
-Here is an abbreviated list of commonly used parameters.
+Here is an abbreviated list of commonly used parameters.  An example properties file is also located https://github.com/linkedin/camus/blob/master/camus-example/src/main/resources/camus.properties.
 
 * Top-level data output directory, sub-directories will be dynamically created for each topic pulled
     * `etl.destination.path=`

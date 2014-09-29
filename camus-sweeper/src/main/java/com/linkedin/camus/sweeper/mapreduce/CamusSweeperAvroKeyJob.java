@@ -11,6 +11,8 @@ import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
 import org.apache.avro.SchemaParseException;
+import org.apache.avro.SchemaValidationException;
+import org.apache.avro.SchemaValidatorBuilder;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
@@ -100,37 +102,12 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
   
   private boolean validateKeySchema(Schema schema, Schema keySchema)
   {
-    for (Field fld : keySchema.getFields())
-    {
-      Field schemaFld = schema.getField(fld.name());
-
-      if (schemaFld == null)
-        return false;
-
-      Type fldType = fld.schema().getType();
-
-      if (fldType.equals(Type.UNION))
-      {
-        for (Schema s : fld.schema().getTypes())
-        {
-          if (s.getType().equals(Type.RECORD))
-          {
-            fldType = Type.RECORD;
-            break;
-          }
-        }
-      }
-
-      if (fldType.equals(Type.RECORD))
-      {
-        if (! validateKeySchema(schemaFld.schema(), fld.schema()))
-        {
-          return false;
-        }
-      }
+    try {
+      new SchemaValidatorBuilder().canBeReadStrategy().validateLatest().validate(keySchema, Collections.singletonList(schema));
+      return true;
+    } catch (SchemaValidationException e) {
+      return false;
     }
-
-    return true;
   }
 
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema)

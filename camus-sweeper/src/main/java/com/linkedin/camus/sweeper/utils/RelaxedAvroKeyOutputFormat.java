@@ -3,6 +3,7 @@ package com.linkedin.camus.sweeper.utils;
 import java.io.IOException;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.mapred.AvroKey;
 import org.apache.avro.mapreduce.AvroKeyOutputFormat;
 import org.apache.avro.mapreduce.AvroKeyRecordWriter;
@@ -39,7 +40,7 @@ public class RelaxedAvroKeyOutputFormat<T> extends AvroKeyOutputFormat<T>
           "AvroKeyOutputFormat requires an output schema. Use AvroJob.setOutputKeySchema().");
     }
 
-    return new AvroKeyRecordWriter<T>(writerSchema, getCompressionCodec(context), getAvroFileOutputStream(context));
+    return new AvroKeyRecordWriter<T>(writerSchema, GenericData.get(), getCompressionCodec(context), getAvroFileOutputStream(context));
 
   }
 

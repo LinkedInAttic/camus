@@ -73,6 +73,13 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     @Override
     public void initialize(InputSplit split, TaskAttemptContext context) throws IOException,
             InterruptedException {
+        // For class path debugging
+        log.info("classpath: " + System.getProperty("java.class.path"));
+        ClassLoader loader = EtlRecordReader.class.getClassLoader();
+        log.info("PWD: " + System.getProperty("user.dir"));
+        log.info("classloader: " + loader.getClass());
+        log.info("org.apache.avro.Schema: " + loader.getResource("org/apache/avro/Schema.class"));
+
         this.split = (EtlSplit) split;
         this.context = context;
 

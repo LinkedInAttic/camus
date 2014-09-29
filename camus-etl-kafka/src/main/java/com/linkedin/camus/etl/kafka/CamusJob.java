@@ -171,7 +171,7 @@ public class CamusJob extends Configured implements Tool {
 		
 		List<Pattern> jarFilterString = new ArrayList<Pattern>();
 		
-		for (String str : Arrays.asList(conf.getStrings("cache.jar.filter.list"))){
+		for (String str : Arrays.asList(conf.getStrings("cache.jar.filter.list", new String[0]))){
 		  jarFilterString.add(Pattern.compile(str));
 		}
 		

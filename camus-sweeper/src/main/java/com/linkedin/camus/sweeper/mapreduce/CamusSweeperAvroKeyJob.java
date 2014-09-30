@@ -86,10 +86,22 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
       
+      List<Field> fields = new ArrayList<Schema.Field>();
+      
+      for (Field f : keySchema.getFields()){
+        fields.add(new Field(f.name(), f.schema(), f.doc(), f.defaultValue(), f.order()));
+      }
+      
+      keySchema = duplicateRecord(keySchema, schema.getName(), schema.getNamespace());
+      log.debug("key schema:" + keySchema);
+      
       if (! validateKeySchema(schema, keySchema))
       {
+        log.info("topic:" + topic + " key invalid, using map only job");
         job.setNumReduceTasks(0);
         keySchema = schema;
+      } else {
+        log.info("topic:" + topic + " key is valid, deduping");
       }
     }
 
@@ -103,11 +115,32 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
   private boolean validateKeySchema(Schema schema, Schema keySchema)
   {
     try {
-      new SchemaValidatorBuilder().canBeReadStrategy().validateLatest().validate(keySchema, Collections.singletonList(schema));
+      new SchemaValidatorBuilder().canBeReadStrategy().validateLatest().validate(schema, Collections.singletonList(keySchema));
       return true;
     } catch (SchemaValidationException e) {
       return false;
     }
+  }
+  
+  public Schema duplicateRecord(Schema record, String name, String namespace){
+    List<Field> fields = new ArrayList<Schema.Field>();
+    
+    for (Field f : record.getFields()){
+      Schema fldSchema;
+      if (f.schema().getType().equals(Type.RECORD))
+        fldSchema = duplicateRecord(f.schema(), f.schema().getName(), namespace);
+      else if (f.schema().getType().equals(Type.FIXED))
+        fldSchema = Schema.createFixed(f.schema().getName(), f.schema().getDoc(), namespace, f.schema().getFixedSize());
+      else
+        fldSchema = f.schema();
+      
+      fields.add(new Field(f.name(), fldSchema, f.doc(), f.defaultValue(), f.order()));
+    }
+    
+    Schema newRecord = Schema.createRecord(name, record.getDoc(), namespace, false);
+    newRecord.setFields(fields);
+    
+    return newRecord;
   }
 
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema)

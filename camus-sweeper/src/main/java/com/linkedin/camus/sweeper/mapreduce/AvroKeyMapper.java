@@ -33,6 +33,7 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
     LOG.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = AvroKeyMapper.class.getClassLoader();
     LOG.info("com.linkedin.events.fixed_16: " + loader.getResource("com/linkedin/events/fixed_16.class"));
+    LOG.info("org.apache.avro.Schema: " + loader.getResource("org/apache/avro/Schema.class"));
 
     keySchema = AvroJob.getMapOutputKeySchema(context.getConfiguration());
 

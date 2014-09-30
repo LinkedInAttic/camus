@@ -193,9 +193,9 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
 		if (partition != o.partition) {
 			return partition = o.partition;
 		} else {
-			if (beginOffset > o.beginOffset) {
+			if (offset > o.offset) {
 				return 1;
-			} else if (beginOffset < o.beginOffset) {
+			} else if (offset < o.offset) {
 				return -1;
 			} else {
 				if (checksum > o.checksum) {

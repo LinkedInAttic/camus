@@ -26,7 +26,7 @@ import org.apache.log4j.Logger;
 
 /**
  * Provides a RecordWriter that uses FSDataOutputStream to write
- * a String record as bytes to HDFS without any reformatting or compression.
+ * a String record as bytes to HDFS without any reformatting or compression.
  */
 public class StringRecordWriterProvider implements RecordWriterProvider {
     public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";

@@ -102,6 +102,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
             timestamp = System.currentTimeMillis();
         }
 
-        return new CamusWrapper<>(payloadString, timestamp);
+        return new CamusWrapper<String>(payloadString, timestamp);
     }
 }

@@ -14,15 +14,14 @@ public class TestJsonStringMessageDecoder {
         // Test that the decoder extracts unix_milliseconds
         // It should take and return milliseconds
 
-        long testTimestamp = 1406947271534L;
-        long expectedTimestamp = testTimestamp;
-        
+        long expectedTimestamp = 1406947271534L;
+
         Properties testProperties = new Properties();
         testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
 
         JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
         testDecoder.init(testProperties, "testTopic");
-        String payload = "{\"timestamp\":  "+ testTimestamp + ", \"myData\": \"myValue\"}";
+        String payload = "{\"timestamp\":  "+ expectedTimestamp + ", \"myData\": \"myValue\"}";
         byte[] bytePayload = payload.getBytes();
 
         CamusWrapper actualResult = testDecoder.decode(bytePayload);
@@ -81,7 +80,7 @@ public class TestJsonStringMessageDecoder {
         byte[] bytePayload = "{\"key: value}".getBytes();
 
         JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
-        CamusWrapper actualResult = testDecoder.decode(bytePayload);
+        testDecoder.decode(bytePayload);
     }
 
 }

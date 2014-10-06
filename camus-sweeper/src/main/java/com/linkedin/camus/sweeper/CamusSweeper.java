@@ -123,7 +123,7 @@ public class CamusSweeper extends Configured implements Tool
     Map<FileStatus, String> topics = new HashMap<FileStatus, String>();
     
     for (FileStatus f : fs.listStatus(input, filter)){
-      if (fs.exists(new Path(f.getPath(), topicSubdir))){
+      if (f.isDirectory() && fs.exists(new Path(f.getPath(), topicSubdir))){
         topics.put(f, topicNameSpace);
       } else if (! input.toString().equals(f.getPath().toString())) {
         findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getName(), fs);
@@ -141,9 +141,17 @@ public class CamusSweeper extends Configured implements Tool
 
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
+    String tmpLocation = (String) props.getProperty("camus.sweeper.tmp.dir", "");
     
     if (destLocation.isEmpty())
       destLocation = fromLocation;
+    
+    if (tmpLocation.isEmpty())
+      tmpLocation = "/tmp/camus-sweeper-tmp";
+    else
+      tmpLocation += "/camus-sweeper-tmp";
+    
+    props.setProperty("camus.sweeper.tmp.dir", tmpLocation);
 
     log.info("fromLocation: " + fromLocation);
     log.info("destLocation: " + destLocation);
@@ -159,6 +167,12 @@ public class CamusSweeper extends Configured implements Tool
     }
 
     FileSystem fs = FileSystem.get(conf);
+    
+    Path tmpPath = new Path(tmpLocation);
+    fs.mkdirs(tmpPath, perm);
+    String user = new Job(conf).getUser();
+    fs.setOwner(tmpPath, user, user);
+    
     Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist), sourceSubdir, "", fs);
 
     for (FileStatus topic : topics.keySet())
@@ -217,7 +231,7 @@ public class CamusSweeper extends Configured implements Tool
   private Future runCollector(Properties props, String topic)
   {
     String jobName = topic + "-" + UUID.randomUUID().toString();
-    props.put("tmp.path", "/tmp/" + jobName + "_" + System.currentTimeMillis());
+    props.put("tmp.path", props.getProperty("camus.sweeper.tmp.dir") + "/" + jobName + "_" + System.currentTimeMillis());
 
     if (props.containsKey("reduce.count.override." + topic))
       props.put("reducer.count", Integer.parseInt(props.getProperty("reduce.count.override." + topic)));
@@ -372,7 +386,7 @@ public class CamusSweeper extends Configured implements Tool
 
       log.info("Swapping " + tmpPath + " to " + outputPath);
       mkdirs(fs, outputPath.getParent(), perm);
-      fs.mkdirs(outputPath.getParent(), perm);
+  
       if (!fs.rename(tmpPath, outputPath))
       {
         fs.rename(oldPath, outputPath);

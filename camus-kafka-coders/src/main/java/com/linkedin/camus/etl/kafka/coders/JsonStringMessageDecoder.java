@@ -71,27 +71,24 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
             // If timestampFormat is 'unix_seconds',
             // then the timestamp only needs converted to milliseconds.
             // Also support 'unix' for backwards compatibility.
-            switch (timestampFormat) {
-                case "unix_seconds":
-                case "unix":
-                    timestamp = jsonObject.get(timestampField).getAsLong();
-                    // This timestamp is in seconds, convert it to milliseconds.
-                    timestamp = timestamp * 1000L;
-                    break;
-                // Else if this timestamp is already in milliseconds,
-                // just save it as is.
-                case "unix_milliseconds":
-                    timestamp = jsonObject.get(timestampField).getAsLong();
-                    break;
-                // Otherwise parse the timestamp as a string in timestampFormat.
-                default:
-                    String timestampString = jsonObject.get(timestampField).getAsString();
-                    try {
-                        timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
-                    } catch (Exception e) {
-                        log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
-                    }
-                    break;
+            if (timestampFormat.equals("unix_seconds") || timestampFormat.equals("unix")) {
+                timestamp = jsonObject.get(timestampField).getAsLong();
+                // This timestamp is in seconds, convert it to milliseconds.
+                timestamp = timestamp * 1000L;
+            }
+            // Else if this timestamp is already in milliseconds,
+            // just save it as is.
+            else if (timestampFormat.equals("unix_milliseconds")) {
+                timestamp = jsonObject.get(timestampField).getAsLong();
+            }
+            // Otherwise parse the timestamp as a string in timestampFormat.
+            else {
+                String timestampString = jsonObject.get(timestampField).getAsString();
+                try {
+                    timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                } catch (Exception e) {
+                    log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
+                }
             }
         }
 

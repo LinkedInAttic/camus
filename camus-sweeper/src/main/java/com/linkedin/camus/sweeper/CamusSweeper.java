@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -119,17 +120,25 @@ public class CamusSweeper extends Configured implements Tool
     }
   }
   
-  private Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs) throws IOException{
+  private Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, FileSystem fs) throws IOException{
     Map<FileStatus, String> topics = new HashMap<FileStatus, String>();
-    
     for (FileStatus f : fs.listStatus(input, filter)){
-      if (f.isDirectory() && fs.exists(new Path(f.getPath(), topicSubdir))){
-        topics.put(f, topicNameSpace);
-      } else if (! input.toString().equals(f.getPath().toString())) {
-        findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getName(), fs);
-      }
+      // skipping first level, in search of the topic subdir
+      findAllTopics(f.getPath(), filter, topicSubdir, "", fs, topics);
     }
     return topics;
+  }
+  
+  private void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs, Map<FileStatus, String> topics) throws IOException{
+    for (FileStatus f : fs.listStatus(input, filter)){
+      if (! f.isDir())
+        return;
+      if (f.getPath().getName().equals(topicSubdir)){
+        topics.put(fs.getFileStatus(f.getPath().getParent()), topicNameSpace);
+      } else {
+        findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getParent().getName(), fs, topics);
+      }
+    }
   }
 
   public void run() throws Exception
@@ -170,10 +179,10 @@ public class CamusSweeper extends Configured implements Tool
     
     Path tmpPath = new Path(tmpLocation);
     fs.mkdirs(tmpPath, perm);
-    String user = new Job(conf).getUser();
+    String user = UserGroupInformation.getCurrentUser().getUserName();
     fs.setOwner(tmpPath, user, user);
     
-    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist), sourceSubdir, "", fs);
+    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
 
     for (FileStatus topic : topics.keySet())
     {

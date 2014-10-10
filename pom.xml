@@ -21,6 +21,8 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<!-- language versions -->
 		<java.abi>1.6</java.abi>
+  		<downloadSources>true</downloadSources>
+  		<downloadJavadocs>true</downloadJavadocs>
 	</properties>
 
 	<dependencyManagement>

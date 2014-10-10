@@ -1,18 +1,16 @@
 package com.linkedin.camus.etl.kafka.coders;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Properties;
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
+import java.util.Properties;
 
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 
+import org.apache.log4j.Logger;
+
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
-import com.linkedin.camus.coders.MessageDecoderException;
-
-import org.apache.log4j.Logger;
 
 
 /**
@@ -51,8 +49,9 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 		long       timestamp = 0;
 		String     payloadString;
                 JSONObject jobj;
-
-		payloadString =  new String(payload);
+    // Need to specify Charset because the default might not be UTF-8.
+    // Bug fix for https://jira.airbnb.com:8443/browse/PRODUCT-5551.
+		payloadString =  new String(payload, Charset.forName("UTF-8"));
 
 		// Parse the payload into a JsonObject.
 		try {

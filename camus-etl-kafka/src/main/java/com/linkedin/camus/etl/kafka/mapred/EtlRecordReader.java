@@ -26,6 +26,8 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 
+import com.twitter.elephantbird.util.HadoopCompat;
+
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
     private static final String DEFAULT_SERVER = "server";
@@ -109,7 +111,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         } else {
             beginTimeStamp = 0;
         }
-        
+
         ignoreServerServiceList = new HashSet<String>();
         for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
         {
@@ -249,9 +251,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     long checksum = key.getChecksum();
                     if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
                     	throw new ChecksumException("Invalid message checksum : MessageWithKey : "
-                              + messageWithKey.checksum() + " MessageWithoutKey checksum : " 
-                    		  + messageWithoutKey.checksum() 
-                    		  + ". Expected " + key.getChecksum(),	
+                              + messageWithKey.checksum() + " MessageWithoutKey checksum : "
+                    		  + messageWithoutKey.checksum()
+                    		  + ". Expected " + key.getChecksum(),
                     		  key.getOffset());
                     }
 
@@ -345,7 +347,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             }
         }
     }
-    
+
     public void setServerService()
     {
     	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
@@ -356,6 +358,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     }
 
     public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
-        return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
+        return HadoopCompat.getConfiguration(job).getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
     }
 }

@@ -23,15 +23,15 @@ import com.linkedin.camus.etl.kafka.CamusJob;
 
 /**
  * A class that represents the kafka pull request.
- * 
+ *
  * The class is a container for topic, leaderId, partition, uri and offset. It is
  * used in reading and writing the sequence files used for the extraction job.
- * 
+ *
  * @author Richard Park
  */
 public class EtlRequest implements Writable {
-	
-	private static Logger log = Logger.getLogger(EtlRequest.class);
+
+    private static Logger log = Logger.getLogger(EtlRequest.class);
     private JobContext context = null;
     private static final long DEFAULT_OFFSET = 0;
 
@@ -43,7 +43,7 @@ public class EtlRequest implements Writable {
     private long offset = DEFAULT_OFFSET;
     private long latestOffset = -1;
     private long earliestOffset = -2;
-    
+
     public EtlRequest() {
     }
 
@@ -60,16 +60,16 @@ public class EtlRequest implements Writable {
     public void setLatestOffset(long latestOffset) {
 		this.latestOffset = latestOffset;
 	}
-    
+
     public void setEarliestOffset(long earliestOffset) {
 		this.earliestOffset = earliestOffset;
 	}
-    
+
     /**
      * Constructor for a KafkaETLRequest with the uri set to null and offset set
      * to -1. Both of these attributes can be set later. These attributes are
      * sufficient to ensure uniqueness.
-     * 
+     *
      * @param topic
      *            The topic name
      * @param leaderId
@@ -83,7 +83,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Constructor for the KafkaETLRequest with the offset to -1.
-     * 
+     *
      * @param topic
      *            The topic name
      * @param leaderId
@@ -100,7 +100,7 @@ public class EtlRequest implements Writable {
     /**
      * Constructor for the full kafka pull job. Neither the brokerUri nor offset
      * are used to ensure uniqueness.
-     * 
+     *
      * @param topic
      *            The topic name
      * @param leaderId
@@ -123,7 +123,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Sets the starting offset used by the kafka pull mapper.
-     * 
+     *
      * @param offset
      */
     public void setOffset(long offset) {
@@ -132,7 +132,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Sets the broker uri for this request
-     * 
+     *
      * @param uri
      */
     public void setURI(URI uri) {
@@ -141,7 +141,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Retrieve the broker node id.
-     * 
+     *
      * @return
      */
     public String getLeaderId() {
@@ -150,7 +150,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Retrieve the topic
-     * 
+     *
      * @return
      */
     public String getTopic() {
@@ -159,7 +159,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Retrieves the uri if set. The default is null.
-     * 
+     *
      * @return
      */
     public URI getURI() {
@@ -168,7 +168,7 @@ public class EtlRequest implements Writable {
 
     /**
      * Retrieves the partition number
-     * 
+     *
      * @return
      */
     public int getPartition() {
@@ -177,22 +177,22 @@ public class EtlRequest implements Writable {
 
     /**
      * Retrieves the offset
-     * 
+     *
      * @return
      */
     public long getOffset() {
         return this.offset;
     }
 
-    
+
     public void setLeaderId(String leaderId) {
         this.leaderId = leaderId;
     }
-    
+
     /**
      * Returns true if the offset is valid (>= to earliest offset && <= to last
      * offset)
-     * 
+     *
      * @return
      */
     public boolean isValidOffset() {
@@ -259,7 +259,7 @@ public class EtlRequest implements Writable {
         if (this.latestOffset == -1 && uri != null)
             return getLastOffset(kafka.api.OffsetRequest.LatestTime());
         else
-        {           
+        {
         	return this.latestOffset;
         }
     }
@@ -290,7 +290,7 @@ public class EtlRequest implements Writable {
     /**
      * Estimates the request size in bytes by connecting to the broker and
      * querying for the offset that bets matches the endTime.
-     * 
+     *
      * @param endTime
      *            The time in millisec
      */

@@ -10,6 +10,8 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
+import org.apache.avro.SchemaCompatibility;
+import org.apache.avro.SchemaCompatibility.SchemaCompatibilityType;
 import org.apache.avro.SchemaParseException;
 import org.apache.avro.SchemaValidationException;
 import org.apache.avro.SchemaValidatorBuilder;
@@ -86,14 +88,8 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
       
-      List<Field> fields = new ArrayList<Schema.Field>();
-      
-      for (Field f : keySchema.getFields()){
-        fields.add(new Field(f.name(), f.schema(), f.doc(), f.defaultValue(), f.order()));
-      }
-      
-      keySchema = duplicateRecord(keySchema, schema.getName(), schema.getNamespace());
-      log.debug("key schema:" + keySchema);
+      keySchema = duplicateRecord(keySchema, schema);
+      log.info("key schema:" + keySchema);
       
       if (! validateKeySchema(schema, keySchema))
       {
@@ -114,30 +110,24 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
   
   private boolean validateKeySchema(Schema schema, Schema keySchema)
   {
-    try {
-      new SchemaValidatorBuilder().canBeReadStrategy().validateLatest().validate(schema, Collections.singletonList(keySchema));
-      return true;
-    } catch (SchemaValidationException e) {
-      return false;
-    }
+     return SchemaCompatibility.checkReaderWriterCompatibility(keySchema, schema).getType().equals(SchemaCompatibilityType.COMPATIBLE);
   }
   
-  public Schema duplicateRecord(Schema record, String name, String namespace){
+  public Schema duplicateRecord(Schema record, Schema original){
     List<Field> fields = new ArrayList<Schema.Field>();
     
     for (Field f : record.getFields()){
       Schema fldSchema;
-      if (f.schema().getType().equals(Type.RECORD))
-        fldSchema = duplicateRecord(f.schema(), f.schema().getName(), namespace);
-      else if (f.schema().getType().equals(Type.FIXED))
-        fldSchema = Schema.createFixed(f.schema().getName(), f.schema().getDoc(), namespace, f.schema().getFixedSize());
-      else
+      if (original.getField(f.name()) != null){
+        fldSchema = original.getField(f.name()).schema();
+      } else {
         fldSchema = f.schema();
+      }
       
       fields.add(new Field(f.name(), fldSchema, f.doc(), f.defaultValue(), f.order()));
     }
     
-    Schema newRecord = Schema.createRecord(name, record.getDoc(), namespace, false);
+    Schema newRecord = Schema.createRecord(original.getName(), record.getDoc(), original.getNamespace(), false);
     newRecord.setFields(fields);
     
     return newRecord;
@@ -146,6 +136,7 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema)
   {
     log.info("Input Schema set to " + schema.toString());
+    log.info("Key Schema set to " + keySchema.toString());
     AvroJob.setInputKeySchema(job, schema);
 
     AvroJob.setMapOutputKeySchema(job, keySchema);

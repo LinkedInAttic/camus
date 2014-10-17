@@ -1,20 +1,20 @@
 package com.linkedin.camus.etl.kafka.common;
 
+import java.io.IOException;
+
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.CompressionCodecFactory;
+import org.apache.hadoop.io.compress.CompressionOutputStream;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
+
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import java.io.IOException;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.mapreduce.RecordWriter;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
-import org.apache.hadoop.io.compress.CompressionCodecFactory;
-import org.apache.hadoop.io.compress.CompressionCodec;
-import org.apache.hadoop.io.compress.CompressionOutputStream;
-
-import org.apache.log4j.Logger;
 
 
 /**
@@ -22,6 +22,8 @@ import org.apache.log4j.Logger;
  * a String record as bytes to HDFS without any reformatting or compession.
  */
 public class StringRecordWriterProvider implements RecordWriterProvider {
+
+
     public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";
     public static final String DEFAULT_RECORD_DELIMITER    = "";
 
@@ -35,6 +37,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         return ".gz";
     }
 
+    @SuppressWarnings("rawtypes")
     @Override
     public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(
             TaskAttemptContext  context,
@@ -65,19 +68,6 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         CompressionCodec codec = codecFactory.getCodec(path);
         final CompressionOutputStream compressedOutput = codec.createOutputStream(writer);
 
-        // Return a new anonymous RecordWriter that uses the
-        // FSDataOutputStream writer to write bytes straight into path.
-        return new RecordWriter<IEtlKey, CamusWrapper>() {
-            @Override
-            public void write(IEtlKey ignore, CamusWrapper data) throws IOException {
-                String record = (String)data.getRecord() + recordDelimiter;
-                compressedOutput.write(record.getBytes());
-            }
-
-            @Override
-            public void close(TaskAttemptContext context) throws IOException, InterruptedException {
-                compressedOutput.close();
-            }
-        };
+        return new StringRecordWriter(compressedOutput, recordDelimiter);
     }
 }

@@ -5,6 +5,7 @@ import java.io.IOException;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.hadoop.mapreduce.Mapper;
 
+import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 
 /**
@@ -15,10 +16,10 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
  * output -- EtlKey, AvroWrapper
  * 
  */
-public class EtlMapper extends Mapper<EtlKey, AvroWrapper<Object>, EtlKey, AvroWrapper<Object>> {
+public class EtlMapper extends Mapper<EtlKey, CamusWrapper, EtlKey, CamusWrapper> {
 	
 	@Override
-	public void map(EtlKey key, AvroWrapper<Object> val, Context context) throws IOException, InterruptedException {
+	public void map(EtlKey key, CamusWrapper val, Context context) throws IOException, InterruptedException {
 		long startTime = System.currentTimeMillis();
 
 		context.write(key, val);

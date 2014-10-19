@@ -20,6 +20,7 @@ import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.log4j.Logger;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.workallocater.CamusRequest;
 
 /**
  * A class that represents the kafka pull request.
@@ -29,7 +30,7 @@ import com.linkedin.camus.etl.kafka.CamusJob;
  * 
  * @author Richard Park
  */
-public class EtlRequest implements Writable {
+public class EtlRequest implements CamusRequest {
 	
 	private static Logger log = Logger.getLogger(EtlRequest.class);
     private JobContext context = null;
@@ -44,6 +45,8 @@ public class EtlRequest implements Writable {
     private long latestOffset = -1;
     private long earliestOffset = -2;
     
+    private long avgMsgSize = 1024;
+    
     public EtlRequest() {
     }
 
@@ -55,15 +58,28 @@ public class EtlRequest implements Writable {
         this.offset = other.offset;
         this.latestOffset = other.latestOffset;
         this.earliestOffset = other.earliestOffset;
+        this.avgMsgSize = other.avgMsgSize;
     }
 
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#setLatestOffset(long)
+     */
+    @Override
     public void setLatestOffset(long latestOffset) {
 		this.latestOffset = latestOffset;
 	}
     
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#setEarliestOffset(long)
+     */
+    @Override
     public void setEarliestOffset(long earliestOffset) {
 		this.earliestOffset = earliestOffset;
 	}
+    
+    public void setAvgMsgSize(long size) {
+      this.avgMsgSize = size;
+    }
     
     /**
      * Constructor for a KafkaETLRequest with the uri set to null and offset set
@@ -121,20 +137,18 @@ public class EtlRequest implements Writable {
         setOffset(offset);
     }
 
-    /**
-     * Sets the starting offset used by the kafka pull mapper.
-     * 
-     * @param offset
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#setOffset(long)
      */
+    @Override
     public void setOffset(long offset) {
         this.offset = offset;
     }
 
-    /**
-     * Sets the broker uri for this request
-     * 
-     * @param uri
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#setURI(java.net.URI)
      */
+    @Override
     public void setURI(URI uri) {
         this.uri = uri;
     }
@@ -148,38 +162,34 @@ public class EtlRequest implements Writable {
         return this.leaderId;
     }
 
-    /**
-     * Retrieve the topic
-     * 
-     * @return
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getTopic()
      */
+    @Override
     public String getTopic() {
         return this.topic;
     }
 
-    /**
-     * Retrieves the uri if set. The default is null.
-     * 
-     * @return
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getURI()
      */
+    @Override
     public URI getURI() {
         return this.uri;
     }
 
-    /**
-     * Retrieves the partition number
-     * 
-     * @return
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getPartition()
      */
+    @Override
     public int getPartition() {
         return this.partition;
     }
 
-    /**
-     * Retrieves the offset
-     * 
-     * @return
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getOffset()
      */
+    @Override
     public long getOffset() {
         return this.offset;
     }
@@ -189,12 +199,10 @@ public class EtlRequest implements Writable {
         this.leaderId = leaderId;
     }
     
-    /**
-     * Returns true if the offset is valid (>= to earliest offset && <= to last
-     * offset)
-     * 
-     * @return
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#isValidOffset()
      */
+    @Override
     public boolean isValidOffset() {
         return this.offset >= 0;
     }
@@ -202,9 +210,12 @@ public class EtlRequest implements Writable {
     @Override
     public String toString() {
         return topic + "\turi:" + (uri != null ? uri.toString() : "") + "\tleader:" + leaderId
-                + "\tpartition:" + partition + "\toffset:" + offset 
-                + "\tearliest_offset:" + getEarliestOffset()
-                + "\tlatest_offset:" + getLastOffset();
+                + "\tpartition:" + partition 
+                + "\tearliest_offset:" + getEarliestOffset() 
+                + "\toffset:" + offset 
+                + "\tlatest_offset:" + getLastOffset()
+                + "\tavg_msg_size:" + avgMsgSize
+                + "\testimated_size:" + estimateDataSize();
     }
 
     @Override
@@ -231,10 +242,14 @@ public class EtlRequest implements Writable {
      * Returns the copy of KafkaETLRequest
      */
     @Override
-    public EtlRequest clone() {
+    public CamusRequest clone() {
         return new EtlRequest(context, topic, leaderId, partition, uri, offset);
     }
 
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getEarliestOffset()
+     */
+    @Override
     public long getEarliestOffset() {
         if (this.earliestOffset == -2 && uri != null) {
             // TODO : Make the hardcoded paramters configurable
@@ -255,6 +270,10 @@ public class EtlRequest implements Writable {
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getLastOffset()
+     */
+    @Override
     public long getLastOffset() {
         if (this.latestOffset == -1 && uri != null)
             return getLastOffset(kafka.api.OffsetRequest.LatestTime());
@@ -264,6 +283,10 @@ public class EtlRequest implements Writable {
         }
     }
 
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#getLastOffset(long)
+     */
+    @Override
     public long getLastOffset(long time) {
         SimpleConsumer consumer = new SimpleConsumer(uri.getHost(), uri.getPort(), 60000,
                 1024 * 1024, "hadoop-etl");
@@ -282,21 +305,22 @@ public class EtlRequest implements Writable {
         return endOffset[0];
     }
 
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#estimateDataSize()
+     */
+    @Override
     public long estimateDataSize() {
         long endOffset = getLastOffset();
-        return endOffset - offset;
+        return (endOffset - offset) * avgMsgSize;
     }
 
-    /**
-     * Estimates the request size in bytes by connecting to the broker and
-     * querying for the offset that bets matches the endTime.
-     * 
-     * @param endTime
-     *            The time in millisec
+    /* (non-Javadoc)
+     * @see com.linkedin.camus.etl.kafka.common.CamusRequest#estimateDataSize(long)
      */
+    @Override
     public long estimateDataSize(long endTime) {
         long endOffset = getLastOffset(endTime);
-        return endOffset - offset;
+        return (endOffset - offset) * avgMsgSize;
     }
 
     @Override

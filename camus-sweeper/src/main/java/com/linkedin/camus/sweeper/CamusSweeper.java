@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,8 +51,7 @@ import com.linkedin.camus.sweeper.utils.Utils;
 public class CamusSweeper extends Configured implements Tool
 {
   private static final String DEFAULT_NUM_THREADS = "5";
-  private static final String TWO_STAGE_NUM_FILES_TRHESHOLD = "two.stage.num.files.threshold";
-  private static final long TWO_STAGE_NUM_FILES_TRHESHOLD_DEFAULT = 10000;
+  private static final String CAMUS_SWEEPER_PRIORITY_LIST = "camus.sweeper.priority.list";
 
   private List<SweeperError> errorMessages;
   private List<Job> runningJobs;
@@ -65,6 +66,8 @@ public class CamusSweeper extends Configured implements Tool
   private static Logger log = Logger.getLogger(CamusSweeper.class);
   
   private CamusSweeperPlanner planner;
+  
+  private Set<String> priorityTopics = new HashSet<String>();
 
 
   public CamusSweeper()
@@ -80,6 +83,7 @@ public class CamusSweeper extends Configured implements Tool
 
   private void init()
   {
+    priorityTopics.addAll(Arrays.asList(props.getProperty(CAMUS_SWEEPER_PRIORITY_LIST, "").split(",")));
     this.errorMessages = Collections.synchronizedList(new ArrayList<SweeperError>());
     DateTimeZone.setDefault(DateTimeZone.forID(props.getProperty("default.timezone")));
     this.runningJobs = Collections.synchronizedList(new ArrayList<Job>());
@@ -185,21 +189,23 @@ public class CamusSweeper extends Configured implements Tool
     fs.setOwner(tmpPath, user, user);
     
     Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new WhiteBlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
-
+    List<FileStatus> nonPriority = new ArrayList<FileStatus>();
+    
     for (FileStatus topic : topics.keySet())
     {
-      String topicName = topics.get(topic).replaceAll("/", "_") + "_" + topic.getPath().getName();
-      log.info("Processing topic " + topicName);
-
-      Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
-      try
-      {
-        runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+      if (priorityTopics.contains(topic.getPath().getName())){
+        runTopic(topics, topic, destLocation, fs);
+      } else {
+        nonPriority.add(topic);
       }
-      catch (Exception e)
-      {
-        System.err.println("unable to process " + topicName + " skipping...");
-        e.printStackTrace();
+    }
+    
+    for (FileStatus topic : nonPriority)
+    {
+      if (priorityTopics.contains(topic.getPath().getName())){
+        
+      } else {
+        nonPriority.add(topic);
       }
     }
 
@@ -221,6 +227,22 @@ public class CamusSweeper extends Configured implements Tool
         error.e.printStackTrace();
       }
       throw new RuntimeException("Sweeper Failed");
+    }
+  }
+  
+  private void runTopic(Map<FileStatus, String> topics, FileStatus topic, String destLocation, FileSystem fs) {
+    String topicName = topics.get(topic).replaceAll("/", "_") + "_" + topic.getPath().getName();
+    log.info("Processing topic " + topicName);
+
+    Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
+    try
+    {
+      runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+    }
+    catch (Exception e)
+    {
+      System.err.println("unable to process " + topicName + " skipping...");
+      e.printStackTrace();
     }
   }
 
@@ -248,6 +270,7 @@ public class CamusSweeper extends Configured implements Tool
       props.put("reducer.count", Integer.parseInt(props.getProperty("reduce.count.override." + topic)));
 
     log.info("Processing " + props.get("input.paths"));
+    
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
@@ -272,27 +295,7 @@ public class CamusSweeper extends Configured implements Tool
       try
       {
         log.info("Starting runner for " + name);
-        FileSystem fs = FileSystem.get(getConf());
-        List<String> strPaths = Utils.getStringList(props, "input.paths");
-        
-        long maxFiles;
-        if (props.containsKey(TWO_STAGE_NUM_FILES_TRHESHOLD))
-          maxFiles = Long.parseLong(props.getProperty(TWO_STAGE_NUM_FILES_TRHESHOLD));
-        else
-          maxFiles = TWO_STAGE_NUM_FILES_TRHESHOLD_DEFAULT;
-        
-        long dus = 0;
-        
-        for (String path : strPaths){
-          dus += fs.getContentSummary(new Path(path)).getLength();
-        }
-        
-        if (dus > maxFiles) {
-          collector = new KafkaTwoStageCollector(props, name, topic, maxFiles);
-        } else {
-          collector = new KafkaCollector(props, name, topic);
-        }
-  
+        collector = new KafkaCollector(props, name, topic);
         log.info("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       }
@@ -336,21 +339,6 @@ public class CamusSweeper extends Configured implements Tool
       }
     }
 
-    private void addInputPath(Job job, Path path, FileSystem fs) throws IOException
-    {
-      for (FileStatus stat : fs.listStatus(path))
-      {
-        if (stat.isDir())
-        {
-          addInputPath(job, stat.getPath(), fs);
-        }
-        else if (stat.getPath().getName().endsWith("avro"))
-        {
-          FileInputFormat.addInputPath(job, stat.getPath());
-        }
-      }
-    }
-
     public void run() throws Exception
     {
       FileSystem fs = FileSystem.get(job.getConfiguration());
@@ -362,7 +350,7 @@ public class CamusSweeper extends Configured implements Tool
 
       for (Path path : inputPaths)
       {
-        addInputPath(job, path, fs);
+        FileInputFormat.addInputPath(job, path);
       }
 
       job.getConfiguration().set("mapred.compress.map.output", "true");
@@ -456,85 +444,6 @@ public class CamusSweeper extends Configured implements Tool
     
     protected Properties getProps() {
       return this.props;
-    }
-  }
-  
-  private class KafkaTwoStageCollector extends KafkaCollector
-  {
-    
-    private long maxFiles;
-
-    public KafkaTwoStageCollector(Properties props, String jobName, String topicName, long maxFiles) throws IOException
-    {
-      super(props, jobName, topicName);
-      this.maxFiles = maxFiles;
-    }
-
-    public void run() throws Exception
-    {   
-      FileSystem fs = FileSystem.get(getConf());
-      List<String> strPaths = Utils.getStringList(getProps(), "input.paths");
-      Path[] inputPaths = new Path[strPaths.size()];
-
-      for (int i = 0; i < strPaths.size(); i++)
-        inputPaths[i] = new Path(strPaths.get(i));
-
-      String firstStageInputPaths = "";
-      String secondStageInputPaths = "";
-      long fileCount = 0;
-      int jobCount = 0;
-      
-      for (Path path : inputPaths)
-      {
-        for (FileStatus f : fs.listStatus(path)){
-          long pathCount = fs.getContentSummary(f.getPath()).getFileCount();
-          
-          if (fileCount + pathCount > maxFiles && fileCount > 0) {
-            secondStageInputPaths += (secondStageInputPaths.isEmpty() ? "" : ",") + runInnerCollector(firstStageInputPaths, jobCount++);
-            fileCount = pathCount;
-            firstStageInputPaths = f.getPath().toString();
-          } else {
-            fileCount += pathCount;
-            firstStageInputPaths += (firstStageInputPaths.isEmpty() ? "" : ",") + f.getPath().toString();
-          }
-        }
-      }
-      
-      secondStageInputPaths += (secondStageInputPaths.isEmpty() ? "" : ",") + runInnerCollector(firstStageInputPaths, jobCount++);
-      
-      getProps().setProperty("input.paths", secondStageInputPaths);
-      getJob().getConfiguration().setBoolean("second.stage", true);
-      
-      super.run();
-      
-      for (String str : Utils.getStringList(getProps(), "input.paths")){
-        fs.delete(new Path(str), true);
-      }
-      
-    }
-    
-    private String runInnerCollector(String firstStageInputPaths, int jobCount) throws Exception{
-      Properties innerProps = new Properties();
-      innerProps.putAll(getProps());
-      
-      innerProps.setProperty("input.paths", firstStageInputPaths);
-      
-      String tmpPath = getJob().getConfiguration().get("tmp.path") + "_inner_tmp_" + jobCount;
-      String outputPath = getJob().getConfiguration().get("tmp.path") + "_inner_dest_" + jobCount;
-      
-      innerProps.setProperty("tmp.path", tmpPath);
-      innerProps.setProperty("dest.path", outputPath);
-      
-      KafkaCollector innerCollector = new KafkaCollector(innerProps, getJobName() + "_first_stage", getTopicName());
-      
-      innerCollector.run();
-      
-      if (! innerCollector.getJob().isSuccessful()){
-        throw new RuntimeException(getTopicName() + " First stage job failed, skipping");
-      }
-      
-      return outputPath.toString();
-      
     }
   }
   

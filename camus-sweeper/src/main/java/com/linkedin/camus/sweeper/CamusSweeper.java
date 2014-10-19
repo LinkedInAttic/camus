@@ -49,6 +49,8 @@ import com.linkedin.camus.sweeper.utils.Utils;
 public class CamusSweeper extends Configured implements Tool
 {
   private static final String DEFAULT_NUM_THREADS = "5";
+  private static final String TWO_STAGE_NUM_FILES_TRHESHOLD = "two.stage.num.files.threshold";
+  private static final long TWO_STAGE_NUM_FILES_TRHESHOLD_DEFAULT = 10000;
 
   private List<SweeperError> errorMessages;
   private List<Job> runningJobs;
@@ -122,7 +124,7 @@ public class CamusSweeper extends Configured implements Tool
   
   private Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, FileSystem fs) throws IOException{
     Map<FileStatus, String> topics = new HashMap<FileStatus, String>();
-    for (FileStatus f : fs.listStatus(input, filter)){
+    for (FileStatus f : fs.listStatus(input)){
       // skipping first level, in search of the topic subdir
       findAllTopics(f.getPath(), filter, topicSubdir, "", fs, topics);
     }
@@ -130,10 +132,10 @@ public class CamusSweeper extends Configured implements Tool
   }
   
   private void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs, Map<FileStatus, String> topics) throws IOException{
-    for (FileStatus f : fs.listStatus(input, filter)){
+    for (FileStatus f : fs.listStatus(input)){
       if (! f.isDir())
         return;
-      if (f.getPath().getName().equals(topicSubdir)){
+      if (f.getPath().getName().equals(topicSubdir) && filter.accept(f.getPath().getParent())){
         topics.put(fs.getFileStatus(f.getPath().getParent()), topicNameSpace);
       } else {
         findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getParent().getName(), fs, topics);
@@ -182,7 +184,7 @@ public class CamusSweeper extends Configured implements Tool
     String user = UserGroupInformation.getCurrentUser().getUserName();
     fs.setOwner(tmpPath, user, user);
     
-    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new BlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
+    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new WhiteBlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
 
     for (FileStatus topic : topics.keySet())
     {
@@ -270,7 +272,27 @@ public class CamusSweeper extends Configured implements Tool
       try
       {
         log.info("Starting runner for " + name);
-        collector = new KafkaCollector("test", props, name, topic);
+        FileSystem fs = FileSystem.get(getConf());
+        List<String> strPaths = Utils.getStringList(props, "input.paths");
+        
+        long maxFiles;
+        if (props.containsKey(TWO_STAGE_NUM_FILES_TRHESHOLD))
+          maxFiles = Long.parseLong(props.getProperty(TWO_STAGE_NUM_FILES_TRHESHOLD));
+        else
+          maxFiles = TWO_STAGE_NUM_FILES_TRHESHOLD_DEFAULT;
+        
+        long dus = 0;
+        
+        for (String path : strPaths){
+          dus += fs.getContentSummary(new Path(path)).getLength();
+        }
+        
+        if (dus > maxFiles) {
+          collector = new KafkaTwoStageCollector(props, name, topic, maxFiles);
+        } else {
+          collector = new KafkaCollector(props, name, topic);
+        }
+  
         log.info("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       }
@@ -297,11 +319,21 @@ public class CamusSweeper extends Configured implements Tool
     
     private Job job;
 
-    public KafkaCollector(String name, Properties props, String jobName, String topicName)
+    public KafkaCollector(Properties props, String jobName, String topicName) throws IOException
     {
       this.jobName = jobName;
       this.props = props;
       this.topicName = topicName;
+      
+      job = new Job(getConf());
+      job.setJarByClass(CamusSweeper.class);
+      job.setJobName(jobName);
+
+      for (Entry<Object, Object> pair : props.entrySet())
+      {
+        String key = (String) pair.getKey();
+        job.getConfiguration().set(key, (String) pair.getValue());
+      }
     }
 
     private void addInputPath(Job job, Path path, FileSystem fs) throws IOException
@@ -321,16 +353,6 @@ public class CamusSweeper extends Configured implements Tool
 
     public void run() throws Exception
     {
-      job = new Job(getConf());
-      job.setJarByClass(CamusSweeper.class);
-      job.setJobName(jobName);
-
-      for (Entry<Object, Object> pair : props.entrySet())
-      {
-        String key = (String) pair.getKey();
-        job.getConfiguration().set(key, (String) pair.getValue());
-      }
-
       FileSystem fs = FileSystem.get(job.getConfiguration());
       List<String> strPaths = Utils.getStringList(props, "input.paths");
       Path[] inputPaths = new Path[strPaths.size()];
@@ -343,25 +365,6 @@ public class CamusSweeper extends Configured implements Tool
         addInputPath(job, path, fs);
       }
 
-      int numReducers;
-
-      if (job.getConfiguration().get("reducer.count") != null)
-      {
-        numReducers = job.getConfiguration().getInt("reducer.count", 45);
-      }
-      else
-      {
-        // Get Average file size
-
-        long dus = 0;
-        for (Path p : inputPaths)
-          dus += duDirectory(fs, p);
-        int maxFiles = job.getConfiguration().getInt("max.files", 24);
-        numReducers = Math.min((int) (dus / AVERAGE_FILE_SIZE) + 1, maxFiles);
-      }
-
-      log.info("Setting reducer " + numReducers);
-      job.setNumReduceTasks(numReducers);
       job.getConfiguration().set("mapred.compress.map.output", "true");
 
       Path tmpPath = new Path(job.getConfiguration().get("tmp.path"));
@@ -370,6 +373,35 @@ public class CamusSweeper extends Configured implements Tool
       FileOutputFormat.setOutputPath(job, tmpPath);
       ((CamusSweeperJob) Class.forName(props.getProperty("camus.sweeper.io.configurer.class"))
           .newInstance()).setLogger(log).configureJob(topicName, job);
+      
+      long dus = 0;
+      for (Path p : inputPaths)
+        dus += fs.getContentSummary(p).getLength();
+      
+      int maxFiles = job.getConfiguration().getInt("max.files", 24);
+      int numTasks = Math.min((int) (dus / AVERAGE_FILE_SIZE) + 1, maxFiles);
+      
+      if (job.getNumReduceTasks() != 0){
+        int numReducers;
+        if (job.getConfiguration().get("reducer.count") != null)
+        {
+          numReducers = job.getConfiguration().getInt("reducer.count", 45);
+        }
+        else
+        {
+          numReducers = numTasks;
+        }
+        log.info("Setting reducer " + numReducers);
+        job.setNumReduceTasks(numReducers);
+      } else {
+        long targetSplitSize = dus / numTasks;
+        
+        log.info("Setting target split size " + targetSplitSize);
+        
+        job.getConfiguration().setLong("mapred.max.split.size", targetSplitSize);
+        job.getConfiguration().setLong("mapred.min.split.size", targetSplitSize);
+      }    
+      
       job.submit();
       runningJobs.add(job);
       log.info("job running: " + job.getTrackingURL() + " for: " + jobName);
@@ -409,34 +441,100 @@ public class CamusSweeper extends Configured implements Tool
         fs.delete(oldPath, true);
       }
     }
+    
+    protected String getJobName() {
+      return jobName;
+    }
+    
+    protected String getTopicName() {
+      return topicName;
+    }
 
     protected Job getJob() {
       return job;
     }
     
-    private long duDirectory(FileSystem fs, Path dir) throws IOException
+    protected Properties getProps() {
+      return this.props;
+    }
+  }
+  
+  private class KafkaTwoStageCollector extends KafkaCollector
+  {
+    
+    private long maxFiles;
+
+    public KafkaTwoStageCollector(Properties props, String jobName, String topicName, long maxFiles) throws IOException
     {
-      String name = dir.getName();
-      if (name.startsWith("_") || name.startsWith("."))
+      super(props, jobName, topicName);
+      this.maxFiles = maxFiles;
+    }
+
+    public void run() throws Exception
+    {   
+      FileSystem fs = FileSystem.get(getConf());
+      List<String> strPaths = Utils.getStringList(getProps(), "input.paths");
+      Path[] inputPaths = new Path[strPaths.size()];
+
+      for (int i = 0; i < strPaths.size(); i++)
+        inputPaths[i] = new Path(strPaths.get(i));
+
+      String firstStageInputPaths = "";
+      String secondStageInputPaths = "";
+      long fileCount = 0;
+      int jobCount = 0;
+      
+      for (Path path : inputPaths)
       {
-        return 0;
-      }
-      FileStatus status = fs.getFileStatus(dir);
-      long sum = 0;
-      if (status.isDir())
-      {
-        FileStatus[] subStatuses = fs.listStatus(dir);
-        for (FileStatus subStatus : subStatuses)
-        {
-          sum += duDirectory(fs, subStatus.getPath());
+        for (FileStatus f : fs.listStatus(path)){
+          long pathCount = fs.getContentSummary(f.getPath()).getFileCount();
+          
+          if (fileCount + pathCount > maxFiles && fileCount > 0) {
+            secondStageInputPaths += (secondStageInputPaths.isEmpty() ? "" : ",") + runInnerCollector(firstStageInputPaths, jobCount++);
+            fileCount = pathCount;
+            firstStageInputPaths = f.getPath().toString();
+          } else {
+            fileCount += pathCount;
+            firstStageInputPaths += (firstStageInputPaths.isEmpty() ? "" : ",") + f.getPath().toString();
+          }
         }
       }
-      else
-      {
-        return status.getLen();
+      
+      secondStageInputPaths += (secondStageInputPaths.isEmpty() ? "" : ",") + runInnerCollector(firstStageInputPaths, jobCount++);
+      
+      getProps().setProperty("input.paths", secondStageInputPaths);
+      getJob().getConfiguration().setBoolean("second.stage", true);
+      
+      super.run();
+      
+      for (String str : Utils.getStringList(getProps(), "input.paths")){
+        fs.delete(new Path(str), true);
       }
-
-      return sum;
+      
+    }
+    
+    private String runInnerCollector(String firstStageInputPaths, int jobCount) throws Exception{
+      Properties innerProps = new Properties();
+      innerProps.putAll(getProps());
+      
+      innerProps.setProperty("input.paths", firstStageInputPaths);
+      
+      String tmpPath = getJob().getConfiguration().get("tmp.path") + "_inner_tmp_" + jobCount;
+      String outputPath = getJob().getConfiguration().get("tmp.path") + "_inner_dest_" + jobCount;
+      
+      innerProps.setProperty("tmp.path", tmpPath);
+      innerProps.setProperty("dest.path", outputPath);
+      
+      KafkaCollector innerCollector = new KafkaCollector(innerProps, getJobName() + "_first_stage", getTopicName());
+      
+      innerCollector.run();
+      
+      if (! innerCollector.getJob().isSuccessful()){
+        throw new RuntimeException(getTopicName() + " First stage job failed, skipping");
+      }
+      
+      return outputPath.toString();
+      
     }
   }
   
@@ -458,12 +556,12 @@ public class CamusSweeper extends Configured implements Tool
     return Pattern.compile(patternStr);
   }
 
-  private class BlackListPathFilter implements PathFilter
+  private class WhiteBlackListPathFilter implements PathFilter
   {
     private Pattern whitelist;
     private Pattern blacklist;
 
-    public BlackListPathFilter(Collection<String> whitelist, Collection<String> blacklist)
+    public WhiteBlackListPathFilter(Collection<String> whitelist, Collection<String> blacklist)
     {
       if (whitelist.isEmpty())
         this.whitelist = Pattern.compile(".*");  //whitelist everything
@@ -474,8 +572,8 @@ public class CamusSweeper extends Configured implements Tool
         this.blacklist = Pattern.compile("a^");  //blacklist nothing
       else
         this.blacklist = compileMultiPattern(blacklist);
-      log.info("whitelist: " + whitelist);
-      log.info("blacklist: " + blacklist);
+      log.info("whitelist: " + this.whitelist.toString());
+      log.info("blacklist: " + this.blacklist.toString());
     }
 
     @Override

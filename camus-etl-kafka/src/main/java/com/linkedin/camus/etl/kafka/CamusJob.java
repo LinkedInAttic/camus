@@ -6,6 +6,7 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 import java.io.BufferedReader;
@@ -336,6 +337,7 @@ public class CamusJob extends Configured implements Tool {
 				+ newExecutionOutput.toString());
 
 		EtlInputFormat.setLogger(log);
+		job.setMapperClass(EtlMapper.class);
 		
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);

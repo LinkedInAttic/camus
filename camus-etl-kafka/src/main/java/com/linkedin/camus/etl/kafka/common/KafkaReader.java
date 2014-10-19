@@ -123,6 +123,8 @@ public class KafkaReader {
 			key.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(),
 					kafkaRequest.getPartition(), currentOffset,
 					msgAndOffset.offset() + 1, message.checksum());
+			
+			key.setMessageSize(msgAndOffset.message().size());
 
 			currentOffset = msgAndOffset.offset() + 1; // increase offset
 			currentCount++; // increase count

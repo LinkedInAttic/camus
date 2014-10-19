@@ -168,11 +168,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     }
 
     private long getPos() throws IOException {
-        if (reader != null) {
-            return readBytes + reader.getReadBytes();
-        } else {
-            return readBytes;
-        }
+      return readBytes;
     }
 
     @Override
@@ -204,7 +200,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         while (true) {
             try {
                 if (reader == null || !reader.hasNext()) {
-                    EtlRequest request = split.popRequest();
+                    EtlRequest request = (EtlRequest) split.popRequest();
                     if (request == null) {
                         return false;
                     }
@@ -236,6 +232,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                 }
                 int count = 0;
                 while (reader.getNext(key, msgValue, msgKey)) {
+                    readBytes += key.getMessageSize();
                     count++;
                     context.progress();
                     mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
@@ -279,7 +276,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     long timeStamp = wrapper.getTimestamp();
                     try {
                         key.setTime(timeStamp);
-                        key.setPartition(wrapper.getPartitionMap());
+                        key.addAllPartitionMap(wrapper.getPartitionMap());
                         setServerService();
                     } catch (Exception e) {
                         mapperContext.write(key, new ExceptionWritable(e));
@@ -336,7 +333,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private void closeReader() throws IOException {
         if (reader != null) {
             try {
-                readBytes += reader.getReadBytes();
                 reader.close();
             } catch (Exception e) {
                 // not much to do here but skip the task

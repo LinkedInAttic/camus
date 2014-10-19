@@ -8,6 +8,9 @@ import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+import com.linkedin.camus.workallocater.CamusRequest;
+import com.linkedin.camus.workallocater.WorkAllocator;
+
 import java.io.IOException;
 import java.net.URI;
 import java.security.InvalidParameterException;
@@ -20,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 import kafka.api.PartitionOffsetRequestInfo;
@@ -66,6 +70,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public static final String CAMUS_MESSAGE_DECODER_CLASS = "camus.message.decoder.class";
 	public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
 	public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
+	
+	public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
+	public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
 	private static Logger log = null;
 	
@@ -147,10 +154,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	 * @param offsetRequestInfo
 	 * @return
 	 */
-	public ArrayList<EtlRequest> fetchLatestOffsetAndCreateEtlRequests(
+	public ArrayList<CamusRequest> fetchLatestOffsetAndCreateEtlRequests(
 			JobContext context,
 			HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo) {
-		ArrayList<EtlRequest> finalRequests = new ArrayList<EtlRequest>();
+		ArrayList<CamusRequest> finalRequests = new ArrayList<CamusRequest>();
 		for (LeaderInfo leader : offsetRequestInfo.keySet()) {
 			SimpleConsumer consumer = new SimpleConsumer(leader.getUri()
 					.getHost(), leader.getUri().getPort(),
@@ -190,7 +197,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 				long earliestOffset = earliestOffsetResponse.offsets(
 						topicAndPartition.topic(),
 						topicAndPartition.partition())[0];
-				EtlRequest etlRequest = new EtlRequest(context,
+				
+				//TODO: factor out kafka specific request functionality 
+				CamusRequest etlRequest = new EtlRequest(context,
 						topicAndPartition.topic(), Integer.toString(leader
 								.getLeaderId()), topicAndPartition.partition(),
 						leader.getUri());
@@ -234,7 +243,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 	public List<InputSplit> getSplits(JobContext context) throws IOException,
 			InterruptedException {
 		CamusJob.startTiming("getSplits");
-		ArrayList<EtlRequest> finalRequests;
+		ArrayList<CamusRequest> finalRequests;
 		HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo = new HashMap<LeaderInfo, ArrayList<TopicAndPartition>>();
 		try {
 
@@ -331,32 +340,38 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		finalRequests = fetchLatestOffsetAndCreateEtlRequests(context,
 				offsetRequestInfo);
 
-		Collections.sort(finalRequests, new Comparator<EtlRequest>() {
-			public int compare(EtlRequest r1, EtlRequest r2) {
+		Collections.sort(finalRequests, new Comparator<CamusRequest>() {
+			public int compare(CamusRequest r1, CamusRequest r2) {
 				return r1.getTopic().compareTo(r2.getTopic());
 			}
 		});
 
 		log.info("The requests from kafka metadata are: \n" + finalRequests);		
 		writeRequests(finalRequests, context);
-		Map<EtlRequest, EtlKey> offsetKeys = getPreviousOffsets(
+		Map<CamusRequest, EtlKey> offsetKeys = getPreviousOffsets(
 				FileInputFormat.getInputPaths(context), context);
 		Set<String> moveLatest = getMoveToLatestTopicsSet(context);
-		for (EtlRequest request : finalRequests) {
+		for (CamusRequest request : finalRequests) {
 			if (moveLatest.contains(request.getTopic())
 					|| moveLatest.contains("all")) {
 			    log.info("Moving to latest for topic: " + request.getTopic());
-				offsetKeys.put(
-						request,
-						new EtlKey(request.getTopic(), request.getLeaderId(),
-								request.getPartition(), 0, request
-										.getLastOffset()));
+			  //TODO: factor out kafka specific request functionality 
+			    EtlKey oldKey = offsetKeys.get(request);
+			    EtlKey newKey = new EtlKey(request.getTopic(), ((EtlRequest)request).getLeaderId(),
+              request.getPartition(), 0, request
+              .getLastOffset());
+			    
+			    if (oldKey != null)
+			      newKey.setMessageSize(oldKey.getMessageSize());
+			    
+			    offsetKeys.put(request, newKey);
 			}
 
 			EtlKey key = offsetKeys.get(request);
 
 			if (key != null) {
 				request.setOffset(key.getOffset());
+				request.setAvgMsgSize(key.getMessageSize());
 			}
 
 			if (request.getEarliestOffset() > request.getOffset()
@@ -374,7 +389,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 				request.setOffset(request.getEarliestOffset());
 				offsetKeys.put(
 						request,
-						new EtlKey(request.getTopic(), request.getLeaderId(),
+					//TODO: factor out kafka specific request functionality 
+						new EtlKey(request.getTopic(), ((EtlRequest)request).getLeaderId(),
 								request.getPartition(), 0, request
 										.getOffset()));
 			}
@@ -386,7 +402,13 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		CamusJob.stopTiming("getSplits");
 		CamusJob.startTiming("hadoop");
 		CamusJob.setTime("hadoop_start");
-		return allocateWork(finalRequests, context);
+		
+		WorkAllocator allocator = getWorkAllocator(context);
+		Properties props = new Properties();
+		props.putAll(context.getConfiguration().getValByRegex(".*"));
+		allocator.init(props);
+		
+		return allocator.allocateWork(finalRequests, context);
 	}
 
 	private Set<String> getMoveToLatestTopicsSet(JobContext context) {
@@ -413,60 +435,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		}
 	}
 
-	private List<InputSplit> allocateWork(List<EtlRequest> requests,
-			JobContext context) throws IOException {
-		int numTasks = context.getConfiguration()
-				.getInt("mapred.map.tasks", 30);
-		// Reverse sort by size
-		Collections.sort(requests, new Comparator<EtlRequest>() {
-			@Override
-			public int compare(EtlRequest o1, EtlRequest o2) {
-				if (o2.estimateDataSize() == o1.estimateDataSize()) {
-					return 0;
-				}
-				if (o2.estimateDataSize() < o1.estimateDataSize()) {
-					return -1;
-				} else {
-					return 1;
-				}
-			}
-		});
-
-		List<InputSplit> kafkaETLSplits = new ArrayList<InputSplit>();
-
-		for (int i = 0; i < numTasks; i++) {
-			EtlSplit split = new EtlSplit();
-
-			if (requests.size() > 0) {
-				split.addRequest(requests.get(0));
-				kafkaETLSplits.add(split);
-				requests.remove(0);
-			}
-		}
-
-		for (EtlRequest r : requests) {
-			getSmallestMultiSplit(kafkaETLSplits).addRequest(r);
-		}
-
-		return kafkaETLSplits;
-	}
-
-	private EtlSplit getSmallestMultiSplit(List<InputSplit> kafkaETLSplits)
-			throws IOException {
-		EtlSplit smallest = (EtlSplit) kafkaETLSplits.get(0);
-
-		for (int i = 1; i < kafkaETLSplits.size(); i++) {
-			EtlSplit challenger = (EtlSplit) kafkaETLSplits.get(i);
-			if ((smallest.getLength() == challenger.getLength() && smallest
-					.getNumRequests() > challenger.getNumRequests())
-					|| smallest.getLength() > challenger.getLength()) {
-				smallest = challenger;
-			}
-		}
-
-		return smallest;
-	}
-
 	private void writePrevious(Collection<EtlKey> missedKeys, JobContext context)
 			throws IOException {
 		FileSystem fs = FileSystem.get(context.getConfiguration());
@@ -489,7 +457,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		writer.close();
 	}
 
-	private void writeRequests(List<EtlRequest> requests, JobContext context)
+	private void writeRequests(List<CamusRequest> requests, JobContext context)
 			throws IOException {
 		FileSystem fs = FileSystem.get(context.getConfiguration());
 		Path output = FileOutputFormat.getOutputPath(context);
@@ -503,15 +471,16 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 				context.getConfiguration(), output, EtlRequest.class,
 				NullWritable.class);
 
-		for (EtlRequest r : requests) {
-			writer.append(r, NullWritable.get());
+		for (CamusRequest r : requests) {
+		  //TODO: factor out kafka specific request functionality 
+			writer.append((EtlRequest) r, NullWritable.get());
 		}
 		writer.close();
 	}
 
-	private Map<EtlRequest, EtlKey> getPreviousOffsets(Path[] inputs,
+	private Map<CamusRequest, EtlKey> getPreviousOffsets(Path[] inputs,
 			JobContext context) throws IOException {
-		Map<EtlRequest, EtlKey> offsetKeysMap = new HashMap<EtlRequest, EtlKey>();
+		Map<CamusRequest, EtlKey> offsetKeysMap = new HashMap<CamusRequest, EtlKey>();
 		for (Path input : inputs) {
 			FileSystem fs = input.getFileSystem(context.getConfiguration());
 			for (FileStatus f : fs.listStatus(input, new OffsetFileFilter())) {
@@ -520,7 +489,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 						f.getPath(), context.getConfiguration());
 				EtlKey key = new EtlKey();
 				while (reader.next(key, NullWritable.get())) {
-					EtlRequest request = new EtlRequest(context,
+				//TODO: factor out kafka specific request functionality 
+					CamusRequest request = new EtlRequest(context,
 							key.getTopic(), key.getLeaderId(),
 							key.getPartition());
 					if (offsetKeysMap.containsKey(request)) {
@@ -539,6 +509,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 		}
 		return offsetKeysMap;
 	}
+	
+	 public static void setWorkAllocator(JobContext job, Class<WorkAllocator> val) {
+	    job.getConfiguration().setClass(CAMUS_WORK_ALLOCATOR_CLASS, val, WorkAllocator.class);
+	  }
+
+	  public static WorkAllocator getWorkAllocator(JobContext job) {
+	    try {
+        return (WorkAllocator) job.getConfiguration().getClass(CAMUS_WORK_ALLOCATOR_CLASS, Class.forName(CAMUS_WORK_ALLOCATOR_DEFAULT)).newInstance();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+	  }
 
 	public static void setMoveToLatestTopics(JobContext job, String val) {
 		job.getConfiguration().set(KAFKA_MOVE_TO_LAST_OFFSET_LIST, val);

@@ -52,7 +52,6 @@ public class CamusSweeper extends Configured implements Tool
 {
   private static final String DEFAULT_NUM_THREADS = "5";
   private static final String CAMUS_SWEEPER_PRIORITY_LIST = "camus.sweeper.priority.list";
-
   private List<SweeperError> errorMessages;
   private List<Job> runningJobs;
 

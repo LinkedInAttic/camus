@@ -45,6 +45,8 @@ import org.apache.log4j.Logger;
 import org.joda.time.DateTimeZone;
 
 import com.linkedin.camus.sweeper.mapreduce.CamusSweeperJob;
+import com.linkedin.camus.sweeper.utils.PriorityExecutor;
+import com.linkedin.camus.sweeper.utils.PriorityExecutor.Important;
 import com.linkedin.camus.sweeper.utils.Utils;
 
 @SuppressWarnings("deprecation")
@@ -151,7 +153,7 @@ public class CamusSweeper extends Configured implements Tool
     log.info("Starting kafka sweeper");
     int numThreads = Integer.parseInt(props.getProperty("num.threads", DEFAULT_NUM_THREADS));
 
-    executorService = Executors.newFixedThreadPool(numThreads);
+    executorService = executorService = new PriorityExecutor(numThreads); 
 
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
@@ -188,33 +190,31 @@ public class CamusSweeper extends Configured implements Tool
     fs.setOwner(tmpPath, user, user);
     
     Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new WhiteBlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
-    List<FileStatus> nonPriority = new ArrayList<FileStatus>();
-    
     for (FileStatus topic : topics.keySet())
     {
-      if (priorityTopics.contains(topic.getPath().getName())){
-        runTopic(topics, topic, destLocation, fs);
-      } else {
-        nonPriority.add(topic);
+      String topicNameSpace = topics.get(topic).replaceAll("/", "_");
+      String topicName =  (topicNameSpace.isEmpty() ? "" : topicNameSpace + "_") + topic.getPath().getName();
+      log.info("Processing topic " + topicName);
+
+      Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
+      try
+      {
+        runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+      }
+      catch (Exception e)
+      {
+        System.err.println("unable to process " + topicName + " skipping...");
+        e.printStackTrace();
       }
     }
     
-    for (FileStatus topic : nonPriority)
-    {
-      if (priorityTopics.contains(topic.getPath().getName())){
-        
-      } else {
-        nonPriority.add(topic);
-      }
-    }
-
-    log.info("Shutting down executor");
+    log.info("Shutting down priority executor");
     executorService.shutdown();
     while (!executorService.isTerminated())
     {
       executorService.awaitTermination(30, TimeUnit.SECONDS);
     }
-
+    
     log.info("Shutting down");
 
     if (!errorMessages.isEmpty())
@@ -226,22 +226,6 @@ public class CamusSweeper extends Configured implements Tool
         error.e.printStackTrace();
       }
       throw new RuntimeException("Sweeper Failed");
-    }
-  }
-  
-  private void runTopic(Map<FileStatus, String> topics, FileStatus topic, String destLocation, FileSystem fs) {
-    String topicName = topics.get(topic).replaceAll("/", "_") + "_" + topic.getPath().getName();
-    log.info("Processing topic " + topicName);
-
-    Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
-    try
-    {
-      runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
-    }
-    catch (Exception e)
-    {
-      System.err.println("unable to process " + topicName + " skipping...");
-      e.printStackTrace();
     }
   }
 
@@ -273,12 +257,13 @@ public class CamusSweeper extends Configured implements Tool
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
-  public class KafkaCollectorRunner implements Runnable
+  public class KafkaCollectorRunner implements Runnable, Important
   {
     private Properties props;
     private String name;
     private List<SweeperError> errorQueue;
     private String topic;
+    private int priority;
 
     public KafkaCollectorRunner(String name, Properties props, List<SweeperError> errorQueue, String topic)
     {
@@ -286,6 +271,8 @@ public class CamusSweeper extends Configured implements Tool
       this.props = props;
       this.errorQueue = errorQueue;
       this.topic = topic;
+      
+      priority = priorityTopics.contains(topic) ? 1 : 0;
     }
 
     public void run()
@@ -307,6 +294,11 @@ public class CamusSweeper extends Configured implements Tool
                   + e.getLocalizedMessage());
         errorQueue.add(new SweeperError(name, props.get("input.paths").toString(), e));
       }
+    }
+
+    @Override
+    public int getPriority() {
+      return priority;
     }
   }
 

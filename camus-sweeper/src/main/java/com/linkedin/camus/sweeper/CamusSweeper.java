@@ -68,7 +68,7 @@ public class CamusSweeper extends Configured implements Tool
   
   private CamusSweeperPlanner planner;
   
-  private Set<String> priorityTopics = new HashSet<String>();
+  private Map<String, Integer> priorityTopics = new HashMap<String, Integer>();
 
 
   public CamusSweeper()
@@ -84,7 +84,14 @@ public class CamusSweeper extends Configured implements Tool
 
   private void init()
   {
-    priorityTopics.addAll(Arrays.asList(props.getProperty(CAMUS_SWEEPER_PRIORITY_LIST, "").split(",")));
+    for (String str : props.getProperty(CAMUS_SWEEPER_PRIORITY_LIST, "").split(",")){
+      String[] tokens = str.split("=");
+      String topic = tokens[0];
+      int priority = tokens.length > 1 ? Integer.parseInt(tokens[1]) : 1;
+      
+      priorityTopics.put(topic, priority);
+    }
+    
     this.errorMessages = Collections.synchronizedList(new ArrayList<SweeperError>());
     DateTimeZone.setDefault(DateTimeZone.forID(props.getProperty("default.timezone")));
     this.runningJobs = Collections.synchronizedList(new ArrayList<Job>());
@@ -272,7 +279,7 @@ public class CamusSweeper extends Configured implements Tool
       this.errorQueue = errorQueue;
       this.topic = topic;
       
-      priority = priorityTopics.contains(topic) ? 1 : 0;
+      priority = priorityTopics.containsKey(topic) ? priorityTopics.get(topic) : 0;
     }
 
     public void run()

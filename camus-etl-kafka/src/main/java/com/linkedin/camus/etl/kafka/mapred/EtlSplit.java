@@ -61,7 +61,9 @@ public class EtlSplit extends InputSplit implements Writable {
 		    if (requests.get(i).getTopic().equals(currentTopic))
 		      return requests.remove(i);
 		  }
-			return requests.remove(requests.size() - 1);
+		  CamusRequest cr = requests.remove(requests.size() - 1);
+		  currentTopic = cr.getTopic();
+			return cr;
 		}
 		else
 			return null;

@@ -79,7 +79,7 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     String keySchemaStr = getConfValue(job, topic, "camus.sweeper.avro.key.schema");
     
     Schema keySchema;
-    if (keySchemaStr == null || keySchemaStr.isEmpty())
+    if (keySchemaStr == null || keySchemaStr.isEmpty() || job.getConfiguration().getBoolean("second.stage", false))
     {
       job.setNumReduceTasks(0);
       keySchema = schema;
@@ -161,7 +161,7 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
       files.addAll(Arrays.asList(fs.listStatus(sourceDir)));
     }
 
-    Collections.sort(files, new LastModifiedComparitor());
+    Collections.sort(files, new ReverseLastModifiedComparitor());
 
     for (FileStatus f : files)
     {
@@ -175,7 +175,7 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
   private Schema getNewestSchemaFromSource(Path sourceDir, FileSystem fs) throws IOException
   {
     FileStatus[] files = fs.listStatus(sourceDir);
-    Arrays.sort(files, new LastModifiedComparitor());
+    Arrays.sort(files, new ReverseLastModifiedComparitor());
     for (FileStatus f : files)
     {
       if (f.isDir())
@@ -195,15 +195,15 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     return null;
   }
 
-  class LastModifiedComparitor implements Comparator<FileStatus>
+  class ReverseLastModifiedComparitor implements Comparator<FileStatus>
   {
 
     @Override
     public int compare(FileStatus o1, FileStatus o2)
     {
-      if (o2.getModificationTime() > o1.getModificationTime())
+      if (o2.getModificationTime() < o1.getModificationTime())
         return -1;
-      else if (o2.getModificationTime() < o1.getModificationTime())
+      else if (o2.getModificationTime() > o1.getModificationTime())
         return 1;
       else
         return 0;

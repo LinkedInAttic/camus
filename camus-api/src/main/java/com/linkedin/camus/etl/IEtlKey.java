@@ -21,6 +21,8 @@ public interface IEtlKey {
     long getOffset();
 
     long getChecksum();
+    
+    long getMessageSize();
 
     MapWritable getPartitionMap();
 

@@ -30,6 +30,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
     private HashMap<String, EtlCounts> counts = new HashMap<String, EtlCounts>();
     private HashMap<String, EtlKey> offsets = new HashMap<String, EtlKey>();
+    private HashMap<String, Long> eventCounts = new HashMap<String, Long>();
 
     private TaskAttemptContext context;
     private final RecordWriterProvider recordWriterProvider;
@@ -46,7 +47,17 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
     public void addOffset(EtlKey key) {
         String topicPart = key.getTopic() + "-" + key.getLeaderId() + "-" + key.getPartition();
-        offsets.put(topicPart, new EtlKey(key));
+        EtlKey offsetKey = new EtlKey(key);
+        
+        if (offsets.containsKey(topicPart)){
+          long avgSize = offsets.get(topicPart).getMessageSize() * eventCounts.get(topicPart) + key.getMessageSize();
+          avgSize /= eventCounts.get(topicPart) + 1;
+          offsetKey.setMessageSize(avgSize);
+        } else {
+          eventCounts.put(topicPart, 0l);
+        }
+        eventCounts.put(topicPart, eventCounts.get(topicPart) + 1);
+        offsets.put(topicPart, offsetKey);
     }
 
     public EtlMultiOutputCommitter(Path outputPath, TaskAttemptContext context, Logger log)
@@ -141,14 +152,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         String encodedPartition = m.group(4);
 
         String partitionedPath =
-            EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, leaderId,
-                            Integer.parseInt(partition), encodedPartition);
+            EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, encodedPartition);
+        
+        partitionedPath += "/" + EtlMultiOutputFormat.getPartitioner(context, topic).
+            generateFileName(context, topic, leaderId, Integer.parseInt(partition), count, offset, encodedPartition);
 
-        return partitionedPath +
-                    "/" + topic + "." + leaderId + "." + partition +
-                    "." + count+
-                    "." + offset + 
-                    "." + encodedPartition + 
-                    recordWriterProvider.getFilenameExtension();
+        return partitionedPath + recordWriterProvider.getFilenameExtension();
     }
 }

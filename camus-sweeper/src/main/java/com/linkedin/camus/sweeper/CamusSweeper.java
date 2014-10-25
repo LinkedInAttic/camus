@@ -307,9 +307,9 @@ public class CamusSweeper extends Configured implements Tool
 
   private class KafkaCollector
   {
-
-    // About 1.5 gig
-    private static final long AVERAGE_FILE_SIZE = 1536l * 1024l * 1024l;
+    private static final String TARGET_FILE_SIZE = "camus.sweeper.target.file.size";
+    private static final long TARGET_FILE_SIZE_DEFAULT = 1536l * 1024l * 1024l;
+    private long targetFileSize;
     private final String jobName;
     private final Properties props;
     private final String topicName;
@@ -321,6 +321,7 @@ public class CamusSweeper extends Configured implements Tool
       this.jobName = jobName;
       this.props = props;
       this.topicName = topicName;
+      this.targetFileSize = props.containsKey(TARGET_FILE_SIZE) ? Long.parseLong(props.getProperty(TARGET_FILE_SIZE)) : TARGET_FILE_SIZE_DEFAULT;
       
       job = new Job(getConf());
       job.setJarByClass(CamusSweeper.class);
@@ -361,7 +362,7 @@ public class CamusSweeper extends Configured implements Tool
         dus += fs.getContentSummary(p).getLength();
       
       int maxFiles = job.getConfiguration().getInt("max.files", 24);
-      int numTasks = Math.min((int) (dus / AVERAGE_FILE_SIZE) + 1, maxFiles);
+      int numTasks = Math.min((int) (dus / targetFileSize) + 1, maxFiles);
       
       if (job.getNumReduceTasks() != 0){
         int numReducers;

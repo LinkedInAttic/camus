@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 public class PriorityExecutor
         extends ThreadPoolExecutor {
     public PriorityExecutor(int poolsize) {
-        super(poolsize, poolsize, 0L, TimeUnit.MILLISECONDS,
+        super(poolsize, poolsize, 60L, TimeUnit.SECONDS,
                 new PriorityBlockingQueue<Runnable>(300,
                         new PriorityTaskComparator()));
     }

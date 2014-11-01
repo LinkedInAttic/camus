@@ -1,62 +1,23 @@
 package com.linkedin.camus.etl.kafka;
 
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlCounts;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.Source;
+import com.linkedin.camus.etl.kafka.common.*;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.Comparator;
-import java.util.Arrays;
-import java.util.regex.Pattern;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.OptionBuilder;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
+import com.timgroup.statsd.NonBlockingStatsDClient;
+import com.timgroup.statsd.StatsDClient;
+import org.apache.commons.cli.*;
 import org.apache.commons.cli.Options;
-import org.apache.commons.cli.PosixParser;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
-import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.mapred.JobClient;
-import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.mapred.JobID;
-import org.apache.hadoop.mapred.TIPStatus;
-import org.apache.hadoop.mapred.TaskCompletionEvent;
-import org.apache.hadoop.mapred.TaskReport;
-import org.apache.hadoop.mapreduce.Counter;
-import org.apache.hadoop.mapreduce.CounterGroup;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.Counters;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
@@ -70,6 +31,13 @@ import org.codehaus.jackson.type.TypeReference;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
+
+import java.io.*;
+import java.net.URISyntaxException;
+import java.text.NumberFormat;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.regex.Pattern;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -98,18 +66,18 @@ public class CamusJob extends Configured implements Tool {
 	private static org.apache.log4j.Logger log;
 
 	private final Properties props;
-	
+
 	private DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter(
       "YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
 
 	public CamusJob() throws IOException {
-		this(new Properties());
+        this(new Properties());
 	}
 
 	public CamusJob(Properties props) throws IOException {
 		this(props, org.apache.log4j.Logger.getLogger(CamusJob.class));
 	}
-	
+
 	 public CamusJob(Properties props, Logger log) throws IOException {
 	    this.props = props;
 	    this.log = log;
@@ -134,19 +102,19 @@ public class CamusJob extends Configured implements Tool {
 				(timingMap.get(name) == null ? 0 : timingMap.get(name))
 						+ System.currentTimeMillis());
 	}
-	
+
 	private Job createJob(Properties props) throws IOException {
-	  Job job; 
+	  Job job;
 	  if(getConf() == null)
 	    {
-	      setConf(new Configuration()); 
+	      setConf(new Configuration());
 	    }
-	  
+
 	  populateConf(props, getConf(), log);
-	  
+
 	  job = new Job(getConf());
 	  job.setJarByClass(CamusJob.class);
-	  
+
 	   if(job.getConfiguration().get("camus.job.name") != null)
 	    {
 	      job.setJobName(job.getConfiguration().get("camus.job.name"));
@@ -155,7 +123,7 @@ public class CamusJob extends Configured implements Tool {
 	   {
 	     job.setJobName("Camus Job");
 	   }
-	   
+
 	  return job;
 	}
 
@@ -169,13 +137,14 @@ public class CamusJob extends Configured implements Tool {
 
 		String hadoopCacheJarDir = conf.get(
 				"hdfs.default.classpath.dir", null);
-		
+
 		List<Pattern> jarFilterString = new ArrayList<Pattern>();
-		
+
 		for (String str : Arrays.asList(conf.getStrings("cache.jar.filter.list", new String[0]))){
+
 		  jarFilterString.add(Pattern.compile(str));
 		}
-		
+
 		if (hadoopCacheJarDir != null) {
 			FileStatus[] status = fs.listStatus(new Path(hadoopCacheJarDir));
 
@@ -191,7 +160,7 @@ public class CamusJob extends Configured implements Tool {
 						    break;
 						  }
 						}
-						
+
 						if (! filterMatch)
               DistributedCache
                 .addFileToClassPath(status[i].getPath(),
@@ -218,13 +187,23 @@ public class CamusJob extends Configured implements Tool {
             break;
           }
         }
-        
+
         if (! filterMatch)
 				  DistributedCache.addFileToClassPath(new Path(jarFile),
 						conf, fs);
 			}
 		}
 	}
+
+    public void runFromAzkaban() throws Exception {
+        String camusPropertiesPath = System.getProperty("sun.java.command").split("-P ")[1];
+        Properties camusProperties = new Properties();
+        InputStream fis = new FileInputStream(camusPropertiesPath);
+        camusProperties.load(fis);
+        fis.close();
+        this.props.putAll(camusProperties);
+        run();
+    }
 
 	public void run() throws Exception {
 
@@ -259,7 +238,7 @@ public class CamusJob extends Configured implements Tool {
 		long limit = (long) (content.getQuota() * job.getConfiguration()
 				.getFloat(ETL_EXECUTION_HISTORY_MAX_OF_QUOTA, (float) .5));
 		limit = limit == 0 ? 50000 : limit;
-		
+
 		if (props.containsKey(ETL_BASEDIR_QUOTA_OVERIDE)){
 		  limit = Long.valueOf(props.getProperty(ETL_BASEDIR_QUOTA_OVERIDE));
 		}
@@ -273,7 +252,7 @@ public class CamusJob extends Configured implements Tool {
 				return f1.getPath().getName().compareTo(f2.getPath().getName());
 			}
 		});
-		
+
 		// removes oldest directory until we get under required % of count
 		// quota. Won't delete the most recent directory.
 		for (int i = 0; i < executions.length - 1 && limit < currentCount; i++) {
@@ -283,11 +262,11 @@ public class CamusJob extends Configured implements Tool {
 			currentCount -= execContent.getFileCount() + execContent.getDirectoryCount();
 			fs.delete(stat.getPath(), true);
 		}
-		
+
 		// removing failed exectutions if we need room
 		if (limit < currentCount){
 		  FileStatus[] failedExecutions = fs.listStatus(execBasePath, new PathFilter() {
-		    
+
 		    public boolean accept(Path path) {
 		      try {
 		        dateFmt.parseDateTime(path.getName());
@@ -297,13 +276,13 @@ public class CamusJob extends Configured implements Tool {
 		      }
 		    }
 		  });
-		  
+
 		  Arrays.sort(failedExecutions, new Comparator<FileStatus>() {
 	      public int compare(FileStatus f1, FileStatus f2) {
 	        return f1.getPath().getName().compareTo(f2.getPath().getName());
 	      }
 	    });
-		  
+
 	    for (int i = 0; i < failedExecutions.length && limit < currentCount; i++) {
 	      FileStatus stat = failedExecutions[i];
 	      log.info("removing failed execution: " + stat.getPath().getName());
@@ -337,8 +316,7 @@ public class CamusJob extends Configured implements Tool {
 				+ newExecutionOutput.toString());
 
 		EtlInputFormat.setLogger(log);
-		job.setMapperClass(EtlMapper.class);
-		
+
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
 		job.setNumReduceTasks(0);
@@ -522,7 +500,7 @@ public class CamusJob extends Configured implements Tool {
 	/**
 	 * Creates a diagnostic report mostly focused on timing breakdowns. Useful
 	 * for determining where to optimize.
-	 * 
+	 *
 	 * @param job
 	 * @param timingMap
 	 * @throws IOException
@@ -635,6 +613,7 @@ public class CamusJob extends Configured implements Tool {
 				mb / 1024 / 1024));
 
 		log.info(sb.toString());
+        submitCountersToStatsd(job);
 	}
 
 	/**
@@ -652,6 +631,24 @@ public class CamusJob extends Configured implements Tool {
 			return path.getName().startsWith(prefix);
 		}
 	}
+
+    private void submitCountersToStatsd(Job job) throws IOException {
+        Counters counters = job.getCounters();
+
+        if (EtlRecordReader.getStatsdEnabled(job)) {
+            StatsDClient statsd = new NonBlockingStatsDClient(
+                    "Camus",
+                    EtlRecordReader.getStatsdHost(job),
+                    EtlRecordReader.getStatsdPort(job),
+                    new String[]{"camus:counters"}
+            );
+            for (CounterGroup counterGroup: counters) {
+                for (Counter counter: counterGroup){
+                    statsd.gauge(counterGroup.getDisplayName() + "." + counter.getDisplayName(), counter.getValue());
+                }
+            }
+        }
+    }
 
 	public static void main(String[] args) throws Exception {
 		CamusJob job = new CamusJob();
@@ -716,7 +713,7 @@ public class CamusJob extends Configured implements Tool {
 		if (brokers == null) {
 			brokers = job.getConfiguration().get(KAFKA_HOST_URL);
 			if (brokers != null) {
-				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " + 
+				log.warn("The configuration properties " + KAFKA_HOST_URL + " and " +
 					KAFKA_HOST_PORT + " are deprecated. Please switch to using " + KAFKA_BROKERS);
 				return brokers + ":" + job.getConfiguration().getInt(KAFKA_HOST_PORT, 10251);
 			}

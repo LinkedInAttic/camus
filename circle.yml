@@ -1,0 +1,11 @@
+machine:
+  java:
+    version: openjdk7
+
+dependencies:
+    override:
+        - bash -c "exit 0"
+
+test:
+    override:
+        - mvn package

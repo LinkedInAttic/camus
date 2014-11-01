@@ -12,6 +12,8 @@ import com.linkedin.camus.etl.kafka.common.KafkaReader;
 import java.io.IOException;
 import java.util.HashSet;
 
+import com.timgroup.statsd.NonBlockingStatsDClient;
+import com.timgroup.statsd.StatsDClient;
 import kafka.message.Message;
 
 import org.apache.hadoop.fs.ChecksumException;
@@ -30,6 +32,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
     private static final String DEFAULT_SERVER = "server";
     private static final String DEFAULT_SERVICE = "service";
+    public static final String STATSD_ENABLED = "statsd.enabled";
+    public static final String STATSD_HOST = "statsd.host";
+    public static final String STATSD_PORT = "statsd.port";
+
     private TaskAttemptContext context;
 
     private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
@@ -57,6 +63,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     EtlSplit split;
     private static Logger log = Logger.getLogger(EtlRecordReader.class);
 
+    private static boolean statsdEnabled;
+    private static StatsDClient statsd;
+
     /**
      * Record reader to fetch directly from Kafka
      *
@@ -67,6 +76,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     public EtlRecordReader(InputSplit split, TaskAttemptContext context) throws IOException,
             InterruptedException {
         initialize(split, context);
+        this.statsdEnabled = getStatsdEnabled(context);
+
+        if (this.statsdEnabled) {
+            this.statsd = new NonBlockingStatsDClient(
+                    "Camus",
+                    getStatsdHost(context),
+                    getStatsdPort(context),
+                    new String[]{"camus:exceptions"}
+            );
+        }
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -109,7 +128,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         } else {
             beginTimeStamp = 0;
         }
-        
+
         ignoreServerServiceList = new HashSet<String>();
         for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
         {
@@ -131,6 +150,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         try {
             r = decoder.decode(payload);
         } catch (Exception e) {
+            if (this.statsdEnabled) {
+                statsd.incrementCounter(topicName.concat(":" + e.getMessage()));
+            }
             if (!skipSchemaErrors) {
                 throw new IOException(e);
             }
@@ -235,9 +257,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     long checksum = key.getChecksum();
                     if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
                     	throw new ChecksumException("Invalid message checksum : MessageWithKey : "
-                              + messageWithKey.checksum() + " MessageWithoutKey checksum : " 
-                    		  + messageWithoutKey.checksum() 
-                    		  + ". Expected " + key.getChecksum(),	
+                              + messageWithKey.checksum() + " MessageWithoutKey checksum : "
+                    		  + messageWithoutKey.checksum()
+                    		  + ". Expected " + key.getChecksum(),
                     		  key.getOffset());
                     }
 
@@ -335,7 +357,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             }
         }
     }
-    
+
     public void setServerService()
     {
     	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
@@ -348,4 +370,17 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
         return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
     }
+
+    public static Boolean getStatsdEnabled(JobContext job) {
+        return job.getConfiguration().getBoolean(STATSD_ENABLED, false);
+    }
+
+    public static String getStatsdHost(JobContext job) {
+        return job.getConfiguration().get(STATSD_HOST, "localhost");
+    }
+
+    public static int getStatsdPort(JobContext job) {
+        return job.getConfiguration().getInt(STATSD_PORT, 8125);
+    }
+
 }

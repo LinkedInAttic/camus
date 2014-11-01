@@ -1,36 +1,41 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<groupId>com.linkedin.camus</groupId>
-		<artifactId>camus-parent</artifactId>
-		<version>0.1.0-SNAPSHOT</version>
-	</parent>
+    <parent>
+        <groupId>com.linkedin.camus</groupId>
+        <artifactId>camus-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
 
-	<artifactId>camus-kafka-coders</artifactId>
-	<name>Camus Kafka producer</name>
-	<packaging>jar</packaging>
-	<dependencies>
-		<dependency>
-			<groupId>com.linkedin.camus</groupId>
-			<artifactId>camus-schema-registry</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.kafka</groupId>
-			<artifactId>kafka_2.10</artifactId>
-		</dependency>
-		<!-- Gson is needed for JSONStringMessageDecoder -->
-		<dependency>
-			<groupId>com.google.code.gson</groupId>
-			<artifactId>gson</artifactId>
-			<scope>compile</scope>
-		</dependency>
+    <artifactId>camus-kafka-coders</artifactId>
+    <name>Camus Kafka producer</name>
+    <packaging>jar</packaging>
+    <dependencies>
         <dependency>
+            <groupId>com.linkedin.camus</groupId>
+            <artifactId>camus-schema-registry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_2.10</artifactId>
+        </dependency>
+        <!-- Gson is needed for JSONStringMessageDecoder -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <scope>compile</scope>
+        </dependency>
+       <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
-	</dependencies>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+
+</dependencies>
 
 </project>

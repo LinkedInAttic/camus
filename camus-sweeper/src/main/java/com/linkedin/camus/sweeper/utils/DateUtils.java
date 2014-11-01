@@ -29,4 +29,8 @@ public class DateUtils {
     	DateTime time = new DateTime(zone);
     	return new DateTime(time.getYear(), time.getMonthOfYear(), time.getDayOfMonth(), 0, 0, 0, 0, zone);
     }
+    public DateTime getCurrentTime(){
+        return new DateTime(zone);
+    }
 }
+

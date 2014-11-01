@@ -1,0 +1,4 @@
+deploy:
+    override:
+        - mvn clean package
+        - /etc/azkaban/azkaban-submit-job

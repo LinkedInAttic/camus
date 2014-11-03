@@ -15,6 +15,8 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Mapper;
 
+import com.linkedin.camus.sweeper.utils.RelaxedAvroSerialization;
+
 public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, AvroKey<GenericRecord>, Object>
 {
   private static final Log LOG =
@@ -35,7 +37,10 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
     LOG.info("com.linkedin.events.fixed_16: " + loader.getResource("com/linkedin/events/fixed_16.class"));
     LOG.info("org.apache.avro.Schema: " + loader.getResource("org/apache/avro/Schema.class"));
 
-    keySchema = AvroJob.getMapOutputKeySchema(context.getConfiguration());
+    // We need to use RelaxedAvroSerialization to skip the illegal field names
+    // during schema parsing.
+    //keySchema = AvroJob.getMapOutputKeySchema(context.getConfiguration());
+    keySchema = RelaxedAvroSerialization.getKeyWriterSchema(context.getConfiguration());
 
     outValue = new AvroValue<GenericRecord>();
     outKey = new AvroKey<GenericRecord>();

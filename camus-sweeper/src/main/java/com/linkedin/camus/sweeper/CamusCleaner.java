@@ -3,7 +3,7 @@ package com.linkedin.camus.sweeper;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -24,6 +24,7 @@ import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.linkedin.camus.sweeper.CamusSweeper.WhiteBlackListPathFilter;
 import com.linkedin.camus.sweeper.utils.DateUtils;
 import com.linkedin.camus.sweeper.utils.Utils;
 
@@ -33,10 +34,11 @@ import com.linkedin.camus.sweeper.utils.Utils;
  * 
  */
 
-public class CamusDailyCleaner extends Configured implements Tool
+public class CamusCleaner extends Configured implements Tool
 {
 
   public static final String SIMULATE = "camus.sweeper.clean.simulate";
+  public static final String FORCE = "camus.sweeper.clean.force";
   public static final String RETENTION_TOPIC_PREFIX = "camus.sweeper.clean.retention.days.topic.";
   public static final String OUTPUT_DAILY_FORMAT_STR = "YYYY/MM/dd";
 
@@ -47,28 +49,34 @@ public class CamusDailyCleaner extends Configured implements Tool
 
   private final Properties props;
 
-  private String dailyPath;
+  private Path sourcePath;
+  private String sourceSubDir;
+  private String destSubDir;
   private FileSystem fs;
   private boolean simulate = false;
-  private static Logger log = Logger.getLogger(CamusDailyCleaner.class);
+  private boolean force = false;
+  private static Logger log = Logger.getLogger(CamusCleaner.class);
 
-  public CamusDailyCleaner()
+  public CamusCleaner()
   {
     this.props = new Properties();
   }
 
-  public CamusDailyCleaner(Properties props)
+  public CamusCleaner(Properties props)
   {
     this.props = props;
     dUtils = new DateUtils(props);
     outputDailyFormat = dUtils.getDateTimeFormatter(OUTPUT_DAILY_FORMAT_STR);
     outputMonthFormat = dUtils.getDateTimeFormatter("YYYY/MM");
     outputYearFormat = dUtils.getDateTimeFormatter("YYYY");
+  
+    sourceSubDir = props.getProperty("camus.sweeper.source.subdir");
+    destSubDir = props.getProperty("camus.sweeper.dest.subdir", "");
   }
 
   public static void main(String args[]) throws Exception
   {
-    CamusDailyCleaner job = new CamusDailyCleaner();
+    CamusCleaner job = new CamusCleaner();
     ToolRunner.run(job, args);
 
   }
@@ -77,6 +85,11 @@ public class CamusDailyCleaner extends Configured implements Tool
   {
 
     log.info("Starting the Camus - Daily Cleaner");
+    Configuration conf = new Configuration();
+    fs = FileSystem.get(conf);
+    
+    List<String> blacklist = Utils.getStringList(props, "camus.sweeper.blacklist");
+    List<String> whitelist = Utils.getStringList(props, "camus.sweeper.whitelist");
     
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
@@ -84,13 +97,11 @@ public class CamusDailyCleaner extends Configured implements Tool
     if (destLocation.isEmpty())
       destLocation = fromLocation;
     
-    dailyPath = destLocation;
+    sourcePath = fs.getFileStatus(new Path(destLocation)).getPath();
     
-    log.debug("Daily Path : " + dailyPath);
+    log.debug("Daily Path : " + sourcePath);
     simulate = Boolean.parseBoolean(props.getProperty(SIMULATE, "false"));
-
-    Configuration conf = new Configuration();
-    fs = FileSystem.get(conf);
+    force = Boolean.parseBoolean(props.getProperty(FORCE, "false"));
 
     // Topic-specific retention
     Map<String, String> map = Utils.getMapByPrefix(props, RETENTION_TOPIC_PREFIX);
@@ -101,34 +112,39 @@ public class CamusDailyCleaner extends Configured implements Tool
       System.out.println("Global retention set to " + regularRetention);
     else
       System.out.println("Global retention set to infinity, will not delete unspecified topics");
+    
+    WhiteBlackListPathFilter filter = new WhiteBlackListPathFilter(whitelist, blacklist, sourcePath);
 
-    FileStatus[] statuses = fs.listStatus(new Path(dailyPath));
-    for (FileStatus status : statuses)
+    Map<FileStatus, String> topics = CamusSweeper.findAllTopics(sourcePath, filter, sourceSubDir, fs);
+    
+    for (FileStatus status : topics.keySet())
     {
       String name = status.getPath().getName();
       if (name.startsWith(".") || name.startsWith("_"))
       {
         continue;
       }
+      
+      String fullname = topics.get(status);
 
-      if (map.containsKey(name))
+      if (map.containsKey(fullname) && Integer.parseInt(map.get(fullname)) != -1)
       {
-        enforceRetention(name, Integer.parseInt(map.get(name)));
+        enforceRetention(fullname, status, sourceSubDir, destSubDir, Integer.parseInt(map.get(fullname)));
       }
       else if (regularRetention != -1)
       {
-        enforceRetention(name, regularRetention);
+        enforceRetention(fullname, status, sourceSubDir, destSubDir, regularRetention);
       }
     }
   }
 
-  private void enforceRetention(String topic, int numDays) throws Exception
+  private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir, int numDays) throws Exception
   {
-    System.out.println("Running retention for " + topic + " and for days " + numDays);
+    System.out.println("Running retention for " + topicName + " and for days " + numDays);
     DateTime time = new DateTime(dUtils.zone);
     DateTime daysAgo = time.minusDays(numDays);
 
-    Path sourceDailyGlob = new Path(dailyPath, topic + "/daily/*/*/*");
+    Path sourceDailyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*/*");
 
     for (FileStatus f : fs.globStatus(sourceDailyGlob))
     {
@@ -137,12 +153,19 @@ public class CamusDailyCleaner extends Configured implements Tool
                                            .toString()
                                            .substring(f.getPath().toString().length()
                                                - OUTPUT_DAILY_FORMAT_STR.length()));
-      if (dirDateTime.isBefore(daysAgo))
-        deleteDay(topic, f.getPath());
+      if (dirDateTime.isBefore(daysAgo)) {
+        if (! (force || topicDestSubdir.isEmpty())){
+          Path destPath = new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
+          
+          if (! fs.exists(destPath))
+            throw new RuntimeException("rollup does not exist for input: " + f.getPath());
+        }
+        deleteDay(f.getPath());
+      }
     }
   }
 
-  private void deleteDay(String topic, Path dayPath) throws Exception
+  private void deleteDay(Path dayPath) throws Exception
   {
     Path monthPath = dayPath.getParent();
     Path yearPath = monthPath.getParent();

@@ -138,7 +138,7 @@ public class CamusCleaner extends Configured implements Tool
 
   private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir, int numDays) throws Exception
   {
-    System.out.println("Running retention for " + topicName + " and for days " + numDays);
+    System.out.println("Running retention for " + topicName + " using " + numDays + " days");
     
     if (numDays != -1) {
       DateTime time = new DateTime(dUtils.zone);

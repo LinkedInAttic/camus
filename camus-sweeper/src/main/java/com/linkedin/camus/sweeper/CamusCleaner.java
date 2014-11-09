@@ -56,6 +56,7 @@ public class CamusCleaner extends Configured implements Tool
   private boolean simulate = false;
   private boolean force = false;
   private static Logger log = Logger.getLogger(CamusCleaner.class);
+  private String topicExceptionString = null;
 
   public CamusCleaner()
   {
@@ -136,6 +137,10 @@ public class CamusCleaner extends Configured implements Tool
         enforceRetention(fullname, status, sourceSubDir, destSubDir, regularRetention);
       }
     }
+    
+    if (topicExceptionString != null) {
+      throw new RuntimeException(topicExceptionString);
+    }
   }
 
   private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir, int numDays) throws Exception
@@ -145,7 +150,6 @@ public class CamusCleaner extends Configured implements Tool
     DateTime daysAgo = time.minusDays(numDays);
 
     Path sourceDailyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*/*");
-
     for (FileStatus f : fs.globStatus(sourceDailyGlob))
     {
       DateTime dirDateTime =
@@ -157,36 +161,35 @@ public class CamusCleaner extends Configured implements Tool
         if (! (force || topicDestSubdir.isEmpty())){
           Path destPath = new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
           
-          if (! fs.exists(destPath))
-            throw new RuntimeException("rollup does not exist for input: " + f.getPath());
+          if (! fs.exists(destPath)) {
+            topicExceptionString = topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f.getPath());
+            continue;
+          }
         }
-        deleteDay(f.getPath());
+        deleteFileDir(fs, f.getPath());
       }
     }
-  }
-
-  private void deleteDay(Path dayPath) throws Exception
-  {
-    Path monthPath = dayPath.getParent();
-    Path yearPath = monthPath.getParent();
-
-    if (fs.exists(dayPath))
+    
+    Path sourceMonthlyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*");
+    for (FileStatus f : fs.globStatus(sourceMonthlyGlob))
     {
-      System.out.println(" Deleting day " + yearPath.getName() + "/" + monthPath.getName() + "/" + dayPath.getName());
-      deleteFileDir(fs, dayPath);
-
-      if (fs.listStatus(monthPath).length == 0)
-      {
-        System.out.println(" Deleting month " + yearPath.getName() + "/" + monthPath.getName());
-        deleteFileDir(fs, monthPath);
-
-        if (fs.listStatus(yearPath).length == 0)
-        {
-          System.out.println(" Deleting year " + yearPath.getName());
-          deleteFileDir(fs, yearPath);
-        }
-      }
+      if (fs.listStatus(f.getPath()).length == 0)
+        deleteFileDir(fs, f.getPath());
     }
+    
+    Path sourceYearGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*");
+    for (FileStatus f : fs.globStatus(sourceYearGlob))
+    {
+      if (fs.listStatus(f.getPath()).length == 0)
+        deleteFileDir(fs, f.getPath());
+    }
+    
+    Path sourceWithSubdir = new Path(topicDir.getPath() + "/" + topicSourceSubdir);
+    if (fs.listStatus(sourceWithSubdir).length == 0)
+      deleteFileDir(fs, sourceWithSubdir);
+    
+    if (fs.listStatus(topicDir.getPath()).length == 0)
+      deleteFileDir(fs, topicDir.getPath());
   }
 
   private void deleteFileDir(FileSystem fs, Path deletePath) throws IOException

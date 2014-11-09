@@ -205,7 +205,7 @@ public class CamusSweeper extends Configured implements Tool
 
       log.info("Processing topic " + topicFullName);
 
-      Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
+      Path destinationPath = new Path(destLocation + "/" + topics.get(topic).replaceAll("\\\\.", "/") + "/" + destSubdir);
       try
       {
         runCollectorForTopicDir(fs, topicFullName, new Path(topic.getPath(), sourceSubdir), destinationPath);

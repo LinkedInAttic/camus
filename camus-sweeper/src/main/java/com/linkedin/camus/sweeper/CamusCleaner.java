@@ -127,15 +127,8 @@ public class CamusCleaner extends Configured implements Tool
       }
       
       String fullname = topics.get(status);
-
-      if (map.containsKey(fullname) && Integer.parseInt(map.get(fullname)) != -1)
-      {
-        enforceRetention(fullname, status, sourceSubDir, destSubDir, Integer.parseInt(map.get(fullname)));
-      }
-      else if (regularRetention != -1)
-      {
-        enforceRetention(fullname, status, sourceSubDir, destSubDir, regularRetention);
-      }
+      int topicRetention = map.containsKey(fullname) ? Integer.parseInt(map.get(fullname)) : regularRetention;
+      enforceRetention(fullname, status, sourceSubDir, destSubDir, topicRetention);
     }
     
     if (topicExceptionString != null) {
@@ -146,27 +139,29 @@ public class CamusCleaner extends Configured implements Tool
   private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir, int numDays) throws Exception
   {
     System.out.println("Running retention for " + topicName + " and for days " + numDays);
-    DateTime time = new DateTime(dUtils.zone);
-    DateTime daysAgo = time.minusDays(numDays);
+    
+    if (numDays != -1) {
+      DateTime time = new DateTime(dUtils.zone);
+      DateTime daysAgo = time.minusDays(numDays);
+      Path sourceDailyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*/*");
+      for (FileStatus f : fs.globStatus(sourceDailyGlob)) {
+        DateTime dirDateTime =
+            outputDailyFormat.parseDateTime(f.getPath().toString()
+                .substring(f.getPath().toString().length() - OUTPUT_DAILY_FORMAT_STR.length()));
+        if (dirDateTime.isBefore(daysAgo)) {
+          if (!(force || topicDestSubdir.isEmpty())) {
+            Path destPath =
+                new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
 
-    Path sourceDailyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*/*");
-    for (FileStatus f : fs.globStatus(sourceDailyGlob))
-    {
-      DateTime dirDateTime =
-          outputDailyFormat.parseDateTime(f.getPath()
-                                           .toString()
-                                           .substring(f.getPath().toString().length()
-                                               - OUTPUT_DAILY_FORMAT_STR.length()));
-      if (dirDateTime.isBefore(daysAgo)) {
-        if (! (force || topicDestSubdir.isEmpty())){
-          Path destPath = new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
-          
-          if (! fs.exists(destPath)) {
-            topicExceptionString = topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f.getPath());
-            continue;
+            if (!fs.exists(destPath)) {
+              topicExceptionString =
+                  topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f
+                      .getPath());
+              continue;
+            }
           }
+          deleteFileDir(fs, f.getPath());
         }
-        deleteFileDir(fs, f.getPath());
       }
     }
     

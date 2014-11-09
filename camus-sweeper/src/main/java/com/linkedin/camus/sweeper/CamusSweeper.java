@@ -141,12 +141,13 @@ public class CamusSweeper extends Configured implements Tool
   
   private static void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs, Map<FileStatus, String> topics) throws IOException{
     for (FileStatus f : fs.listStatus(input)){
+      topicNameSpace = (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + f.getPath().getParent().getName();
       if (! f.isDir())
         return;
       if (f.getPath().getName().equals(topicSubdir) && filter.accept(f.getPath().getParent())){
         topics.put(fs.getFileStatus(f.getPath().getParent()), topicNameSpace);
       } else {
-        findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + f.getPath().getParent().getName(), fs, topics);
+        findAllTopics(f.getPath(), filter, topicSubdir, topicNameSpace, fs, topics);
       }
     }
   }
@@ -200,18 +201,18 @@ public class CamusSweeper extends Configured implements Tool
         sourceSubdir, fs);
     for (FileStatus topic : topics.keySet())
     {
-      String topicNameSpace = topics.get(topic);
-      String topicName =  (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + topic.getPath().getName();
-      log.info("Processing topic " + topicName);
+      String topicFullName = topics.get(topic);
+
+      log.info("Processing topic " + topicFullName);
 
       Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
       try
       {
-        runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+        runCollectorForTopicDir(fs, topicFullName, new Path(topic.getPath(), sourceSubdir), destinationPath);
       }
       catch (Exception e)
       {
-        System.err.println("unable to process " + topicName + " skipping...");
+        System.err.println("unable to process " + topicFullName + " skipping...");
         e.printStackTrace();
       }
     }

@@ -5,7 +5,10 @@ import com.google.gson.JsonParser;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import org.apache.log4j.Logger;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
 
@@ -38,6 +41,9 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
     public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
     public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
 
+    JsonParser jsonParser = new JsonParser();
+    DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
+
     private String timestampFormat;
     private String timestampField;
 
@@ -60,7 +66,7 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 
         // Parse the payload into a JsonObject.
         try {
-            jsonObject = new JsonParser().parse(payloadString).getAsJsonObject();
+            jsonObject = jsonParser.parse(payloadString.trim()).getAsJsonObject();
         } catch (RuntimeException e) {
             log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
             throw new RuntimeException(e);
@@ -85,8 +91,14 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
             else {
                 String timestampString = jsonObject.get(timestampField).getAsString();
                 try {
-                    timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
-                } catch (Exception e) {
+                    timestamp = dateTimeParser.parseDateTime(timestampString).getMillis();
+                } catch (IllegalArgumentException e) {
+                    try {
+                        timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                    } catch (ParseException pe) {
+                        log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
+                    }
+                } catch (Exception ee) {
                     log.error("Could not parse timestamp '" + timestampString + "' while decoding JSON message.");
                 }
             }

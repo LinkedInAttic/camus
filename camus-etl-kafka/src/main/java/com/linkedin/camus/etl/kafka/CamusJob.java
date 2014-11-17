@@ -8,14 +8,15 @@ import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import com.linkedin.camus.etl.kafka.logger.BaseReporter;
-import com.linkedin.camus.etl.kafka.logger.TimeReporter;
+import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
+import com.linkedin.camus.etl.kafka.reporter.TimeReporter;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.ClassNotFoundException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
@@ -537,8 +538,8 @@ public class CamusJob extends Configured implements Tool {
 	 * @throws IOException
 	 */
 	private void createReport(Job job, Map<String, Long> timingMap)
-			throws IOException {
-		Class cls = job.getConfiguration().getClass(getReporterClass(job), TimeReporter.class);
+			throws IOException, ClassNotFoundException {
+		Class cls = job.getConfiguration().getClassByName(getReporterClass(job));
 		((BaseReporter)ReflectionUtils.newInstance(cls, job.getConfiguration())).report(job, timingMap);
 	}
 
@@ -657,6 +658,6 @@ public class CamusJob extends Configured implements Tool {
 	}
 
 	public static String getReporterClass(JobContext job) {
-		return job.getConfiguration().get(CAMUS_REPORTER_CLASS, "com.linkedin.camus.etl.kafka.logger.TimeReporter");
+		return job.getConfiguration().get(CAMUS_REPORTER_CLASS, "com.linkedin.camus.etl.kafka.reporter.TimeReporter");
 	}
 }

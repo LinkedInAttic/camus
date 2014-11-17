@@ -1,4 +1,4 @@
-package com.linkedin.camus.etl.kafka.logger;
+package com.linkedin.camus.etl.kafka.reporter;
 
 import java.util.Map;
 import java.io.IOException;
@@ -14,7 +14,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.TaskReport;
 
-import com.linkedin.camus.etl.kafka.logger.BaseReporter;
+import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
 
 public class TimeReporter extends BaseReporter {
     public void report(Job job, Map<String, Long> timingMap) throws IOException {

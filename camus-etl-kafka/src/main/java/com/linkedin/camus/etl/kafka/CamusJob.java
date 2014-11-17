@@ -159,8 +159,12 @@ public class CamusJob extends Configured implements Tool {
 	   {
 	     job.setJobName("Camus Job");
 	   }
-	   
-	  return job;
+
+		if (System.getenv("HADOOP_TOKEN_FILE_LOCATION") != null) {
+			job.getConfiguration().set("mapreduce.job.credentials.binary", System.getenv("HADOOP_TOKEN_FILE_LOCATION"));
+		}
+
+		return job;
 	}
 
 	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {

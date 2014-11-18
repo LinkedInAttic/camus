@@ -1,4 +1,4 @@
-package com.linkedin.camus.etl.kafka.logger;
+package com.linkedin.camus.etl.kafka.reporter;
 
 import java.util.Map;
 import java.io.IOException;

@@ -17,6 +17,9 @@ import kafka.utils.Utils;
 import org.apache.zookeeper.server.NIOServerCnxn;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
+/**
+ * Runs an in-process version of Kafka and Zookeeper for use with integration tests.
+ */
 public class KafkaCluster {
     
     private static final Random RANDOM = new Random();
@@ -25,7 +28,11 @@ public class KafkaCluster {
     private final EmbeddedZookeeper zookeeper;
     private final List<KafkaServer> brokers;
     private final Properties props;
-    
+
+    /**
+     * Starts a single-broker cluster.
+     * @throws IOException
+     */
     public KafkaCluster() throws IOException {
         this(new Properties());
     }
@@ -43,14 +50,11 @@ public class KafkaCluster {
         
         this.props.putAll(baseProperties);
         
-        StringBuilder builder = null;
+        StringBuilder builder = new StringBuilder();
         
         for (int i = 0; i < numOfBrokers; ++i) {
-            if(builder != null)
-                builder.append(",");
-            else
-                builder = new StringBuilder();
-            
+            if(builder.length() > 0) builder.append(",");
+
             int brokerPort = getAvailablePort();
             
             builder.append("localhost:");
@@ -120,9 +124,6 @@ public class KafkaCluster {
 
         /**
          * Constructs an embedded Zookeeper instance.
-         * 
-         * @param connectString Zookeeper connection string.
-         * 
          * @throws IOException if an error occurs during Zookeeper initialization.
          */
         public EmbeddedZookeeper() throws IOException {

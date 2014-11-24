@@ -43,7 +43,7 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
         decoderFactory = DecoderFactory.get();
 	}
 
-	private class MessageDecoderHelper {
+	public class MessageDecoderHelper {
 		//private Message message;
 		private ByteBuffer buffer;
 		private Schema schema;

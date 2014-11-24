@@ -36,6 +36,13 @@
 	     		<artifactId>joda-time</artifactId>
 	     		<version>2.2</version>
 	    	</dependency>
+		<dependency>
+			<groupId>org.easymock</groupId>
+			<artifactId>easymock</artifactId>
+			<version>3.3</version>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 </project>

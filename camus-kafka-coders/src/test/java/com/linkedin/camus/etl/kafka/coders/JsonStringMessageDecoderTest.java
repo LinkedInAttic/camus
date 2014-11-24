@@ -7,7 +7,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Properties;
 
-public class TestJsonStringMessageDecoder {
+public class JsonStringMessageDecoderTest {
 
     @Test
     public void testDecodeUnixMilliseconds() {

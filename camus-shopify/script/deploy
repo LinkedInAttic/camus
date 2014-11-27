@@ -8,8 +8,7 @@ import logging as lg
 from os.path import basename, exists
 
 from azkaban import Job, Project
-from azkaban.util import AzkabanError, MultipartForm
-from azkaban.remote import Session, _extract_json
+from azkaban.remote import Session
 
 
 formatter = lg.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s', '%d/%m/%y %H:%M:%S')
@@ -40,51 +39,7 @@ def get_camus_version(path):
     return run_shell_command(cmd, 'Retrieved Camus version', path, True)
 
 
-def get_hadoop_classpath():
-    cmd = 'hadoop classpath'.split()
-    return run_shell_command(cmd, 'Retrieved Hadoop Classpath')
-
-
-def upload_project(session, name, path, archive_name=None):
-    """Upload project archive.
-
-    :param name: Project name.
-    :param path: Local path to zip archive.
-    :param archive_name: Filename used for the archive uploaded to Azkaban.
-      Defaults to `basename(path)`.
-
-    """
-    logger.debug('Uploading archive %r to project %s.', path, name)
-    if not exists(path):
-        raise AzkabanError('Unable to find archive at %r.' % (path, ))
-    if not session.is_valid():
-        session._refresh('shopify')
-    archive_name = archive_name or basename(path)
-    form = MultipartForm(
-        files=[{
-            'path': path,
-            'name': archive_name,
-            'type': 'application/zip'
-        }],
-        params={
-            'ajax': 'upload',
-            'project': name,
-            'session.id': session.id,
-        }
-    )
-
-    res = _extract_json(session._request(
-        method='POST',
-        endpoint='manager',
-        include_session=False,
-        headers=form.headers,
-        data=form,
-    ))
-    logger.info(
-        'Archive %s for project %s uploaded as %s.', path, name, archive_name
-    )
-
-def main(args):
+def main():
     repo_root = os.getcwd()
     hadoop_classpath = '/etc/camus:/etc/hadoop/conf:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/./:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/.//*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/./:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/lib/*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/.//*'
     camus_version = get_camus_version(repo_root)
@@ -92,7 +47,7 @@ def main(args):
     azkaban_auth = json.load(open(os.path.join(repo_root, 'camus-shopify', 'azkaban.json')))
 
     project = Project('Camus')
-    project.add_file(os.path.join(args.path, 'camus-shopify', 'target', camus_jar), '%s' % camus_jar)
+    project.add_file(os.path.join(repo_root, 'camus-shopify', 'target', camus_jar), '%s' % camus_jar)
     project.add_job('Camus', Job({'java.class': 'com.linkedin.camus.etl.kafka.CamusJob',
                                           'failure.emails': 'yagnik.khanna@shopify.com',
                                           'main.args': '-P /u/apps/camus/shared/camus.properties',
@@ -104,14 +59,16 @@ def main(args):
     logger.info('Building zip file')
     project.build('camus.zip', True)
     logger.info('Connecting to Azkaban site')
-    session = Session('https://azkaban.data.shopify.com')
+    session = Session(azkaban_auth['server'])
     session.user = azkaban_auth['user']
-    session.password = azkaban_auth['password']
+    session._refresh(azkaban_auth['password'])
 
     logger.info('Uploading zip file')
-    upload_project(session, 'Camus', 'camus.zip')
-    logger.info('Successfully uploaded Camus zip file. Done.')
+    session.upload_project('Camus', 'camus.zip')
+    logger.info('Successfully uploaded Camus zip file.')
 
+    session.schedule_workflow('Camus', 'Camus', date='01/01/2014', time="12,01,AM,UTC", period="10m")
+    logger.info('Successfully scheduled Camus flow.')
 
 if __name__ == '__main__':
     main()

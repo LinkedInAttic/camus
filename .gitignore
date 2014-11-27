@@ -27,3 +27,12 @@ camus-api/target/
 camus-etl-kafka/target/
 camus-example/target/
 camus-schema-registry/target/
+
+# virtualenv for deploy
+.venv
+
+# built project zip
+camus.zip
+
+# decrypted azkaban secrets
+camus-shopify/azkaban.json

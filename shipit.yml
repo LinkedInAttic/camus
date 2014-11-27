@@ -5,4 +5,4 @@ dependencies:
 deploy:
   override:
     - mvn clean package
-    - camus-shopify/script/deploy
+    - bash -c ". .venv/bin/activate && camus-shopify/script/deploy"

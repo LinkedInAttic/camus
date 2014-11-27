@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
+import json
 import argparse
 import subprocess
 import logging as lg
@@ -84,9 +85,12 @@ def upload_project(session, name, path, archive_name=None):
     )
 
 def main(args):
-    camus_version = get_camus_version(args.path)
+    repo_root = os.getcwd()
+    hadoop_classpath = '/etc/camus:/etc/hadoop/conf:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/./:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/.//*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/./:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/lib/*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/.//*'
+    camus_version = get_camus_version(repo_root)
     camus_jar = 'camus-shopify-%s.jar' % camus_version
-    hadoop_classpath = args.classpath or get_hadoop_classpath()
+    azkaban_auth = json.load(open(os.path.join(repo_root, 'camus-shopify', 'azkaban.json')))
+
     project = Project('Camus')
     project.add_file(os.path.join(args.path, 'camus-shopify', 'target', camus_jar), '%s' % camus_jar)
     project.add_job('Camus', Job({'java.class': 'com.linkedin.camus.etl.kafka.CamusJob',
@@ -101,15 +105,13 @@ def main(args):
     project.build('camus.zip', True)
     logger.info('Connecting to Azkaban site')
     session = Session('https://azkaban.data.shopify.com')
-    session.user = 'camus'
+    session.user = azkaban_auth['user']
+    session.password = azkaban_auth['password']
+
     logger.info('Uploading zip file')
     upload_project(session, 'Camus', 'camus.zip')
     logger.info('Successfully uploaded Camus zip file. Done.')
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Deploy Camus to Azkaban')
-    parser.add_argument('-p', '--path', help='Path to root Camus repo', default=os.getcwd())
-    parser.add_argument('--classpath', help='Hadoop classpath', default='/etc/camus:/etc/hadoop/conf:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/./:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-hdfs/.//*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/lib/*:/u/cloudera/parcels/CDH/lib/hadoop/libexec/../../hadoop-yarn/.//*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/./:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/lib/*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/.//*')
-    args = parser.parse_args()
-    main(args)
+    main()

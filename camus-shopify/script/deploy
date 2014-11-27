@@ -1,0 +1,116 @@
+#!/usr/bin/env python
+import os
+import sys
+import argparse
+import subprocess
+import logging as lg
+from os.path import basename, exists
+
+from azkaban import Job, Project
+from azkaban.util import AzkabanError, MultipartForm
+from azkaban.remote import Session, _extract_json
+
+
+formatter = lg.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s', '%d/%m/%y %H:%M:%S')
+ch = lg.StreamHandler(sys.stdout)
+ch.setFormatter(formatter)
+logger = lg.getLogger('azkaban_submit_job')
+logger.setLevel(lg.INFO)
+logger.addHandler(ch)
+
+
+def run_shell_command(cmd, description, cwd=None, shell=False):
+    if not cwd:
+        cwd = os.getcwd()
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, shell=shell)
+    stdout, stderr = p.communicate()
+    logger.info('%s: %s' % (description, stdout))
+    if stderr:
+        logger.error(stderr)
+        exit(-1)
+    else:
+        return stdout.strip()
+
+
+def get_camus_version(path):
+    path = os.path.join(path, 'camus-shopify')
+    logger.info('Retrieving Camus version from %s' % path)
+    cmd = "mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | grep -Ev '(^\[|Download\w+:)'"
+    return run_shell_command(cmd, 'Retrieved Camus version', path, True)
+
+
+def get_hadoop_classpath():
+    cmd = 'hadoop classpath'.split()
+    return run_shell_command(cmd, 'Retrieved Hadoop Classpath')
+
+
+def upload_project(session, name, path, archive_name=None):
+    """Upload project archive.
+
+    :param name: Project name.
+    :param path: Local path to zip archive.
+    :param archive_name: Filename used for the archive uploaded to Azkaban.
+      Defaults to `basename(path)`.
+
+    """
+    logger.debug('Uploading archive %r to project %s.', path, name)
+    if not exists(path):
+        raise AzkabanError('Unable to find archive at %r.' % (path, ))
+    if not session.is_valid():
+        session._refresh('shopify')
+    archive_name = archive_name or basename(path)
+    form = MultipartForm(
+        files=[{
+            'path': path,
+            'name': archive_name,
+            'type': 'application/zip'
+        }],
+        params={
+            'ajax': 'upload',
+            'project': name,
+            'session.id': session.id,
+        }
+    )
+
+    res = _extract_json(session._request(
+        method='POST',
+        endpoint='manager',
+        include_session=False,
+        headers=form.headers,
+        data=form,
+    ))
+    logger.info(
+        'Archive %s for project %s uploaded as %s.', path, name, archive_name
+    )
+
+def main(args):
+    camus_version = get_camus_version(args.path)
+    camus_jar = 'camus-shopify-%s.jar' % camus_version
+    hadoop_classpath = args.classpath or get_hadoop_classpath()
+    project = Project('Camus')
+    project.add_file(os.path.join(args.path, 'camus-shopify', 'target', camus_jar), '%s' % camus_jar)
+    project.add_job('Camus', Job({'java.class': 'com.linkedin.camus.etl.kafka.CamusJob',
+                                          'failure.emails': 'yagnik.khanna@shopify.com',
+                                          'main.args': '-P /u/apps/camus/shared/camus.properties',
+                                          'type': 'javaprocess',
+                                          'jvm.args': '-Xms1G -Xmx1G -DHADOOP_USER_NAME=deploy -Dlog4j.configuration=file:/u/apps/camus/shared/log4j.xml',
+                                          'classpath': '%s:%s' % (hadoop_classpath, camus_jar)
+    }))
+
+    logger.info('Building zip file')
+    project.build('camus.zip', True)
+    logger.info('Connecting to Azkaban site')
+    session = Session('https://azkaban.data.shopify.com')
+    session.user = 'camus'
+    logger.info('Uploading zip file')
+    upload_project(session, 'Camus', 'camus.zip')
+    logger.info('Successfully uploaded Camus zip file. Done.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Deploy Camus to Azkaban')
+    parser.add_argument('-p', '--path', help='Path to root Camus repo', default=os.getcwd())
+    parser.add_argument('--classpath', help='Hadoop classpath', default='/etc/camus:/etc/hadoop/conf:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop/lib/*:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop/.//*:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop-hdfs/./:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop-hdfs/lib/*:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop-hdfs/.//*:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop-yarn/lib/*:/u/cloudera/parcels/CDH-4.4.0-1.cdh4.4.0.p0.39/lib/hadoop/libexec/../../hadoop-yarn/.//*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/./:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/lib/*:/u/cloudera/parcels/CDH/lib/hadoop-0.20-mapreduce/.//*')
+    args = parser.parse_args()
+    main(args)
+

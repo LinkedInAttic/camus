@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+mkdir -p .venv
+test -e .venv/bin/activate || virtualenv .venv --no-site-packages
+. .venv/bin/activate
+pip install azkaban

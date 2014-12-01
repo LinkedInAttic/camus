@@ -77,6 +77,11 @@
 			<artifactId>commons-httpclient</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>com.indeed</groupId>
+			<artifactId>java-dogstatsd-client</artifactId>
+			<version>2.0.8</version>
+		</dependency>
 	</dependencies>
 
 <!-- 	<build> -->

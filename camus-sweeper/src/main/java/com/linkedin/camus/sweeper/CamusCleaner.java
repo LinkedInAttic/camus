@@ -92,15 +92,13 @@ public class CamusCleaner extends Configured implements Tool
     List<String> blacklist = Utils.getStringList(props, "camus.sweeper.blacklist");
     List<String> whitelist = Utils.getStringList(props, "camus.sweeper.whitelist");
     
+    // usually means hourly, but fromLocation can be daily subdir since the same
+    // code is used for daily retention
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
-    String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
     
-    if (destLocation.isEmpty())
-      destLocation = fromLocation;
+    sourcePath = fs.getFileStatus(new Path(fromLocation)).getPath();
     
-    sourcePath = fs.getFileStatus(new Path(destLocation)).getPath();
-    
-    log.debug("Daily Path : " + sourcePath);
+    log.debug("Path : " + sourcePath);
     simulate = Boolean.parseBoolean(props.getProperty(SIMULATE, "false"));
     force = Boolean.parseBoolean(props.getProperty(FORCE, "false"));
 
@@ -110,9 +108,9 @@ public class CamusCleaner extends Configured implements Tool
     int regularRetention = Integer.parseInt((String) props.getProperty("camus.sweeper.clean.retention.days.global", "-1"));
 
     if (regularRetention != -1)
-      System.out.println("Global retention set to " + regularRetention);
+      log.info("Global retention set to " + regularRetention);
     else
-      System.out.println("Global retention set to infinity, will not delete unspecified topics");
+      log.info("Global retention set to infinity, will not delete unspecified topics");
     
     WhiteBlackListPathFilter filter = new WhiteBlackListPathFilter(whitelist, blacklist, sourcePath);
 
@@ -138,7 +136,7 @@ public class CamusCleaner extends Configured implements Tool
 
   private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir, int numDays) throws Exception
   {
-    System.out.println("Running retention for " + topicName + " using " + numDays + " days");
+    log.info("Running retention for " + topicName + " using " + numDays + " days");
     
     if (numDays != -1) {
       DateTime time = new DateTime(dUtils.zone);
@@ -158,6 +156,16 @@ public class CamusCleaner extends Configured implements Tool
                   topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f
                       .getPath());
               continue;
+            } else {
+              FileStatus dest = fs.getFileStatus(destPath);
+              
+              for (FileStatus sourceFile : fs.listStatus(f.getPath())){
+                if (dest.getModificationTime() < sourceFile.getModificationTime()) {
+                  topicExceptionString =
+                      topicExceptionString == null ? ("source is older than rollup for inputs: " + f.getPath()) : (", " + f
+                          .getPath());
+                }
+              }    
             }
           }
           deleteFileDir(fs, f.getPath());
@@ -191,7 +199,7 @@ public class CamusCleaner extends Configured implements Tool
   {
     if (!simulate)
     {
-      System.out.println("Deleting " + deletePath);
+      log.info("Deleting " + deletePath);
       if (fs.delete(deletePath, true))
       {
         return;
@@ -203,7 +211,7 @@ public class CamusCleaner extends Configured implements Tool
     }
     else
     {
-      System.out.println("Simulating delete " + deletePath);
+      log.info("Simulating delete " + deletePath);
     }
   }
 

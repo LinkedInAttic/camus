@@ -281,23 +281,21 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                         log.info(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
                     } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
-                        if (timeStamp > endTimeStamp)
+                        String maxMsg =  "at " + new DateTime(timeStamp).toString();
+                        if (timeStamp > endTimeStamp) {
                             log.info("Kafka Max history hours reached");
-                        if (System.currentTimeMillis() > maxPullTime)
+                            mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached" + maxMsg));
+                        } else {
                             log.info("Kafka pull time limit reached");
-                        statusMsg += " max read at " + new DateTime(timeStamp).toString();
+                            mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached" + maxMsg));
+                        }
+                        statusMsg += " max read " + maxMsg;
                         context.setStatus(statusMsg);
-                        log.info(key.getTopic() + " max read at "
-                                + new DateTime(timeStamp).toString());
+                        log.info(key.getTopic() + " max read " + maxMsg);
                         mapperContext.getCounter("total", "request-time(ms)").increment(
                                 reader.getFetchTime());
-                        mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached"));
                         closeReader();
-                    } else if (System.currentTimeMillis() > maxPullTime) {
-                        log.info("Max pull time reached");
-                        mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached"));
-                        closeReader();
-                    }
+                    } 
 
                     long secondTime = System.currentTimeMillis();
                     value = wrapper;

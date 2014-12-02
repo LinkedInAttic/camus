@@ -48,8 +48,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private int maxPullHours = 0;
     private int exceptionCount = 0;
     private long maxPullTime = 0;
-    private long beginTimeStamp = 0;
     private long endTimeStamp = 0;
+    private long curTimeStamp = 0;
     private HashSet<String> ignoreServerServiceList = null;
 
     private String statusMsg = "";
@@ -101,13 +101,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     EtlInputFormat.getKafkaMaxPullMinutesPerTask(context)).getMillis();
         } else {
             this.maxPullTime = Long.MAX_VALUE;
-        }
-
-        if (EtlInputFormat.getKafkaMaxHistoricalDays(context) != -1) {
-            int maxDays = EtlInputFormat.getKafkaMaxHistoricalDays(context);
-            beginTimeStamp = (new DateTime()).minusDays(maxDays).getMillis();
-        } else {
-            beginTimeStamp = 0;
         }
         
         ignoreServerServiceList = new HashSet<String>();
@@ -183,6 +176,28 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
 
     @Override
     public boolean nextKeyValue() throws IOException, InterruptedException {
+      
+      if (System.currentTimeMillis() > maxPullTime) {
+        String maxMsg =  "at " + new DateTime(curTimeStamp).toString();
+        log.info("Kafka pull time limit reached");
+        statusMsg += " max read " + maxMsg;
+        context.setStatus(statusMsg);
+        log.info(key.getTopic() + " max read " + maxMsg);
+        mapperContext.getCounter("total", "request-time(ms)").increment(
+                reader.getFetchTime());
+        closeReader();
+        
+        mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached" + maxMsg));
+        
+        EtlRequest request = null;
+        
+        while ((request = (EtlRequest) split.popRequest()) != null) {
+           key.set(request.getTopic(), request.getLeaderId(), request.getPartition(), request.getOffset(), request.getOffset(), 0);
+           mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached"));
+        }
+        
+        return false;
+      } 
 
         Message message = null;
 
@@ -262,9 +277,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                         continue;
                     }
 
-                    long timeStamp = wrapper.getTimestamp();
+                    curTimeStamp = wrapper.getTimestamp();
                     try {
-                        key.setTime(timeStamp);
+                        key.setTime(curTimeStamp);
                         key.addAllPartitionMap(wrapper.getPartitionMap());
                         setServerService();
                     } catch (Exception e) {
@@ -272,23 +287,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                         continue;
                     }
 
-                    if (timeStamp < beginTimeStamp) {
-                        mapperContext.getCounter("total", "skip-old").increment(1);
-                    } else if (endTimeStamp == 0) {
-                        DateTime time = new DateTime(timeStamp);
+                    if (endTimeStamp == 0) {
+                        DateTime time = new DateTime(curTimeStamp);
                         statusMsg += " begin read at " + time.toString();
                         context.setStatus(statusMsg);
                         log.info(key.getTopic() + " begin read at " + time.toString());
                         endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
-                    } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
-                        String maxMsg =  "at " + new DateTime(timeStamp).toString();
-                        if (timeStamp > endTimeStamp) {
-                            log.info("Kafka Max history hours reached");
-                            mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached" + maxMsg));
-                        } else {
-                            log.info("Kafka pull time limit reached");
-                            mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached" + maxMsg));
-                        }
+                    } else if (curTimeStamp > endTimeStamp ) {
+                        String maxMsg =  "at " + new DateTime(curTimeStamp).toString();
+                        log.info("Kafka Max history hours reached");
+                        mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached" + maxMsg));
                         statusMsg += " max read " + maxMsg;
                         context.setStatus(statusMsg);
                         log.info(key.getTopic() + " max read " + maxMsg);

@@ -102,6 +102,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String CAMUS_REPORTER_CLASS = "etl.reporter.class";
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
 	private static org.apache.log4j.Logger log;
+	private Job hadoopJob = null;
 
 	private final Properties props;
 	
@@ -165,8 +166,9 @@ public class CamusJob extends Configured implements Tool {
 		if (System.getenv("HADOOP_TOKEN_FILE_LOCATION") != null) {
 			job.getConfiguration().set("mapreduce.job.credentials.binary", System.getenv("HADOOP_TOKEN_FILE_LOCATION"));
 		}
-
-		return job;
+	   
+	   this.hadoopJob = job;
+	   return job;
 	}
 
 	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
@@ -414,6 +416,12 @@ public class CamusJob extends Configured implements Tool {
                 .equalsIgnoreCase(Boolean.TRUE.toString())) {
             throw new RuntimeException("Camus saw errors, check stderr");
         }
+	}
+	
+	public void cancel() throws IOException {
+	  if (this.hadoopJob != null) {
+	    this.hadoopJob.killJob();
+	  }    
 	}
 
 	public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs, Path newExecutionOutput)

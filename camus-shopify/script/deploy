@@ -67,7 +67,7 @@ def main():
     session.upload_project('Camus', 'camus.zip')
     logger.info('Successfully uploaded Camus zip file.')
 
-    session.schedule_workflow('Camus', 'Camus', date='01/01/2014', time="12,01,AM,UTC", period="1h")
+    session.schedule_workflow('Camus', 'Camus', date='01/01/2014', time="12,01,AM,UTC", period="1h", concurrent=False)
     logger.info('Successfully scheduled Camus flow.')
 
 if __name__ == '__main__':

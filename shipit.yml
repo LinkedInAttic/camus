@@ -1,4 +1,8 @@
+dependencies:
+  override:
+    - camus-shopify/script/setup
+
 deploy:
-    override:
-        - mvn clean package
-        - /etc/azkaban/azkaban-submit-job
+  override:
+    - mvn clean package
+    - bash -c ". .venv/bin/activate && camus-shopify/script/deploy"

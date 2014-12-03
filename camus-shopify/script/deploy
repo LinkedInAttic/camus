@@ -49,7 +49,7 @@ def main():
     project = Project('Camus')
     project.add_file(os.path.join(repo_root, 'camus-shopify', 'target', camus_jar), '%s' % camus_jar)
     project.add_job('Camus', Job({'java.class': 'com.linkedin.camus.etl.kafka.CamusJob',
-                                          'failure.emails': 'yagnik.khanna@shopify.com',
+                                          'failure.emails': 'camus@shopify.pagerduty.com',
                                           'main.args': '-P /u/apps/camus/shared/camus.properties',
                                           'type': 'javaprocess',
                                           'jvm.args': '-Xms1G -Xmx1G -DHADOOP_USER_NAME=deploy -Dlog4j.configuration=file:/u/apps/camus/shared/log4j.xml',

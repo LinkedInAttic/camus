@@ -130,7 +130,7 @@ public class CamusSweeper extends Configured implements Tool
     }
   }
   
-  private Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, FileSystem fs) throws IOException{
+  public static Map<FileStatus, String> findAllTopics(Path input, PathFilter filter, String topicSubdir, FileSystem fs) throws IOException{
     Map<FileStatus, String> topics = new HashMap<FileStatus, String>();
     for (FileStatus f : fs.listStatus(input)){
       // skipping first level, in search of the topic subdir
@@ -139,14 +139,15 @@ public class CamusSweeper extends Configured implements Tool
     return topics;
   }
   
-  private void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs, Map<FileStatus, String> topics) throws IOException{
+  private static void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace, FileSystem fs, Map<FileStatus, String> topics) throws IOException{
     for (FileStatus f : fs.listStatus(input)){
+      String topicFullName = (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + f.getPath().getParent().getName();
       if (! f.isDir())
         return;
       if (f.getPath().getName().equals(topicSubdir) && filter.accept(f.getPath().getParent())){
-        topics.put(fs.getFileStatus(f.getPath().getParent()), topicNameSpace);
+        topics.put(fs.getFileStatus(f.getPath().getParent()), topicFullName);
       } else {
-        findAllTopics(f.getPath(), filter, topicSubdir, (topicNameSpace.isEmpty() ? "" : topicNameSpace + "/") + f.getPath().getParent().getName(), fs, topics);
+        findAllTopics(f.getPath(), filter, topicSubdir, topicFullName, fs, topics);
       }
     }
   }
@@ -156,7 +157,7 @@ public class CamusSweeper extends Configured implements Tool
     log.info("Starting kafka sweeper");
     int numThreads = Integer.parseInt(props.getProperty("num.threads", DEFAULT_NUM_THREADS));
 
-    executorService = executorService = new PriorityExecutor(numThreads); 
+    executorService = new PriorityExecutor(numThreads); 
 
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");
@@ -166,9 +167,7 @@ public class CamusSweeper extends Configured implements Tool
       destLocation = fromLocation;
     
     if (tmpLocation.isEmpty())
-      tmpLocation = "/tmp/camus-sweeper-tmp";
-    else
-      tmpLocation += "/camus-sweeper-tmp";
+      tmpLocation = "/tmp";
     
     props.setProperty("camus.sweeper.tmp.dir", tmpLocation);
 
@@ -188,25 +187,32 @@ public class CamusSweeper extends Configured implements Tool
     FileSystem fs = FileSystem.get(conf);
     
     Path tmpPath = new Path(tmpLocation);
-    fs.mkdirs(tmpPath, perm);
-    String user = UserGroupInformation.getCurrentUser().getUserName();
-    fs.setOwner(tmpPath, user, user);
     
-    Map<FileStatus, String> topics = findAllTopics(new Path(fromLocation), new WhiteBlackListPathFilter(whitelist, blacklist), sourceSubdir, fs);
+    if (! fs.exists(tmpPath)){
+      fs.mkdirs(tmpPath, perm);
+      String user = UserGroupInformation.getCurrentUser().getUserName();
+      fs.setOwner(tmpPath, user, user);
+    }
+    
+    Path fromLocationPath = new Path(fromLocation);
+    
+    Map<FileStatus, String> topics = findAllTopics(fromLocationPath, 
+        new WhiteBlackListPathFilter(whitelist, blacklist, fs.getFileStatus(fromLocationPath).getPath()), 
+        sourceSubdir, fs);
     for (FileStatus topic : topics.keySet())
     {
-      String topicNameSpace = topics.get(topic).replaceAll("/", "_");
-      String topicName =  (topicNameSpace.isEmpty() ? "" : topicNameSpace + "_") + topic.getPath().getName();
-      log.info("Processing topic " + topicName);
+      String topicFullName = topics.get(topic);
 
-      Path destinationPath = new Path(destLocation + "/" + topics.get(topic) + "/" + topic.getPath().getName() + "/" + destSubdir);
+      log.info("Processing topic " + topicFullName);
+
+      Path destinationPath = new Path(destLocation + "/" + topics.get(topic).replace(".", "/") + "/" + destSubdir);
       try
       {
-        runCollectorForTopicDir(fs, topicName, new Path(topic.getPath(), sourceSubdir), destinationPath);
+        runCollectorForTopicDir(fs, topicFullName, new Path(topic.getPath(), sourceSubdir), destinationPath);
       }
       catch (Exception e)
       {
-        System.err.println("unable to process " + topicName + " skipping...");
+        System.err.println("unable to process " + topicFullName + " skipping...");
         e.printStackTrace();
       }
     }
@@ -448,24 +454,14 @@ public class CamusSweeper extends Configured implements Tool
       mkdirs(fs, path.getParent(), perm);
     fs.mkdirs(path, perm);
   }
-  
-  private Pattern compileMultiPattern(Collection<String> list){
-    String patternStr = "(";
-    
-    for (String str : list){
-      patternStr += str + "|";
-    }
-    
-    patternStr = patternStr.substring(0, patternStr.length() - 1) + ")";
-    return Pattern.compile(patternStr);
-  }
 
-  private class WhiteBlackListPathFilter implements PathFilter
+  public static class WhiteBlackListPathFilter implements PathFilter
   {
     private Pattern whitelist;
     private Pattern blacklist;
+    private int rootLength;
 
-    public WhiteBlackListPathFilter(Collection<String> whitelist, Collection<String> blacklist)
+    public WhiteBlackListPathFilter(Collection<String> whitelist, Collection<String> blacklist, Path qualRootDir)
     {
       if (whitelist.isEmpty())
         this.whitelist = Pattern.compile(".*");  //whitelist everything
@@ -478,14 +474,27 @@ public class CamusSweeper extends Configured implements Tool
         this.blacklist = compileMultiPattern(blacklist);
       log.info("whitelist: " + this.whitelist.toString());
       log.info("blacklist: " + this.blacklist.toString());
+      this.rootLength = qualRootDir.toString().length() + 1;
     }
 
     @Override
     public boolean accept(Path path)
     {
       String name = path.getName();
-      return whitelist.matcher(name).matches() && ! ( blacklist.matcher(name).matches()
+      String fullName = path.toString().substring(rootLength).replaceAll("/", ".");
+      return whitelist.matcher(fullName).matches() && ! ( blacklist.matcher(fullName).matches()
           || name.startsWith(".") || name.startsWith("_"));
+    }
+    
+    private Pattern compileMultiPattern(Collection<String> list){
+      String patternStr = "(";
+      
+      for (String str : list){
+        patternStr += str + "|";
+      }
+      
+      patternStr = patternStr.substring(0, patternStr.length() - 1) + ")";
+      return Pattern.compile(patternStr);
     }
   }
 

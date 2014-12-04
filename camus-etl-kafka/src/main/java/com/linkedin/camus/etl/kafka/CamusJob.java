@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ClassNotFoundException;
 import java.net.URI;
@@ -101,6 +102,7 @@ public class CamusJob extends Configured implements Tool {
 	public static final String CAMUS_REPORTER_CLASS = "etl.reporter.class";
 	public static final String LOG4J_CONFIGURATION = "log4j.configuration";
 	private static org.apache.log4j.Logger log;
+	private Job hadoopJob = null;
 
 	private final Properties props;
 	
@@ -164,8 +166,9 @@ public class CamusJob extends Configured implements Tool {
 		if (System.getenv("HADOOP_TOKEN_FILE_LOCATION") != null) {
 			job.getConfiguration().set("mapreduce.job.credentials.binary", System.getenv("HADOOP_TOKEN_FILE_LOCATION"));
 		}
-
-		return job;
+	   
+	   this.hadoopJob = job;
+	   return job;
 	}
 
 	public static void populateConf(Properties props, Configuration conf, Logger log) throws IOException {
@@ -414,6 +417,12 @@ public class CamusJob extends Configured implements Tool {
             throw new RuntimeException("Camus saw errors, check stderr");
         }
 	}
+	
+	public void cancel() throws IOException {
+	  if (this.hadoopJob != null) {
+	    this.hadoopJob.killJob();
+	  }    
+	}
 
 	public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs, Path newExecutionOutput)
 			throws IOException {
@@ -570,7 +579,7 @@ public class CamusJob extends Configured implements Tool {
 		Options options = new Options();
 
 		options.addOption("p", true, "properties filename from the classpath");
-		options.addOption("P", true, "external properties filename");
+		options.addOption("P", true, "external properties filename (hdfs: or local FS)");
 
 		options.addOption(OptionBuilder.withArgName("property=value")
 				.hasArgs(2).withValueSeparator()
@@ -590,9 +599,20 @@ public class CamusJob extends Configured implements Tool {
                     cmd.getOptionValue('p')));
 
 		if (cmd.hasOption('P')) {
-			File file = new File(cmd.getOptionValue('P'));
-			FileInputStream fStream = new FileInputStream(file);
+			String pathname = cmd.getOptionValue('P');
+
+			InputStream fStream;
+			if (pathname.startsWith("hdfs:")) {
+				Path pt = new Path(pathname);
+				FileSystem fs = FileSystem.get(new Configuration());
+				fStream = fs.open(pt);
+			} else {
+				File file = new File(pathname);
+				fStream = new FileInputStream(file);
+			}
+
 			props.load(fStream);
+			fStream.close();
 		}
 
 		props.putAll(cmd.getOptionProperties("D"));

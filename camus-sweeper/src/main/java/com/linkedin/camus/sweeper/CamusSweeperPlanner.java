@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 public abstract class CamusSweeperPlanner
@@ -26,26 +27,41 @@ public abstract class CamusSweeperPlanner
   
   // Simple check for reprocessing depending on the modified time of the source and destination
   // folder
-  protected boolean shouldReprocess(FileSystem fs, Path source, Path dest) throws IOException
+  protected boolean shouldReprocess(FileSystem fs, List<Path> sources, Path dest) throws IOException
+  {
+    
+    log.debug("source:" + sources.toString());
+    log.debug("dest:" + dest.toString());
+    
+    FileStatus destStatus = fs.getFileStatus(dest);
+    long destinationModTime = destStatus.getModificationTime();
+    
+    for (Path source : sources) {
+      if (shouldReprocess(fs, source, destinationModTime))
+        return true;
+    }
+    
+    return false;
+  }
+
+  private boolean shouldReprocess(FileSystem fs, Path source, long destinationModTime) throws IOException
   {
     FileStatus sourceStatus = fs.getFileStatus(source);
-    FileStatus destStatus = fs.getFileStatus(dest);
+    
+    log.debug("source mod:" + sourceStatus.getModificationTime());
+    log.debug("dest mod:" + destinationModTime);
 
-    long destinationModTime = destStatus.getModificationTime();
-    if (sourceStatus.getModificationTime() > destinationModTime)
-    {
+    if (sourceStatus.getModificationTime() > destinationModTime) {
       return true;
     }
-
-    FileStatus[] statuses = fs.listStatus(source, new HiddenFilter());
-    for (FileStatus status : statuses)
-    {
-      if (status.getModificationTime() > destinationModTime)
-      {
+    
+    FileStatus[] statuses = fs.globStatus(new Path(source, "*"), new HiddenFilter());
+    for (FileStatus status : statuses) {
+      if (shouldReprocess(fs, status.getPath(), destinationModTime)) {
         return true;
       }
     }
-
+    
     return false;
   }
   

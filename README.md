@@ -84,7 +84,7 @@ By default Camus writes Avro data.  But you can also write to different formats 
 
 ### Configuration
 
-Camus can be run from the command line as Java App. You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath to local file system, or to `hdfs:`), or from the command line itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
+Camus can be run from the command line as Java App.  You will need to set some properties either by specifying a properties file on the classpath using -p (filename), or an external properties file using -P (filepath to local file system, or to `hdfs:`), or from the command line itself using -D property=value. If the same property is set using more than one of the previously mentioned methods, the order of precedence is command-line, external file, classpath file.
 
 Here is an abbreviated list of commonly used parameters.  An example properties file is also located https://github.com/linkedin/camus/blob/master/camus-example/src/main/resources/camus.properties.
 

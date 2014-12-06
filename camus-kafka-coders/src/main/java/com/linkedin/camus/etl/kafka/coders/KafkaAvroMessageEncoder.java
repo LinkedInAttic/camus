@@ -19,6 +19,8 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecord;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.log4j.Logger;
 
@@ -30,18 +32,21 @@ import com.linkedin.camus.schemaregistry.SchemaRegistryException;
 public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[]> {
     public static final String KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS = "kafka.message.coder.schema.registry.class";
 
-    private static final byte MAGIC_BYTE = 0x0;
+    private static final byte MAGIC_BYTE_V0 = 0x0;
+    private static final byte MAGIC_BYTE_V1 = 0x1;
+    
     private static final Logger logger = Logger.getLogger(KafkaAvroMessageEncoder.class);
 
     private SchemaRegistry<Schema> client;
     private final Map<Schema, String> cache = Collections
             .synchronizedMap(new HashMap<Schema, String>());
     private final EncoderFactory encoderFactory = EncoderFactory.get();
+    private final byte magicByte;
 
     @SuppressWarnings("unchecked")
     public KafkaAvroMessageEncoder(String topicName, Configuration conf) {
         this.topicName = topicName;
-
+        this.magicByte = conf.getBoolean("id.variable.length", false) ? MAGIC_BYTE_V1 : MAGIC_BYTE_V0;
     }
 
     @Override
@@ -61,7 +66,7 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[
         try {
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            out.write(MAGIC_BYTE);
+            out.write(magicByte);
 
             Schema schema = record.getSchema();
 
@@ -78,7 +83,12 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[
                 id = cache.get(schema);
             }
 
-            out.write(ByteBuffer.allocate(4).putInt(Integer.parseInt(id)).array());
+            if (magicByte == MAGIC_BYTE_V0) {
+            	out.write(ByteBuffer.allocate(4).putInt(Integer.parseInt(id)).array());
+            } else {
+            	out.write(ByteBuffer.allocate(4).putInt(id.length()).array());
+            	out.write(Hex.decodeHex(id.toCharArray()));
+            }
 
             BinaryEncoder encoder = encoderFactory.directBinaryEncoder(out, null);
             DatumWriter<IndexedRecord> writer;
@@ -94,6 +104,8 @@ public class KafkaAvroMessageEncoder extends MessageEncoder<IndexedRecord, byte[
             //return new Message(out.toByteArray());
         } catch (IOException e) {
             throw new MessageEncoderException(e);
+        } catch (DecoderException e) {
+        	throw new MessageEncoderException(e);
         }
     }
 }

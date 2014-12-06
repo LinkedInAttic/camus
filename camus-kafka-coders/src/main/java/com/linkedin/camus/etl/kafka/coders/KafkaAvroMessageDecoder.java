@@ -11,6 +11,7 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DecoderFactory;
+import org.apache.commons.codec.binary.Hex;
 
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
@@ -50,7 +51,8 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 		private int start;
 		private int length;
 		private Schema targetSchema;
-		private static final byte MAGIC_BYTE = 0x0;
+		private static final byte MAGIC_BYTE_V0 = 0x0;
+		private static final byte MAGIC_BYTE_V1 = 0x1;
 		private final SchemaRegistry<Schema> registry;
 		private final String topicName;
 		private byte[] payload;
@@ -84,15 +86,30 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 		}
 
 		private ByteBuffer getByteBuffer(byte[] payload) {
-			ByteBuffer buffer = ByteBuffer.wrap(payload);
-			if (buffer.get() != MAGIC_BYTE)
-				throw new IllegalArgumentException("Unknown magic byte!");
-			return buffer;
+			return ByteBuffer.wrap(payload);
+		
 		}
 
 		public MessageDecoderHelper invoke() {
 			buffer = getByteBuffer(payload);
-			String id = Integer.toString(buffer.getInt());
+			byte magicByte = buffer.get();
+			if (magicByte != MAGIC_BYTE_V0 || magicByte != MAGIC_BYTE_V1)
+				throw new IllegalArgumentException("Unknown magic byte!");
+
+			String id;
+			if (magicByte == MAGIC_BYTE_V0) {
+				// This is for backwards compatibility where the id was only represented
+				// by an integer.
+				id = Integer.toString(buffer.getInt());
+			} else {
+				// The new method is to get the length of the ID, then read that length
+				// from the buffer into a Hex String.
+				int idLength = buffer.getInt();
+				byte[] dst = new byte[idLength];
+				buffer.get(dst);
+				id = Hex.encodeHexString(dst); 
+			}
+
 			schema = registry.getSchemaByID(topicName, id);
 			if (schema == null)
 				throw new IllegalStateException("Unknown schema id: " + id);

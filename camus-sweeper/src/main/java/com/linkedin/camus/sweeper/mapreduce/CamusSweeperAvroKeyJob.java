@@ -37,39 +37,30 @@ import com.linkedin.camus.sweeper.utils.RelaxedAvroKeyOutputFormat;
 import com.linkedin.camus.sweeper.utils.RelaxedAvroSerialization;
 import com.linkedin.camus.sweeper.utils.RelaxedSchemaUtils;
 
-public class CamusSweeperAvroKeyJob extends CamusSweeperJob
-{
-  private static final Log LOG =
-      LogFactory.getLog(CamusSweeperAvroKeyJob.class.getName());
-    
+
+public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
+  private static final Log LOG = LogFactory.getLog(CamusSweeperAvroKeyJob.class.getName());
+
   @Override
-  public void configureJob(String topic, Job job)
-  {
+  public void configureJob(String topic, Job job) {
     boolean skipNameValidation = RelaxedSchemaUtils.skipNameValidation(job.getConfiguration());
-    if (skipNameValidation)
-    {
+    if (skipNameValidation) {
       RelaxedAvroSerialization.addToConfiguration(job.getConfiguration());
     }
-    
+
     // setting up our input format and map output types
     super.configureInput(job, AvroKeyCombineFileInputFormat.class, AvroKeyMapper.class, AvroKey.class, AvroValue.class);
 
     // setting up our output format and output types
-    super.configureOutput(job, 
-                          skipNameValidation ? RelaxedAvroKeyOutputFormat.class : AvroKeyOutputFormat.class, 
-                          AvroKeyReducer.class, 
-                          AvroKey.class, 
-                          NullWritable.class);
+    super.configureOutput(job, skipNameValidation ? RelaxedAvroKeyOutputFormat.class : AvroKeyOutputFormat.class,
+        AvroKeyReducer.class, AvroKey.class, NullWritable.class);
 
     // finding the newest file from our input. this file will contain the newest version of our avro
     // schema.
     Schema schema;
-    try
-    {
+    try {
       schema = getNewestSchemaFromSource(job);
-    }
-    catch (IOException e)
-    {
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
 
@@ -77,22 +68,18 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     // job and set the key schema
     // to the newest input schema
     String keySchemaStr = getConfValue(job, topic, "camus.sweeper.avro.key.schema");
-    
+
     Schema keySchema;
-    if (keySchemaStr == null || keySchemaStr.isEmpty() || job.getConfiguration().getBoolean("second.stage", false))
-    {
+    if (keySchemaStr == null || keySchemaStr.isEmpty() || job.getConfiguration().getBoolean("second.stage", false)) {
       job.setNumReduceTasks(0);
       keySchema = schema;
-    }
-    else
-    {
+    } else {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
-      
+
       keySchema = duplicateRecord(keySchema, schema);
       log.info("key schema:" + keySchema);
-      
-      if (! validateKeySchema(schema, keySchema))
-      {
+
+      if (!validateKeySchema(schema, keySchema)) {
         log.info("topic:" + topic + " key invalid, using map only job");
         job.setNumReduceTasks(0);
         keySchema = schema;
@@ -105,36 +92,35 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
 
     // setting the compression level. Only used if compression is enabled. default is 6
     job.getConfiguration().setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY,
-                                  job.getConfiguration().getInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, 6));
+        job.getConfiguration().getInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, 6));
   }
-  
-  private boolean validateKeySchema(Schema schema, Schema keySchema)
-  {
-     return SchemaCompatibility.checkReaderWriterCompatibility(keySchema, schema).getType().equals(SchemaCompatibilityType.COMPATIBLE);
+
+  private boolean validateKeySchema(Schema schema, Schema keySchema) {
+    return SchemaCompatibility.checkReaderWriterCompatibility(keySchema, schema).getType()
+        .equals(SchemaCompatibilityType.COMPATIBLE);
   }
-  
-  public Schema duplicateRecord(Schema record, Schema original){
+
+  public Schema duplicateRecord(Schema record, Schema original) {
     List<Field> fields = new ArrayList<Schema.Field>();
-    
-    for (Field f : record.getFields()){
+
+    for (Field f : record.getFields()) {
       Schema fldSchema;
-      if (original.getField(f.name()) != null){
+      if (original.getField(f.name()) != null) {
         fldSchema = original.getField(f.name()).schema();
       } else {
         fldSchema = f.schema();
       }
-      
+
       fields.add(new Field(f.name(), fldSchema, f.doc(), f.defaultValue(), f.order()));
     }
-    
+
     Schema newRecord = Schema.createRecord(original.getName(), record.getDoc(), original.getNamespace(), false);
     newRecord.setFields(fields);
-    
+
     return newRecord;
   }
 
-  private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema)
-  {
+  private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema) {
     log.info("Input Schema set to " + schema.toString());
     log.info("Key Schema set to " + keySchema.toString());
     AvroJob.setInputKeySchema(job, schema);
@@ -144,27 +130,24 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
 
     Schema reducerSchema =
         RelaxedSchemaUtils.parseSchema(getConfValue(job, topic, "camus.output.schema", schema.toString()),
-                                       job.getConfiguration());
+            job.getConfiguration());
     AvroJob.setOutputKeySchema(job, reducerSchema);
     log.info("Output Schema set to " + reducerSchema.toString());
   }
 
-  private Schema getNewestSchemaFromSource(Job job) throws IOException
-  {
+  private Schema getNewestSchemaFromSource(Job job) throws IOException {
     FileSystem fs = FileSystem.get(job.getConfiguration());
     Path[] sourceDirs = FileInputFormat.getInputPaths(job);
 
     List<FileStatus> files = new ArrayList<FileStatus>();
 
-    for (Path sourceDir : sourceDirs)
-    {
+    for (Path sourceDir : sourceDirs) {
       files.addAll(Arrays.asList(fs.listStatus(sourceDir)));
     }
 
     Collections.sort(files, new ReverseLastModifiedComparitor());
 
-    for (FileStatus f : files)
-    {
+    for (FileStatus f : files) {
       Schema schema = getNewestSchemaFromSource(f.getPath(), fs);
       if (schema != null)
         return schema;
@@ -172,20 +155,15 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     return null;
   }
 
-  private Schema getNewestSchemaFromSource(Path sourceDir, FileSystem fs) throws IOException
-  {
+  private Schema getNewestSchemaFromSource(Path sourceDir, FileSystem fs) throws IOException {
     FileStatus[] files = fs.listStatus(sourceDir);
     Arrays.sort(files, new ReverseLastModifiedComparitor());
-    for (FileStatus f : files)
-    {
-      if (f.isDir())
-      {
+    for (FileStatus f : files) {
+      if (f.isDir()) {
         Schema schema = getNewestSchemaFromSource(f.getPath(), fs);
         if (schema != null)
           return schema;
-      }
-      else if (f.getPath().getName().endsWith(".avro"))
-      {
+      } else if (f.getPath().getName().endsWith(".avro")) {
         FsInput fi = new FsInput(f.getPath(), fs.getConf());
         GenericDatumReader<GenericRecord> genReader = new GenericDatumReader<GenericRecord>();
         DataFileReader<GenericRecord> reader = new DataFileReader<GenericRecord>(fi, genReader);
@@ -195,12 +173,10 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob
     return null;
   }
 
-  class ReverseLastModifiedComparitor implements Comparator<FileStatus>
-  {
+  class ReverseLastModifiedComparitor implements Comparator<FileStatus> {
 
     @Override
-    public int compare(FileStatus o1, FileStatus o2)
-    {
+    public int compare(FileStatus o1, FileStatus o2) {
       if (o2.getModificationTime() < o1.getModificationTime())
         return -1;
       else if (o2.getModificationTime() > o1.getModificationTime())

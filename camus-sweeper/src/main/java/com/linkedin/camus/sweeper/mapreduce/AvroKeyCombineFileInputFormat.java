@@ -27,10 +27,10 @@ import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 import com.linkedin.camus.sweeper.utils.RelaxedSchemaUtils;
 
-public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKey<GenericRecord>, NullWritable>
-{
+
+public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKey<GenericRecord>, NullWritable> {
   private static final long GET_SPLIT_NUM_FILES_TRHESHOLD_DEFAULT = 5000;
-  
+
   @Override
   public List<InputSplit> getSplits(JobContext arg0) throws IOException {
     FileSystem fs = FileSystem.get(arg0.getConfiguration());
@@ -56,41 +56,42 @@ public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKe
     }
     return cleanedSplits;
   }
-  
-  private void addAllSplits(JobContext job, List<Path> dirs, List<InputSplit> splits, FileSystem fs) throws FileNotFoundException, IOException {
+
+  private void addAllSplits(JobContext job, List<Path> dirs, List<InputSplit> splits, FileSystem fs)
+      throws FileNotFoundException, IOException {
     List<Path> subdirs = new ArrayList<Path>();
     long fileCount = 0;
-    
-    for (Path input : dirs){
+
+    for (Path input : dirs) {
       long count = fs.getContentSummary(input).getFileCount();
       subdirs.add(input);
-      if (fileCount + count < GET_SPLIT_NUM_FILES_TRHESHOLD_DEFAULT){    
+      if (fileCount + count < GET_SPLIT_NUM_FILES_TRHESHOLD_DEFAULT) {
         fileCount += count;
       } else {
         List<Path> files = new ArrayList<Path>();
         addAllAvro(files, subdirs, fs);
         Job innerJob = new Job(job.getConfiguration());
         setInputPaths(innerJob, files.toArray(new Path[files.size()]));
-        
+
         splits.addAll(super.getSplits(innerJob));
         subdirs.clear();
         fileCount = 0;
       }
     }
-    
+
     if (fileCount > 0) {
       List<Path> files = new ArrayList<Path>();
       addAllAvro(files, subdirs, fs);
       Job innerJob = new Job(job.getConfiguration());
       setInputPaths(innerJob, files.toArray(new Path[files.size()]));
-      
+
       splits.addAll(super.getSplits(innerJob));
     }
   }
-  
+
   private void addAllAvro(List<Path> files, List<Path> dirs, FileSystem fs) throws FileNotFoundException, IOException {
-    for (Path dir : dirs){
-      for (FileStatus f : fs.listStatus(dir)){
+    for (Path dir : dirs) {
+      for (FileStatus f : fs.listStatus(dir)) {
         if (f.isDir())
           addAllAvro(files, Collections.singletonList(f.getPath()), fs);
         else if (f.getPath().getName().endsWith(".avro"))
@@ -100,23 +101,20 @@ public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKe
   }
 
   @Override
-  public RecordReader<AvroKey<GenericRecord>, NullWritable> createRecordReader(InputSplit arg0, TaskAttemptContext arg1) throws IOException
-  {
-    return new CombineFileRecordReader<AvroKey<GenericRecord>, NullWritable>((CombineFileSplit) arg0,
-                                                                             arg1,
-                                                                             AvroKeyCombineFileReader.class);
+  public RecordReader<AvroKey<GenericRecord>, NullWritable> createRecordReader(InputSplit arg0, TaskAttemptContext arg1)
+      throws IOException {
+    return new CombineFileRecordReader<AvroKey<GenericRecord>, NullWritable>((CombineFileSplit) arg0, arg1,
+        AvroKeyCombineFileReader.class);
   }
 
-  public static class AvroKeyCombineFileReader extends RecordReader<AvroKey<GenericRecord>, NullWritable>
-  {
+  public static class AvroKeyCombineFileReader extends RecordReader<AvroKey<GenericRecord>, NullWritable> {
     AvroKeyRecordReader<GenericRecord> innerReader;
     CombineFileSplit split;
     TaskAttemptContext context;
     Integer idx;
 
     public AvroKeyCombineFileReader(CombineFileSplit split, TaskAttemptContext arg1, Integer idx) throws IOException,
-        InterruptedException
-    {
+        InterruptedException {
       this.split = split;
       this.context = arg1;
       this.idx = idx;
@@ -126,43 +124,32 @@ public class AvroKeyCombineFileInputFormat extends CombineFileInputFormat<AvroKe
     }
 
     @Override
-    public void close() throws IOException
-    {
+    public void close() throws IOException {
       innerReader.close();
     }
 
     @Override
-    public AvroKey<GenericRecord> getCurrentKey() throws IOException,
-        InterruptedException
-    {
+    public AvroKey<GenericRecord> getCurrentKey() throws IOException, InterruptedException {
       return innerReader.getCurrentKey();
     }
 
     @Override
-    public NullWritable getCurrentValue() throws IOException,
-        InterruptedException
-    {
+    public NullWritable getCurrentValue() throws IOException, InterruptedException {
       return innerReader.getCurrentValue();
     }
 
     @Override
-    public float getProgress() throws IOException,
-        InterruptedException
-    {
+    public float getProgress() throws IOException, InterruptedException {
       return innerReader.getProgress();
     }
 
     @Override
-    public void initialize(InputSplit arg0, TaskAttemptContext arg1) throws IOException,
-        InterruptedException
-    {
+    public void initialize(InputSplit arg0, TaskAttemptContext arg1) throws IOException, InterruptedException {
       innerReader.initialize(new FileSplit(split.getPath(idx), split.getOffset(idx), split.getLength(idx), null), arg1);
     }
 
     @Override
-    public boolean nextKeyValue() throws IOException,
-        InterruptedException
-    {
+    public boolean nextKeyValue() throws IOException, InterruptedException {
       return innerReader.nextKeyValue();
     }
 

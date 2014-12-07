@@ -6,6 +6,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 
+
 /**
  * Class to parse the schema without name validation
  * 
@@ -22,22 +23,18 @@ import org.apache.hadoop.conf.Configuration;
  * @author hcai
  *
  */
-public class RelaxedSchemaUtils
-{
-  private static final Log LOG =
-      LogFactory.getLog(RelaxedSchemaUtils.class.getName());
+public class RelaxedSchemaUtils {
+  private static final Log LOG = LogFactory.getLog(RelaxedSchemaUtils.class.getName());
 
   // This constant is coming from AvroJob, however it's defined as private
   private static final String CONF_INPUT_KEY_SCHEMA = "avro.schema.input.key";
 
   private static final String CONF_SKIP_NAME_VALIDATION = "camus.sweeper.skip.name.validation";
 
-  public static boolean skipNameValidation(Configuration conf)
-  {
+  public static boolean skipNameValidation(Configuration conf) {
     String validateStr = conf.get(CONF_SKIP_NAME_VALIDATION);
     LOG.info(CONF_SKIP_NAME_VALIDATION + ": " + validateStr);
-    if (validateStr != null && Boolean.parseBoolean(validateStr))
-    {
+    if (validateStr != null && Boolean.parseBoolean(validateStr)) {
       return true;
     }
     return false;
@@ -49,31 +46,24 @@ public class RelaxedSchemaUtils
    * @param schemaStr
    * @return
    */
-  public static Schema parseSchema(String schemaStr, Configuration conf)
-  {
+  public static Schema parseSchema(String schemaStr, Configuration conf) {
     Schema schema = null;
-    try
-    {
+    try {
       schema = new Schema.Parser().parse(schemaStr);
-    }
-    catch (SchemaParseException ex)
-    {
+    } catch (SchemaParseException ex) {
       boolean skipNameValidation = skipNameValidation(conf);
-      if (skipNameValidation)
-      {
+      if (skipNameValidation) {
         LOG.warn("Cannot parse schema. " + ex);
         LOG.info("Try one more time without name validation.");
         Schema.Parser parser = new Schema.Parser();
         schema = parser.setValidate(false).parse(schemaStr);
-      }
-      else
-      {
+      } else {
         throw ex;
       }
     }
     return schema;
   }
-  
+
   /**
    * Gets the job input key schema.
    * 

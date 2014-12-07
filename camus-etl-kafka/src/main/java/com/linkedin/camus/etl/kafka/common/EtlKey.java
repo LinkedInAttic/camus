@@ -150,7 +150,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     if (this.partitionMap.containsKey(key))
       return ((LongWritable) this.partitionMap.get(key)).get();
     else
-      return 1024;  //default estimated size
+      return 1024; //default estimated size
   }
 
   public void setMessageSize(long messageSize) {

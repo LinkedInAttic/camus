@@ -36,6 +36,13 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
+  
+  private void mkdirs(FileSystem fs, Path path) throws IOException {
+    if (! fs.exists(path.getParent())) {
+      mkdirs(fs, path.getParent());
+    }
+    fs.mkdirs(path);
+  }
 
   public void addCounts(EtlKey key) throws IOException {
     String workingFileName = EtlMultiOutputFormat.getWorkingFileName(context, key);
@@ -101,7 +108,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
           Path dest = new Path(baseOutDir, partitionedFile);
 
           if (!fs.exists(dest.getParent())) {
-            fs.mkdirs(dest.getParent());
+            mkdirs(fs, dest.getParent());
           }
 
           commitFile(context, f.getPath(), dest);

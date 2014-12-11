@@ -15,7 +15,7 @@ public class MessageDecoderFactory {
   public static MessageDecoder<?, ?> createMessageDecoder(JobContext context, String topicName) {
     MessageDecoder<?, ?> decoder;
     try {
-      decoder = (MessageDecoder<?, ?>) EtlInputFormat.getMessageDecoderClass(context).newInstance();
+      decoder = (MessageDecoder<?, ?>) EtlInputFormat.getMessageDecoderClass(context, topicName).newInstance();
 
       Properties props = new Properties();
       for (Entry<String, String> entry : context.getConfiguration()) {

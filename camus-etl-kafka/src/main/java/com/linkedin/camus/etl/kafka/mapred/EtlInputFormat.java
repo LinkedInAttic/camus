@@ -561,6 +561,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         KafkaAvroMessageDecoder.class);
   }
 
+  public static Class<MessageDecoder> getMessageDecoderClass(JobContext job, String topicName) {
+    Class<MessageDecoder> topicDecoder = (Class<MessageDecoder>) job.getConfiguration().getClass(
+            CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
+    return topicDecoder == null ? getMessageDecoderClass(job) : topicDecoder;
+  }
+
   private class OffsetFileFilter implements PathFilter {
 
     @Override

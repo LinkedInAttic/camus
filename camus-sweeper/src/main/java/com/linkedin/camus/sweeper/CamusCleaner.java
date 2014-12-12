@@ -3,6 +3,7 @@ package com.linkedin.camus.sweeper;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -223,9 +224,20 @@ public class CamusCleaner extends Configured implements Tool {
       props.load(ClassLoader.getSystemClassLoader().getResourceAsStream(cmd.getOptionValue('p')));
 
     if (cmd.hasOption('P')) {
-      File file = new File(cmd.getOptionValue('P'));
-      FileInputStream fStream = new FileInputStream(file);
+      String pathname = cmd.getOptionValue('P');
+
+      InputStream fStream;
+      if (pathname.startsWith("hdfs:")) {
+        Path pt = new Path(pathname);
+        FileSystem fs = FileSystem.get(new Configuration());
+        fStream = fs.open(pt);
+      } else {
+        File file = new File(pathname);
+        fStream = new FileInputStream(file);
+      }
+
       props.load(fStream);
+      fStream.close();
     }
 
     props.putAll(cmd.getOptionProperties("D"));

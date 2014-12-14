@@ -18,6 +18,10 @@
 		</dependency>
 		<dependency>
 			<groupId>com.linkedin.camus</groupId>
+			<artifactId>camus-schema-registry</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.linkedin.camus</groupId>
 			<artifactId>camus-kafka-coders</artifactId>
 		</dependency>
 		<dependency>

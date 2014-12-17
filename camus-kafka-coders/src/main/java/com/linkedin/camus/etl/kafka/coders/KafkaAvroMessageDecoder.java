@@ -31,7 +31,6 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
   private Schema latestSchema;
   private String timestampFormat;
   private String timestampField;
-  private DateTimeFormatter isoDateTimeParser = ISODateTimeFormat.dateTimeParser();
 
   @Override
   public void init(Properties props, String topicName) {
@@ -126,17 +125,30 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
               : new GenericDatumReader<Record>(helper.getSchema(), helper.getTargetSchema());
 
       return new CamusAvroWrapper(reader.read(null,
-          decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)));
+          decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)),
+          timestampField, timestampFormat);
 
     } catch (IOException e) {
       throw new MessageDecoderException(e);
     }
   }
 
-  public class CamusAvroWrapper extends CamusWrapper<Record> {
+  public static class CamusAvroWrapper extends CamusWrapper<Record> {
+
+    private final String timestampField;
+    private final String timestampFormat;
+    private final DateTimeFormatter isoDateTimeParser = ISODateTimeFormat.dateTimeParser();
 
     public CamusAvroWrapper(Record record) {
-      super(record);
+      this(record, null, null);
+    }
+
+    public CamusAvroWrapper(Record read, String timestampField, String timestampFormat) {
+      super(read);
+
+      this.timestampField = timestampField;
+      this.timestampFormat = timestampFormat;
+
       Record header = (Record) super.getRecord().get("header");
       if (header != null) {
         if (header.get("server") != null) {

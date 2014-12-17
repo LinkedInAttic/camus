@@ -5,6 +5,10 @@ package com.linkedin.camus.etl;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.mapreduce.JobContext;
 
+/**
+ * Partitions incoming events, and generates directories and file names in which to
+ * store the incoming events.
+ */
 public abstract class Partitioner extends Configured {
     /**
      * Encode partition values into a string, to be embedded into the working filename.

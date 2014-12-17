@@ -11,7 +11,18 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
-
+/**
+ * Partitions incoming data into hourly partitions, generates pathnames of the form:
+ * {@code etl.destination.path/topic-name/hourly/YYYY/MM/dd/HH}.
+ *
+ * The following configurations are supported:
+ * <ul>
+ *     <li>{@code etl.destination.path} - top-level data output directory, required</li>
+ *     <li>{@code etl.destination.path.topic.sub.dir} - sub-dir to create under topic dir, defaults to {@code hourly}</li>
+ *     <li>{@code etl.default.timezone} - timezone of the events, defaults to {@code America/Los_Angeles}</li>
+ *     <li>{@code etl.output.file.time.partition.mins} - partitions size in minutes, defaults to {@code 60}</li>
+ * </ul>
+ */
 public class DefaultPartitioner extends Partitioner {
 
   protected static final String OUTPUT_DATE_FORMAT = "YYYY/MM/dd/HH";

@@ -40,6 +40,10 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
   // Property for the JSON field name of the timestamp.
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
+  public static final String UNIX_MILLISECONDS = "unix_milliseconds";
+  public static final String UNIX_SECONDS = "unix_seconds";
+  public static final String UNIX = "unix";
+  public static final String ISO_8601 = "iso_8601";
 
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
@@ -77,14 +81,14 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
       // If timestampFormat is 'unix_seconds',
       // then the timestamp only needs converted to milliseconds.
       // Also support 'unix' for backwards compatibility.
-      if (timestampFormat.equals("unix_seconds") || timestampFormat.equals("unix")) {
+      if (timestampFormat.equals(UNIX_SECONDS) || timestampFormat.equals(UNIX)) {
         timestamp = jsonObject.get(timestampField).getAsLong();
         // This timestamp is in seconds, convert it to milliseconds.
         timestamp = timestamp * 1000L;
       }
       // Else if this timestamp is already in milliseconds,
       // just save it as is.
-      else if (timestampFormat.equals("unix_milliseconds")) {
+      else if (timestampFormat.equals(UNIX_MILLISECONDS)) {
         timestamp = jsonObject.get(timestampField).getAsLong();
       }
       // Otherwise parse the timestamp as a string in timestampFormat.

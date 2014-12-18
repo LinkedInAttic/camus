@@ -4,6 +4,8 @@ import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 
+import java.text.ParseException;
+
 /**
  * Container for messages.  Enables the use of a custom message decoder with knowledge
  * of where these values are stored in the message schema
@@ -45,7 +47,7 @@ public class CamusWrapper<R> {
      * Returns current if not set by the decoder
      * @return
      */
-    public long getTimestamp() {
+    public long getTimestamp() throws ParseException {
         return timestamp;
     }
 

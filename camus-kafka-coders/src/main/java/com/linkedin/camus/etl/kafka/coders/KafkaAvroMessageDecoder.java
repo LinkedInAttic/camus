@@ -2,6 +2,8 @@ package com.linkedin.camus.etl.kafka.coders;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Properties;
 
 import kafka.message.Message;
@@ -18,12 +20,19 @@ import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import org.apache.hadoop.io.Text;
+import org.apache.log4j.Logger;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 
 
 public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
+  private static final org.apache.log4j.Logger log = Logger.getLogger(KafkaAvroMessageDecoder.class);
+
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
+  private String timestampFormat;
+  private String timestampField;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -37,6 +46,10 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
       this.registry = new CachedSchemaRegistry<Schema>(registry);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
+
+      timestampField = props.getProperty(JsonStringMessageDecoder.CAMUS_MESSAGE_TIMESTAMP_FIELD);
+      timestampFormat = props.getProperty(JsonStringMessageDecoder.CAMUS_MESSAGE_TIMESTAMP_FORMAT,
+              JsonStringMessageDecoder.CAMUS_MESSAGE_TIMESTAMP_FORMAT);
     } catch (Exception e) {
       throw new MessageDecoderException(e);
     }
@@ -114,7 +127,8 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
               : new GenericDatumReader<Record>(helper.getSchema(), helper.getTargetSchema());
 
       return new CamusAvroWrapper(reader.read(null,
-          decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)));
+              decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)),
+              timestampField, timestampFormat);
 
     } catch (IOException e) {
       throw new MessageDecoderException(e);
@@ -123,8 +137,20 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
   public static class CamusAvroWrapper extends CamusWrapper<Record> {
 
+    private final String timestampField;
+    private final String timestampFormat;
+    private final DateTimeFormatter isoDateTimeParser = ISODateTimeFormat.dateTimeParser();
+
     public CamusAvroWrapper(Record record) {
-      super(record);
+      this(record, null, null);
+    }
+
+    public CamusAvroWrapper(Record read, String timestampField, String timestampFormat) {
+      super(read);
+
+      this.timestampField = timestampField;
+      this.timestampFormat = timestampFormat;
+
       Record header = (Record) super.getRecord().get("header");
       if (header != null) {
         if (header.get("server") != null) {
@@ -138,6 +164,26 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
     @Override
     public long getTimestamp() {
+      // try custom timestamp name first
+      if (timestampField != null) {
+        try {
+          Object eventTimestamp = super.getRecord().get(timestampField);
+          if (eventTimestamp != null) {
+            if ("unix_milliseconds".equals(timestampFormat)){
+              return getAsLong(eventTimestamp);
+            }else if ("unix_seconds".equals(timestampFormat)){
+              return getAsLong(eventTimestamp) * 1000;
+            }else if("iso".equals(timestampFormat)){
+              return isoDateTimeParser.parseDateTime(eventTimestamp.toString()).getMillis();
+            }else{
+              return new SimpleDateFormat(timestampFormat).parse(eventTimestamp.toString()).getTime();
+            }
+          }
+        } catch (ParseException e) {
+          log.error("Error parsing timestamp!", e);
+        }
+      }
+
       Record header = (Record) super.getRecord().get("header");
 
       if (header != null && header.get("time") != null) {
@@ -146,6 +192,14 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
         return (Long) super.getRecord().get("timestamp");
       } else {
         return System.currentTimeMillis();
+      }
+    }
+
+    private long getAsLong(Object eventTimestamp) {
+      if(eventTimestamp instanceof Long){
+        return (Long)eventTimestamp;
+      }else{
+        return Long.parseLong(eventTimestamp.toString());
       }
     }
   }

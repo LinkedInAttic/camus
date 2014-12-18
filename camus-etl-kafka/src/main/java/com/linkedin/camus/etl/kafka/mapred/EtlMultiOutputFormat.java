@@ -33,6 +33,8 @@ import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
 public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String ETL_DESTINATION_PATH = "etl.destination.path";
   public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRECTORY = "etl.destination.path.topic.sub.dir";
+  public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRFORMAT = "etl.destination.path.topic.sub.dirformat";
+  public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRFORMAT_LOCALE = "etl.destination.path.topic.sub.dirformat.locale";
   public static final String ETL_RUN_MOVE_DATA = "etl.run.move.data";
   public static final String ETL_RUN_TRACKING_POST = "etl.run.tracking.post";
 

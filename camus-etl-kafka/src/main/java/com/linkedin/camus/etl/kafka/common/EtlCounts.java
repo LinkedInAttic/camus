@@ -44,7 +44,7 @@ public class EtlCounts {
   private long errorCount;
   private long endTime;
   private long lastTimestamp;
-  private long firstTimestamp;
+  private long firstTimestamp = Long.MAX_VALUE;
   private HashMap<String, Source> counts;
 
   private transient EtlKey lastKey;

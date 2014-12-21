@@ -101,6 +101,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         if (file.startsWith("data")) {
           String workingFileName = file.substring(0, file.lastIndexOf("-m"));
           EtlCounts count = counts.get(workingFileName);
+          count.setEndTime(System.currentTimeMillis());
 
           String partitionedFile =
               getPartitionedPath(context, file, count.getEventCount(), count.getLastKey().getOffset());

@@ -19,7 +19,7 @@ public class DailyPartitionerTest {
     String partition = underTest.encodePartition(null, etlKeyWithTime(time));
     String path = underTest.generatePartitionedPath(null, "tpc", partition);
 
-    assertEquals("tpc/recent/2014/02/01", path);
+    assertEquals("tpc/daily/2014/02/01", path);
   }
 
   @Test

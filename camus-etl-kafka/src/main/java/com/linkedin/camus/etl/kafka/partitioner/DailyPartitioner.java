@@ -16,13 +16,13 @@ import static com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat.ETL_DESTI
  * The following configurations are supported:
  * <ul>
  *     <li>{@code etl.destination.path} - top-level data output directory, required</li>
- *     <li>{@code etl.destination.path.topic.sub.dir} - sub-dir to create under topic dir, defaults to {@code recent}</li>
+ *     <li>{@code etl.destination.path.topic.sub.dir} - sub-dir to create under topic dir, defaults to {@code daily}</li>
  *     <li>{@code etl.default.timezone} - timezone of the events, defaults to {@code America/Los_Angeles}</li>
  * </ul>
  */
 public class DailyPartitioner extends BaseTimeBasedPartitioner {
 
-  private static final String DEFAULT_TOPIC_SUB_DIR = "recent";
+  private static final String DEFAULT_TOPIC_SUB_DIR = "daily";
 
   @Override
   public void setConf(Configuration conf) {

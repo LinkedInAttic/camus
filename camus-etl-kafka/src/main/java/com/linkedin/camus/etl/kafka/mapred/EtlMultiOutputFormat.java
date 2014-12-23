@@ -1,11 +1,11 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import com.linkedin.camus.etl.Partitioner;
+import com.linkedin.camus.etl.RecordWriterProvider;
+import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
+import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.OutputCommitter;
@@ -16,17 +16,13 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.linkedin.camus.etl.Partitioner;
-import com.linkedin.camus.etl.RecordWriterProvider;
-import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
-
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * MultipleAvroOutputFormat.
- *
+ * <p/>
  * File names are determined by output keys.
  */
 
@@ -47,7 +43,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
   public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
 
-  public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils.getDateTimeFormatter("YYYYMMddHH");
+  public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils
+          .getDateTimeFormatter("YYYYMMddHH");
   public static final String OFFSET_PREFIX = "offsets";
   public static final String ERRORS_PREFIX = "errors";
   public static final String COUNTS_PREFIX = "counts";
@@ -59,34 +56,39 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
   @Override
-  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context) throws IOException,
-      InterruptedException {
-    if (committer == null)
-      committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context)
+          throws IOException, InterruptedException {
+    if (committer == null) {
+      committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log, partitionersByTopic);
+    }
     return new EtlMultiOutputRecordWriter(context, committer);
   }
 
   @Override
-  public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException {
-    if (committer == null)
-      committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+  public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context)
+          throws IOException {
+    if (committer == null) {
+      committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log, partitionersByTopic);
+    }
     return committer;
   }
 
   public static void setRecordWriterProviderClass(JobContext job, Class<RecordWriterProvider> recordWriterProviderClass) {
-    job.getConfiguration().setClass(ETL_RECORD_WRITER_PROVIDER_CLASS, recordWriterProviderClass,
-        RecordWriterProvider.class);
+    job.getConfiguration().setClass(ETL_RECORD_WRITER_PROVIDER_CLASS, recordWriterProviderClass, RecordWriterProvider.class);
   }
 
-  public static Class<RecordWriterProvider> getRecordWriterProviderClass(JobContext job) {
-    return (Class<RecordWriterProvider>) job.getConfiguration().getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
-        AvroRecordWriterProvider.class);
+  public static Class<RecordWriterProvider> getRecordWriterProviderClass(
+          JobContext job) {
+    return (Class<RecordWriterProvider>) job.getConfiguration()
+            .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
+                    AvroRecordWriterProvider.class);
   }
 
   public static RecordWriterProvider getRecordWriterProvider(JobContext job) {
     try {
       return (RecordWriterProvider) job.getConfiguration()
-          .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS, AvroRecordWriterProvider.class).newInstance();
+              .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS,
+                      AvroRecordWriterProvider.class).newInstance();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -180,30 +182,27 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
     Partitioner partitioner = getPartitioner(context, key.getTopic());
     return partitioner.getWorkingFileName(context, key.getTopic(), key.getLeaderId(), key.getPartition(),
-        partitioner.encodePartition(context, key));
+            partitioner.encodePartition(context, key));
   }
 
   public static void setDefaultPartitioner(JobContext job, Class<?> cls) {
     job.getConfiguration().setClass(ETL_DEFAULT_PARTITIONER_CLASS, cls, Partitioner.class);
   }
 
-  public static Partitioner getDefaultPartitioner(JobContext job) {
-    return ReflectionUtils.newInstance(
-        job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class),
-        job.getConfiguration());
+  public static Class<? extends com.linkedin.camus.etl.Partitioner> getDefaultPartitioner(JobContext job) {
+    return job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class);
   }
 
   public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
-    String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
-    if (partitionersByTopic.get(customPartitionerProperty) == null) {
-      List<Partitioner> partitioners = new ArrayList<Partitioner>();
-      if (partitioners.isEmpty()) {
-        return getDefaultPartitioner(job);
-      } else {
-        partitionersByTopic.put(customPartitionerProperty, partitioners.get(0));
-      }
+    if (partitionersByTopic.get(topicName) == null) {
+      String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
+      Class<? extends Partitioner> partitionerClass = getDefaultPartitioner(job);
+      partitionerClass = job.getConfiguration().getClass(customPartitionerProperty, partitionerClass, Partitioner.class);
+
+      Partitioner p = ReflectionUtils.newInstance(partitionerClass, job.getConfiguration());
+      partitionersByTopic.put(topicName, p);
     }
-    return partitionersByTopic.get(customPartitionerProperty);
+    return partitionersByTopic.get(topicName);
   }
 
   public static void resetPartitioners() {

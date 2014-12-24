@@ -1,9 +1,7 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.fs.Path;
@@ -177,33 +175,30 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     job.getConfiguration().setBoolean(ETL_RUN_TRACKING_POST, value);
   }
 
-  public static String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
-    Partitioner partitioner = getPartitioner(context, key.getTopic());
-    return partitioner.getWorkingFileName(context, key.getTopic(), key.getLeaderId(), key.getPartition(),
-        partitioner.encodePartition(context, key));
+  public static String getWorkingFileName(JobContext job, EtlKey key) throws IOException {
+    Partitioner partitioner = getPartitioner(job, key.getTopic());
+    return partitioner.getWorkingFileName(job, key.getTopic(), key.getLeaderId(), key.getPartition(),
+            partitioner.encodePartition(job, key));
   }
 
   public static void setDefaultPartitioner(JobContext job, Class<?> cls) {
     job.getConfiguration().setClass(ETL_DEFAULT_PARTITIONER_CLASS, cls, Partitioner.class);
   }
 
-  public static Partitioner getDefaultPartitioner(JobContext job) {
-    return ReflectionUtils.newInstance(
-        job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class),
-        job.getConfiguration());
+  public static Class<? extends com.linkedin.camus.etl.Partitioner> getDefaultPartitioner(JobContext job) {
+    return job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class);
   }
 
   public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
-    String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
-    if (partitionersByTopic.get(customPartitionerProperty) == null) {
-      List<Partitioner> partitioners = new ArrayList<Partitioner>();
-      if (partitioners.isEmpty()) {
-        return getDefaultPartitioner(job);
-      } else {
-        partitionersByTopic.put(customPartitionerProperty, partitioners.get(0));
-      }
+    if (partitionersByTopic.get(topicName) == null) {
+      String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
+      Class<? extends Partitioner> partitionerClass = getDefaultPartitioner(job);
+      partitionerClass = job.getConfiguration().getClass(customPartitionerProperty, partitionerClass, Partitioner.class);
+
+      Partitioner p = ReflectionUtils.newInstance(partitionerClass, job.getConfiguration());
+      partitionersByTopic.put(topicName, p);
     }
-    return partitionersByTopic.get(customPartitionerProperty);
+    return partitionersByTopic.get(topicName);
   }
 
   public static void resetPartitioners() {

@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.linkedin.camus.etl.Partitioner;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -174,7 +175,16 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       }
     }
     log.info("Completed commit hooks");
+
+    recordProcessedPartitions(context);
+
     super.commitTask(context);
+  }
+
+  private void recordProcessedPartitions(TaskAttemptContext context) throws IOException {
+    for (Partitioner p : EtlMultiOutputFormat.getPartitioners().values()) {
+      p.recordProcessedPartitions(context, super.getWorkPath());
+    }
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {

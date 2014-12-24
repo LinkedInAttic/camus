@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,8 +14,6 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
@@ -27,6 +26,8 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 
 
 public class EtlMultiOutputCommitter extends FileOutputCommitter {
+  public static final String ETL_OFFSET_WRITER_HOOKS = "etl.offset.writer.hooks";
+  private final List<OffsetWriterHook> offsetWriterHooks = new ArrayList<OffsetWriterHook>();
   private Pattern workingFileMetadataPattern;
 
   private HashMap<String, EtlCounts> counts = new HashMap<String, EtlCounts>();
@@ -36,7 +37,29 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
-  
+
+  private void addCommitHooks(TaskAttemptContext context, Path outputPath) throws IOException {
+    try {
+      Path workPath = super.getWorkPath();
+      log.debug("Attaching offset writer hooks");
+      log.info("Adding offset writer hook: " + SequenceFileOffsetCommitter.class.getCanonicalName());
+      offsetWriterHooks.add(new SequenceFileOffsetCommitter(workPath, outputPath));
+
+      log.debug("Adding user-defined offset writer hooks");
+      for (Class<?> klass : context.getConfiguration().getClasses(ETL_OFFSET_WRITER_HOOKS)) {
+        log.info("Adding offset writer hook: " + klass.getCanonicalName());
+        Constructor constructor = klass.getConstructor(Path.class, Path.class);
+        OffsetWriterHook offsetWriterHook = (OffsetWriterHook) constructor.newInstance(workPath, outputPath);
+        offsetWriterHooks.add(offsetWriterHook);
+      }
+
+      log.debug("All offset writer hooks added");
+    }
+    catch (Exception e) {
+      throw new IOException(e);
+    }
+  }
+
   private void mkdirs(FileSystem fs, Path path) throws IOException {
     if (! fs.exists(path.getParent())) {
       mkdirs(fs, path.getParent());
@@ -73,7 +96,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     offsets.put(topicPart, offsetKey);
   }
 
-  public EtlMultiOutputCommitter(Path outputPath, TaskAttemptContext context, Logger log) throws IOException {
+  public EtlMultiOutputCommitter(Path outputPath, TaskAttemptContext context, Logger log)
+          throws IOException {
     super(outputPath, context);
     this.context = context;
     try {
@@ -85,9 +109,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       throw new IllegalStateException(e);
     }
     workingFileMetadataPattern =
-        Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
-            + recordWriterProvider.getFilenameExtension());
+            Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
+                    + recordWriterProvider.getFilenameExtension());
     this.log = log;
+
+    addCommitHooks(context, outputPath);
   }
 
   @Override
@@ -139,16 +165,15 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       log.info("Not moving run data.");
     }
 
-    SequenceFile.Writer offsetWriter =
-        SequenceFile.createWriter(
-            fs,
-            context.getConfiguration(),
-            new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
-                EtlMultiOutputFormat.OFFSET_PREFIX, "")), EtlKey.class, NullWritable.class);
-    for (String s : offsets.keySet()) {
-      offsetWriter.append(offsets.get(s), NullWritable.get());
+    for (OffsetWriterHook offsetWriterHook : offsetWriterHooks) {
+      try {
+        offsetWriterHook.commit(context, offsets);
+      } catch (Exception ex) {
+        log.error("Failed to execute commit hook: " + offsetWriterHook.getClass().getCanonicalName(), ex);
+        throw new IOException(ex);
+      }
     }
-    offsetWriter.close();
+    log.info("Completed commit hooks");
     super.commitTask(context);
   }
 

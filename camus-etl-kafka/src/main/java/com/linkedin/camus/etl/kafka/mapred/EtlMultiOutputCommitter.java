@@ -44,6 +44,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     fs.mkdirs(path);
   }
 
+  @Override
+  public void setupTask(org.apache.hadoop.mapreduce.TaskAttemptContext context) throws java.io.IOException {
+    this.context = context;
+  }
+
   public void addCounts(EtlKey key) throws IOException {
     String workingFileName = EtlMultiOutputFormat.getWorkingFileName(context, key);
     if (!counts.containsKey(workingFileName))

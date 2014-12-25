@@ -8,6 +8,7 @@ import org.apache.log4j.Logger;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
@@ -62,7 +63,12 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
     String payloadString;
     JsonObject jsonObject;
 
-    payloadString = new String(payload);
+    try {
+      payloadString = new String(payload, "UTF-8");
+    } catch (UnsupportedEncodingException e) {
+      log.error("Unable to load UTF-8 encoding, falling back to system default", e);
+      payloadString = new String(payload);
+    }
 
     // Parse the payload into a JsonObject.
     try {

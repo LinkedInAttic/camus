@@ -60,6 +60,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String KAFKA_WHITELIST_TOPIC = "kafka.whitelist.topics";
 
   public static final String KAFKA_MOVE_TO_LAST_OFFSET_LIST = "kafka.move.to.last.offset.list";
+  public static final String KAFKA_MOVE_TO_EARLIEST_OFFSET = "kafka.move.to.earliest.offset";
 
   public static final String KAFKA_CLIENT_BUFFER_SIZE = "kafka.client.buffer.size";
   public static final String KAFKA_CLIENT_SO_TIMEOUT = "kafka.client.so.timeout";
@@ -290,7 +291,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     } catch (Exception e) {
       log.error("Unable to pull requests from Kafka brokers. Exiting the program", e);
-      return null;
+      throw new IOException("Unable to pull requests from Kafka brokers.", e);
     }
     // Get the latest offsets and generate the EtlRequests
     finalRequests = fetchLatestOffsetAndCreateEtlRequests(context, offsetRequestInfo);
@@ -330,17 +331,29 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       if (request.getEarliestOffset() > request.getOffset() || request.getOffset() > request.getLastOffset()) {
         if (request.getEarliestOffset() > request.getOffset()) {
           log.error("The earliest offset was found to be more than the current offset: " + request);
-          log.error("Moving to the earliest offset available");
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
-          log.error("Moving to the earliest offset available");
         }
-        request.setOffset(request.getEarliestOffset());
-        offsetKeys.put(
-            request,
-            //TODO: factor out kafka specific request functionality 
-            new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
-                .getOffset()));
+        
+        boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
+        boolean offsetUnset = request.getOffset() == EtlRequest.DEFAULT_OFFSET;
+        log.info("move_to_earliest: " + move_to_earliest_offset + " offset_unset: " + offsetUnset);
+        // When the offset is unset, it means it's a new topic/partition, we also need to consume the earliest offset
+        if (move_to_earliest_offset || offsetUnset) {
+          log.error("Moving to the earliest offset available");
+          request.setOffset(request.getEarliestOffset());
+          offsetKeys.put(
+              request,
+              //TODO: factor out kafka specific request functionality 
+              new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
+                  .getOffset()));
+        } else {
+          log.error("Offset range from kafka metadata is outside the previously persisted offset," +
+                    " please check whether kafka cluster configuration is correct." +
+                    " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET +
+                    " to start processing from earliest kafka metadata offset.");
+          throw new IOException("Offset from kafka metadata is out of range: " + request);
+        }
       }
       log.info(request);
     }

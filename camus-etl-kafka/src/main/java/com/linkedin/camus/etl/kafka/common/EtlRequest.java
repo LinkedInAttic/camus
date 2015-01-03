@@ -35,7 +35,7 @@ public class EtlRequest implements CamusRequest {
 
   private static Logger log = Logger.getLogger(EtlRequest.class);
   private JobContext context = null;
-  private static final long DEFAULT_OFFSET = 0;
+  public static final long DEFAULT_OFFSET = 0;
 
   private String topic = "";
   private String leaderId = "";

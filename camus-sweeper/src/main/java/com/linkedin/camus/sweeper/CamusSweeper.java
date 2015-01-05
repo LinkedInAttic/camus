@@ -132,13 +132,13 @@ public class CamusSweeper extends Configured implements Tool {
   private static void findAllTopics(Path input, PathFilter filter, String topicSubdir, String topicNameSpace,
       FileSystem fs, Map<FileStatus, String> topics) throws IOException {
     for (FileStatus f : fs.listStatus(input)) {
-      String topicFullName = (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + f.getPath().getParent().getName();
-      if (!f.isDir())
-        return;
-      if (f.getPath().getName().equals(topicSubdir) && filter.accept(f.getPath().getParent())) {
-        topics.put(fs.getFileStatus(f.getPath().getParent()), topicFullName);
-      } else {
-        findAllTopics(f.getPath(), filter, topicSubdir, topicFullName, fs, topics);
+      if (f.isDir()) {
+        String topicFullName = (topicNameSpace.isEmpty() ? "" : topicNameSpace + ".") + f.getPath().getParent().getName();
+        if (f.getPath().getName().equals(topicSubdir) && filter.accept(f.getPath().getParent())) {
+          topics.put(fs.getFileStatus(f.getPath().getParent()), topicFullName);
+        } else {
+          findAllTopics(f.getPath(), filter, topicSubdir, topicFullName, fs, topics);
+        }
       }
     }
   }

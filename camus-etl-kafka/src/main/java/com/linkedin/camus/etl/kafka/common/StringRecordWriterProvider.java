@@ -13,7 +13,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.compress.BZip2Codec;
 import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.io.compress.SnappyCodec;
 import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.RecordWriter;
@@ -33,27 +35,32 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
     public static final String DEFAULT_RECORD_DELIMITER    = "";
 
     protected String recordDelimiter = null;
-    
+
     private String extension = "";
     private boolean isCompressed = false;
     private CompressionCodec codec = null;
-    
+
     public StringRecordWriterProvider(TaskAttemptContext  context) {
     	Configuration conf = context.getConfiguration();
-    	
+
         if (recordDelimiter == null) {
             recordDelimiter = conf.get(
                 ETL_OUTPUT_RECORD_DELIMITER,
                 DEFAULT_RECORD_DELIMITER
             );
         }
-        
+
         isCompressed = FileOutputFormat.getCompressOutput(context);
-        
+
         if (isCompressed) {
-        	Class<? extends CompressionCodec> codecClass = null;
-        	if ("snappy".equals(EtlMultiOutputFormat.getEtlOutputCodec(context))) {
-        		codecClass = SnappyCodec.class;
+            Class<? extends CompressionCodec> codecClass = null;
+            String etlOutputCodec = EtlMultiOutputFormat.getEtlOutputCodec(context);
+            if ("snappy".equals(etlOutputCodec)) {
+                codecClass = SnappyCodec.class;
+            } else if ("gzip".equals(etlOutputCodec)) {
+                codecClass = GzipCodec.class;
+            } else if ("bzip2".equals(etlOutputCodec)) {
+                codecClass = BZip2Codec.class;
             } else {
                 codecClass = DefaultCodec.class;
             }
@@ -92,7 +99,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
                 context, fileName, getFilenameExtension()
             )
         );
-        
+
         FileSystem fs = path.getFileSystem(context.getConfiguration());
         if (!isCompressed) {
             FSDataOutputStream fileOut = fs.create(path, false);
@@ -122,7 +129,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
         };
         */
     }
-    
+
     protected static class ByteRecordWriter extends RecordWriter<IEtlKey, CamusWrapper> {
         private DataOutputStream out;
         private String recordDelimiter;

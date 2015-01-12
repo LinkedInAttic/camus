@@ -45,27 +45,25 @@ public class CamusJobIT {
     private static final String DESTINATION_PATH = BASE_PATH + "/destination";
     private static final String EXECUTION_BASE_PATH = BASE_PATH + "/execution";
     private static final String EXECUTION_HISTORY_PATH = EXECUTION_BASE_PATH + "/history";
-    
+
     private static final String TOPIC_1 = "topic_1";
     private static final String TOPIC_2 = "topic_2";
     private static final String TOPIC_3 = "topic_3";
+    private static final String TOPIC_4 = "topic_4";
+    private static final String TOPIC_5 = "topic_5";
+    private static final long ERROR_THRESHOLD = 10L;
     
     private static KafkaCluster cluster;
     private static FileSystem fs;
     private static Gson gson;
-    private static Map<String, List<Message>> messagesWritten;
+    private Map<String, List<Message>> messagesWritten;
+    private Map<String, List<String>> invalidMessagesWritten;
     
     @BeforeClass
     public static void beforeClass() throws IOException {
         cluster = new KafkaCluster();
         fs = FileSystem.get(new Configuration());
         gson = new Gson();
-        
-        // You can't delete messages in Kafka so just writing a set of known messages that can be used for testing
-        messagesWritten = new HashMap<String, List<Message>>();
-        messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 10));
-        messagesWritten.put(TOPIC_2, writeKafka(TOPIC_2, 10));
-        messagesWritten.put(TOPIC_3, writeKafka(TOPIC_3, 10));
     }
     
     @AfterClass
@@ -73,6 +71,7 @@ public class CamusJobIT {
         cluster.shutdown();
     }
     
+    private Properties propsIgnoreErrors;
     private Properties props;
     private CamusJob job;
     private TemporaryFolder folder;
@@ -85,26 +84,27 @@ public class CamusJobIT {
         
         String path = folder.getRoot().getAbsolutePath();
         destinationPath =  path + DESTINATION_PATH;
-        
+
         props = cluster.getProps();
-        
+
         props.setProperty(EtlMultiOutputFormat.ETL_DESTINATION_PATH, destinationPath);
         props.setProperty(CamusJob.ETL_EXECUTION_BASE_PATH, path + EXECUTION_BASE_PATH);
         props.setProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH, path + EXECUTION_HISTORY_PATH);
-        
+
         props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, JsonStringMessageDecoder.class.getName());
         props.setProperty(EtlMultiOutputFormat.ETL_RECORD_WRITER_PROVIDER_CLASS,
                 SequenceFileRecordWriterProvider.class.getName());
-        
+
         props.setProperty(EtlMultiOutputFormat.ETL_RUN_TRACKING_POST, Boolean.toString(false));
         props.setProperty(CamusJob.KAFKA_CLIENT_NAME, "Camus");
-        
+
         props.setProperty(CamusJob.KAFKA_BROKERS, props.getProperty("metadata.broker.list"));
         
         // Run Map/Reduce tests in process.
         props.setProperty("mapreduce.jobtracker.address", "local");
-        
-        job = new CamusJob(props);
+
+        propsIgnoreErrors = (Properties) props.clone();
+        propsIgnoreErrors.setProperty(CamusJob.ETL_SCHEMA_ERRORS_THRESHOLD, Long.toString(ERROR_THRESHOLD));
     }
     
     @After
@@ -115,6 +115,13 @@ public class CamusJobIT {
     
     @Test
     public void runJob() throws Exception {
+        // You can't delete messages in Kafka so just writing a set of known messages that can be used for testing
+        messagesWritten = new HashMap<String, List<Message>>();
+        messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 10));
+        messagesWritten.put(TOPIC_2, writeKafka(TOPIC_2, 10));
+        messagesWritten.put(TOPIC_3, writeKafka(TOPIC_3, 10));
+
+        job = new CamusJob(propsIgnoreErrors);
         job.run();
         
         assertCamusContains(TOPIC_1);
@@ -128,6 +135,32 @@ public class CamusJobIT {
         assertCamusContains(TOPIC_1);
         assertCamusContains(TOPIC_2);
         assertCamusContains(TOPIC_3);
+    }
+
+    @Test
+    public void runJobInvalidRecordsNotFail() throws Exception {
+        String topic = TOPIC_4;
+        invalidMessagesWritten = new HashMap<String, List<String>>();
+        invalidMessagesWritten.put(topic, writeKafkaInvalidMessages(topic, ERROR_THRESHOLD));
+        messagesWritten = new HashMap<String, List<Message>>();
+        messagesWritten.put(topic, writeKafka(topic, 10));
+
+        propsIgnoreErrors.setProperty(EtlInputFormat.KAFKA_WHITELIST_TOPIC, topic);
+        job = new CamusJob(propsIgnoreErrors);
+        job.run();
+
+        assertCamusContains(topic);
+    }
+
+    @Test(expected=RuntimeException.class)
+    public void runJobInvalidRecordsFail() throws Exception {
+        String topic = TOPIC_5;
+        invalidMessagesWritten = new HashMap<String, List<String>>();
+        invalidMessagesWritten.put(topic, writeKafkaInvalidMessages(topic, ERROR_THRESHOLD + 1));
+
+        propsIgnoreErrors.setProperty(EtlInputFormat.KAFKA_WHITELIST_TOPIC, topic);
+        job = new CamusJob(propsIgnoreErrors);
+        job.run();
     }
     
     private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {
@@ -164,6 +197,33 @@ public class CamusJobIT {
             producer.close();
         }
         
+        return messages;
+    }
+
+    private static List<String> writeKafkaInvalidMessages(String topic, long numOfMessages) {
+
+        List<String> messages = new ArrayList<String>();
+        List<KeyedMessage<String, String>> kafkaMessages = new ArrayList<KeyedMessage<String, String>>();
+
+        for (int i = 0; i < numOfMessages; i++) {
+            String message = "{\"invalid message number\":" + i;
+            messages.add(message);
+            kafkaMessages.add(new KeyedMessage<String, String>(topic, Integer.toString(i), message));
+        }
+
+        Properties producerProps = cluster.getProps();
+
+        producerProps.setProperty("serializer.class", StringEncoder.class.getName());
+        producerProps.setProperty("key.serializer.class", StringEncoder.class.getName());
+
+        Producer<String, String> producer = new Producer<String, String>(new ProducerConfig(producerProps));
+
+        try {
+            producer.send(kafkaMessages);
+        } finally {
+            producer.close();
+        }
+
         return messages;
     }
     

@@ -75,6 +75,7 @@ public class CamusJob extends Configured implements Tool {
     public static final String ETL_COUNTS_PATH = "etl.counts.path";
     public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
     public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
+    public static final String ETL_SCHEMA_ERRORS_THRESHOLD = "etl.schema.errors.threshold";
     public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
     public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
     public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -179,8 +180,6 @@ public class CamusJob extends Configured implements Tool {
     }
 
     public void run() throws Exception {
-        Configuration conf = getConf();
-
         startTiming("pre-setup");
         startTiming("total");
         Job job = createJob(props);
@@ -293,10 +292,12 @@ public class CamusJob extends Configured implements Tool {
 
             TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
 
-            for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
-                if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
-                    for (String s : task.getDiagnostics()) {
-                        System.err.println("task error: " + s);
+            if (null != tasks && tasks.length != 0) {
+                for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+                    if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
+                        for (String s : task.getDiagnostics()) {
+                            System.err.println("task error: " + s);
+                        }
                     }
                 }
             }
@@ -336,7 +337,8 @@ public class CamusJob extends Configured implements Tool {
             in.close();
         }
         String prefix = job.getJobName() + ".outputs.";
-        
+        Configuration conf = job.getConfiguration();
+
         for (Entry<String, List<String>> e : topicNameToPaths.entrySet()) {
             conf.set(prefix + e.getKey(), StringUtils.join(e.getValue(), ","));
         }

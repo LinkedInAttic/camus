@@ -51,7 +51,7 @@ public class KafkaReader {
 	 * Construct using the json representation of the kafka request
 	 */
 	public KafkaReader(TaskAttemptContext context, EtlRequest request,
-			int clientTimeout, int fetchBufferSize) throws Exception {
+			int clientTimeout, int fetchBufferSize) throws IOException {
 		this.fetchBufferSize = fetchBufferSize;
 		this.context = context;
 

@@ -46,7 +46,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private CamusWrapper value;
 
     private int maxPullHours = 0;
-    private int exceptionCount = 0;
+    private int exceptionCountToPrint = 0;
+    private long exceptionCountToFail = 0;
     private long maxPullTime = 0;
     private long beginTimeStamp = 0;
     private long endTimeStamp = 0;
@@ -195,134 +196,128 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         }
 
         while (true) {
-            try {
-                if (reader == null || !reader.hasNext()) {
-                    EtlRequest request = split.popRequest();
-                    if (request == null) {
-                        return false;
-                    }
-
-                    if (maxPullHours > 0) {
-                        endTimeStamp = 0;
-                    }
-
-                    key.set(request.getTopic(), request.getLeaderId(), request.getPartition(),
-                            request.getOffset(), request.getOffset(), 0);
-                    value = null;
-                    log.info("\n\ntopic:" + request.getTopic() + " partition:"
-                            + request.getPartition() + " beginOffset:" + request.getOffset()
-                            + " estimatedLastOffset:" + request.getLastOffset());
-
-                    statusMsg += statusMsg.length() > 0 ? "; " : "";
-                    statusMsg += request.getTopic() + ":" + request.getLeaderId() + ":"
-                            + request.getPartition();
-                    context.setStatus(statusMsg);
-
-                    if (reader != null) {
-                        closeReader();
-                    }
-                    reader = new KafkaReader(context, request,
-                            CamusJob.getKafkaTimeoutValue(mapperContext),
-                            CamusJob.getKafkaBufferSize(mapperContext));
-
-                    decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+            if (reader == null || !reader.hasNext()) {
+                EtlRequest request = split.popRequest();
+                if (request == null) {
+                    return false;
                 }
-                int count = 0;
-                while (reader.getNext(key, msgValue, msgKey)) {
-                    count++;
-                    context.progress();
-                    mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
-                    mapperContext.getCounter("total", "event-count").increment(1);
-                    byte[] bytes = getBytes(msgValue);
-                    byte[] keyBytes = getBytes(msgKey);
-                    // check the checksum of message.
-                    // If message has partition key, need to construct it with Key for checkSum to match
-                    Message messageWithKey = new Message(bytes,keyBytes);
-                    Message messageWithoutKey = new Message(bytes);
-                    long checksum = key.getChecksum();
-                    if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
-                    	throw new ChecksumException("Invalid message checksum : MessageWithKey : "
-                              + messageWithKey.checksum() + " MessageWithoutKey checksum : " 
-                    		  + messageWithoutKey.checksum() 
-                    		  + ". Expected " + key.getChecksum(),	
-                    		  key.getOffset());
-                    }
 
-                    long tempTime = System.currentTimeMillis();
-                    CamusWrapper wrapper;
-                    try {
-                        wrapper = getWrappedRecord(key.getTopic(), bytes);
-                    } catch (Exception e) {
-                        if (exceptionCount < getMaximumDecoderExceptionsToPrint(context)) {
-                            mapperContext.write(key, new ExceptionWritable(e));
-                            exceptionCount++;
-                        } else if (exceptionCount == getMaximumDecoderExceptionsToPrint(context)) {
-                            exceptionCount = Integer.MAX_VALUE; //Any random value
-                            log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");
-                        }
-                        continue;
-                    }
-
-                    if (wrapper == null) {
-                        mapperContext.write(key, new ExceptionWritable(new RuntimeException(
-                                "null record")));
-                        continue;
-                    }
-
-                    long timeStamp = wrapper.getTimestamp();
-                    try {
-                        key.setTime(timeStamp);
-                        key.setPartition(wrapper.getPartitionMap());
-                        setServerService();
-                    } catch (Exception e) {
-                        mapperContext.write(key, new ExceptionWritable(e));
-                        continue;
-                    }
-
-                    if (timeStamp < beginTimeStamp) {
-                        mapperContext.getCounter("total", "skip-old").increment(1);
-                    } else if (endTimeStamp == 0) {
-                        DateTime time = new DateTime(timeStamp);
-                        statusMsg += " begin read at " + time.toString();
-                        context.setStatus(statusMsg);
-                        log.info(key.getTopic() + " begin read at " + time.toString());
-                        endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
-                    } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
-                        if (timeStamp > endTimeStamp)
-                            log.info("Kafka Max history hours reached");
-                        if (System.currentTimeMillis() > maxPullTime)
-                            log.info("Kafka pull time limit reached");
-                        statusMsg += " max read at " + new DateTime(timeStamp).toString();
-                        context.setStatus(statusMsg);
-                        log.info(key.getTopic() + " max read at "
-                                + new DateTime(timeStamp).toString());
-                        mapperContext.getCounter("total", "request-time(ms)").increment(
-                                reader.getFetchTime());
-                        closeReader();
-                    }
-
-                    long secondTime = System.currentTimeMillis();
-                    value = wrapper;
-                    long decodeTime = ((secondTime - tempTime));
-
-                    mapperContext.getCounter("total", "decode-time(ms)").increment(decodeTime);
-
-                    if (reader != null) {
-                        mapperContext.getCounter("total", "request-time(ms)").increment(
-                                reader.getFetchTime());
-                    }
-                    return true;
+                if (maxPullHours > 0) {
+                    endTimeStamp = 0;
                 }
-                log.info("Records read : " + count);
-                count = 0;
-                reader = null;
-            } catch (Throwable t) {
-                Exception e = new Exception(t.getLocalizedMessage(), t);
-                e.setStackTrace(t.getStackTrace());
-                mapperContext.write(key, new ExceptionWritable(e));
-                reader = null;
-                continue;
+
+                key.set(request.getTopic(), request.getLeaderId(), request.getPartition(),
+                        request.getOffset(), request.getOffset(), 0);
+                value = null;
+                log.info("\n\ntopic:" + request.getTopic() + " partition:"
+                        + request.getPartition() + " beginOffset:" + request.getOffset()
+                        + " estimatedLastOffset:" + request.getLastOffset());
+
+                statusMsg += statusMsg.length() > 0 ? "; " : "";
+                statusMsg += request.getTopic() + ":" + request.getLeaderId() + ":"
+                        + request.getPartition();
+                context.setStatus(statusMsg);
+
+                if (reader != null) {
+                    closeReader();
+                }
+                reader = new KafkaReader(context, request,
+                        CamusJob.getKafkaTimeoutValue(mapperContext),
+                        CamusJob.getKafkaBufferSize(mapperContext));
+
+                decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
             }
+            int count = 0;
+            while (reader.getNext(key, msgValue, msgKey)) {
+                count++;
+                context.progress();
+                mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
+                mapperContext.getCounter("total", "event-count").increment(1);
+                byte[] bytes = getBytes(msgValue);
+                byte[] keyBytes = getBytes(msgKey);
+                // check the checksum of message.
+                // If message has partition key, need to construct it with Key for checkSum to match
+                Message messageWithKey = new Message(bytes,keyBytes);
+                Message messageWithoutKey = new Message(bytes);
+                long checksum = key.getChecksum();
+                if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
+                    throw new ChecksumException("Invalid message checksum : MessageWithKey : "
+                          + messageWithKey.checksum() + " MessageWithoutKey checksum : "
+                          + messageWithoutKey.checksum()
+                          + ". Expected " + key.getChecksum(),
+                          key.getOffset());
+                }
+
+                long tempTime = System.currentTimeMillis();
+                CamusWrapper wrapper;
+                try {
+                    wrapper = getWrappedRecord(key.getTopic(), bytes);
+                } catch (IOException e) {
+                    if (++exceptionCountToFail > getSchemaErrorsThresold(context)) {
+                        throw e;
+                    }
+                    if (exceptionCountToPrint < getMaximumDecoderExceptionsToPrint(context)) {
+                        mapperContext.write(key, new ExceptionWritable(e));
+                        exceptionCountToPrint++;
+                    } else if (exceptionCountToPrint == getMaximumDecoderExceptionsToPrint(context)) {
+                        exceptionCountToPrint = Integer.MAX_VALUE; //Any random value
+                        log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context) + " records. All further exceptions will not be printed");
+                    }
+                    continue;
+                }
+
+                if (wrapper == null) {
+                    mapperContext.write(key, new ExceptionWritable(new RuntimeException(
+                            "null record")));
+                    continue;
+                }
+
+                long timeStamp = wrapper.getTimestamp();
+                try {
+                    key.setTime(timeStamp);
+                    key.setPartition(wrapper.getPartitionMap());
+                    setServerService();
+                } catch (Exception e) {
+                    mapperContext.write(key, new ExceptionWritable(e));
+                    continue;
+                }
+
+                if (timeStamp < beginTimeStamp) {
+                    mapperContext.getCounter("total", "skip-old").increment(1);
+                } else if (endTimeStamp == 0) {
+                    DateTime time = new DateTime(timeStamp);
+                    statusMsg += " begin read at " + time.toString();
+                    context.setStatus(statusMsg);
+                    log.info(key.getTopic() + " begin read at " + time.toString());
+                    endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
+                } else if (timeStamp > endTimeStamp || System.currentTimeMillis() > maxPullTime) {
+                    if (timeStamp > endTimeStamp)
+                        log.info("Kafka Max history hours reached");
+                    if (System.currentTimeMillis() > maxPullTime)
+                        log.info("Kafka pull time limit reached");
+                    statusMsg += " max read at " + new DateTime(timeStamp).toString();
+                    context.setStatus(statusMsg);
+                    log.info(key.getTopic() + " max read at "
+                            + new DateTime(timeStamp).toString());
+                    mapperContext.getCounter("total", "request-time(ms)").increment(
+                            reader.getFetchTime());
+                    closeReader();
+                }
+
+                long secondTime = System.currentTimeMillis();
+                value = wrapper;
+                long decodeTime = ((secondTime - tempTime));
+
+                mapperContext.getCounter("total", "decode-time(ms)").increment(decodeTime);
+
+                if (reader != null) {
+                    mapperContext.getCounter("total", "request-time(ms)").increment(
+                            reader.getFetchTime());
+                }
+                return true;
+            }
+            log.info("Records read : " + count);
+            closeReader();
         }
     }
 
@@ -341,14 +336,18 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     
     public void setServerService()
     {
-    	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
-    	{
-    		key.setServer(DEFAULT_SERVER);
-    		key.setService(DEFAULT_SERVICE);
-    	}
+        if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))
+        {
+            key.setServer(DEFAULT_SERVER);
+            key.setService(DEFAULT_SERVICE);
+        }
     }
 
     public static int getMaximumDecoderExceptionsToPrint(JobContext job) {
         return job.getConfiguration().getInt(PRINT_MAX_DECODER_EXCEPTIONS, 10);
+    }
+
+    public static long getSchemaErrorsThresold(JobContext job) {
+        return job.getConfiguration().getLong(CamusJob.ETL_SCHEMA_ERRORS_THRESHOLD, 0L);
     }
 }

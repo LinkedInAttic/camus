@@ -116,6 +116,8 @@ public class KafkaReader {
         bytes = new byte[origSize];
         buf.get(bytes, buf.position(), origSize);
         pKey.set(bytes, 0, origSize);
+      } else {
+        pKey.setSize(0);
       }
 
       key.clear();

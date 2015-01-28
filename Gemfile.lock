@@ -1,18 +1,10 @@
-GIT
-  remote: git://github.com/Shopify/ejson.git
-  revision: 84d9a21629fe62c5f01713b68dc43d45e122175a
-  ref: 84d9a21629fe62c5f01713b68dc43d45e122175a
-  specs:
-    ejson (0.4.0)
-      thor (~> 0.18)
-
 GEM
   remote: https://rubygems.org/
   specs:
-    thor (0.19.1)
+    ejson (1.0.0)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  ejson (= 0.4.0)!
+  ejson (~> 1.0.0)

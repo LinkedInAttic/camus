@@ -36,7 +36,7 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
 			schema = registry.getLatestSchemaByTopic(topicName).getSchema();
 			cachedLatest.putIfAbsent(topicName, schema);
 		}
-		return registry.getLatestSchemaByTopic(topicName);
+		return schema;
 	}
 
 	public static class CachedSchemaTuple {

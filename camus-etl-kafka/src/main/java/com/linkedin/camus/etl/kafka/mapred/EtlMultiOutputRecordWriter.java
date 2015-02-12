@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
+import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
@@ -67,7 +68,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         //TODO: fix this logging message, should be logged once as a total count of old records skipped for each topic
         // for now, commenting this out
         //log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        context.getCounter("total", "skip-old").increment(1);
+        ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {

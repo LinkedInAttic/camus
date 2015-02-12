@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import org.apache.log4j.Logger;
+import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
@@ -86,6 +87,15 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
       // just save it as is.
       else if (timestampFormat.equals("unix_milliseconds")) {
         timestamp = jsonObject.get(timestampField).getAsLong();
+      }
+      // Else if timestampFormat is 'ISO-8601', parse that
+      else if (timestampFormat.equals("ISO-8601")) {
+        String timestampString = jsonObject.get(timestampField).getAsString();
+        try {
+          timestamp = new DateTime(timestampString).getMillis();
+        } catch (IllegalArgumentException e) {
+          log.error("Could not parse timestamp '" + timestampString + "' as ISO-8601 while decoding JSON message.");
+        }
       }
       // Otherwise parse the timestamp as a string in timestampFormat.
       else {

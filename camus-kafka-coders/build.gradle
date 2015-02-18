@@ -14,7 +14,7 @@ dependencies {
 	compile spec.external.paranamer
 	compile spec.external.junit
 	compile fileTree(dir: '../lib', includes: ['*.jar'])
-		
+
 }
 
 task testJar(type: Jar, dependsOn: testClasses) {

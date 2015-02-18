@@ -21,6 +21,7 @@ dependencies {
 	compile spec.external.junit
 	compile spec.external.snappyJava
 	compile spec.external.dogstatsd
+        compile spec.external.easymock
 	compile fileTree(dir: '../lib', includes: ['*.jar'])
 }
  

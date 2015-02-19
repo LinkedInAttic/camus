@@ -8,6 +8,7 @@ import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
 import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
 import com.linkedin.camus.etl.kafka.reporter.TimeReporter;
 
@@ -86,6 +87,10 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
+  public static final String ETL_MAX_SKIPPED_MSG_SCHEMANOTFOUND = "etl.max.skipped.msg.schemanotfound";
+  public static final String ETL_MAX_SKIPPED_MSG_SCHEMANOTFOUND_DEFAULT = String.valueOf(Integer.MAX_VALUE);
+  public static final String ETL_MAX_SKIPPED_MSG_OTHER = "etl.max.skipped.msg.other";
+  public static final String ETL_MAX_SKIPPED_MSG_OTHER_DEFAULT = String.valueOf(Integer.MAX_VALUE);
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -342,6 +347,9 @@ public class CamusJob extends Configured implements Tool {
       log.info("Group: " + group.getDisplayName());
       for (Counter counter : group) {
         log.info(counter.getDisplayName() + ":\t" + counter.getValue());
+        if (groupName.equals(EtlRecordReader.MSG_SKIPPED.class.getSimpleName())) {
+          checkIfTooManySkippedMsg(counter);
+        }
       }
     }
 
@@ -389,6 +397,31 @@ public class CamusJob extends Configured implements Tool {
     if (!errors.isEmpty()
         && props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString()).equalsIgnoreCase(Boolean.TRUE.toString())) {
       throw new RuntimeException("Camus saw errors, check stderr");
+    }
+  }
+
+  private void checkIfTooManySkippedMsg(Counter counter) {
+    if (counter.getDisplayName().equals(EtlRecordReader.MSG_SKIPPED.SCHEMA_NOT_FOUND.toString())) {
+      long maxSkippedMsgDueToSchemaNotFound =
+          Long.parseLong(props.getProperty(ETL_MAX_SKIPPED_MSG_SCHEMANOTFOUND,
+              ETL_MAX_SKIPPED_MSG_SCHEMANOTFOUND_DEFAULT));
+      if (counter.getValue() > maxSkippedMsgDueToSchemaNotFound) {
+        String message =
+            "job failed: " + counter.getValue() + " messages skipped due to schema not found, maximum allowed is "
+                + maxSkippedMsgDueToSchemaNotFound;
+        log.error(message);
+        throw new RuntimeException(message);
+      }
+    } else if (counter.getDisplayName().equals(EtlRecordReader.MSG_SKIPPED.OTHER.toString())) {
+      long maxSkippedMsgDueToOther =
+          Long.parseLong(props.getProperty(ETL_MAX_SKIPPED_MSG_OTHER, ETL_MAX_SKIPPED_MSG_OTHER_DEFAULT));
+      if (counter.getValue() > maxSkippedMsgDueToOther) {
+        String message =
+            "job failed: " + counter.getValue() + " messages skipped due to other, maximum allowed is "
+                + maxSkippedMsgDueToOther;
+        log.error(message);
+        throw new RuntimeException(message);
+      }
     }
   }
 

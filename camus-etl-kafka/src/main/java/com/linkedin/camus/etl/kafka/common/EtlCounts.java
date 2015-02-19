@@ -247,6 +247,7 @@ public class EtlCounts {
     } catch (Exception e) {
       e.printStackTrace();
       System.out.println(topic + " issue sending tracking to " + brokerList.toString());
+      throw new RuntimeException(e);
     } finally {
       if (producer != null) {
         producer.close();

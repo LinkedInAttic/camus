@@ -1,15 +1,29 @@
 .classpath
 .project
-*.iml
+dist
+target
+*iml
+*.ipr
+*.iws
+*.tar.gz
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+**/.classpath
+**/.project
+**/.settings/
+.settings/*
+*.jar
+**/bin/
+**/test-output/
+**/.idea
 .idea
+**/dependency-reduced-pom.xml
 
 # target dirs
-target
 camus-api/target/
 camus-etl-kafka/target/
 camus-example/target/
 camus-schema-registry/target/
-
-# auto-gen'd avro records
-camus-etl-kafka/src/main/java/com/linkedin/camus/events/records
-camus-example/src/main/java/com/linkedin/camus/example/records

@@ -1,0 +1,31 @@
+apply plugin: 'li-java'
+ 
+dependencies {
+		
+	compile(project(":camus-external:camus-api"))
+
+	compile spec.external.avro
+	compile spec.external.avroMapred
+	compile spec.external.avroIpc
+	compile fileTree(dir: '../lib', includes: ['*.jar'])
+	compile spec.external.jodaTime
+	compile spec.external.paranamer
+	compile spec.external.junit
+	compile spec.external.snappyJava
+		
+}
+
+task testJar(type: Jar, dependsOn: testClasses) {
+    baseName = "test-${project.archivesBaseName}"
+    from sourceSets.test.output
+}
+
+configurations {
+    tests
+}
+
+artifacts {
+    tests testJar
+}
+ 
+classification="library"

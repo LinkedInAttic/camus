@@ -9,67 +9,64 @@ import org.apache.avro.repo.Subject;
 import org.apache.avro.repo.client.RESTRepositoryClient;
 import org.apache.hadoop.conf.Configuration;
 
+
 /**
  * An implementation of SchemaRegistry that uses Avro's schema registry to
  * manage Avro schemas.
  */
 public class AvroRestSchemaRegistry implements SchemaRegistry<Schema> {
-	private RESTRepositoryClient client;
-	public static final String ETL_SCHEMA_REGISTRY_URL = "etl.schema.registry.url";
-	
-	 @Override
-	public void init(Properties props) {
-	     client = new RESTRepositoryClient(props.getProperty(ETL_SCHEMA_REGISTRY_URL));
-	}
+  private RESTRepositoryClient client;
+  public static final String ETL_SCHEMA_REGISTRY_URL = "etl.schema.registry.url";
 
-	@Override
-	public String register(String topic, Schema schema) {
-		Subject subject = client.lookup(topic);
+  @Override
+  public void init(Properties props) {
+    client = new RESTRepositoryClient(props.getProperty(ETL_SCHEMA_REGISTRY_URL));
+  }
 
-		if (subject == null) {
-			subject = client.register(topic, "org.apache.avro.repo.Validator");
-		}
+  @Override
+  public String register(String topic, Schema schema) {
+    Subject subject = client.lookup(topic);
 
-		try {
-			return subject.register(schema.toString()).getId();
-		} catch (SchemaValidationException e) {
-			throw new SchemaRegistryException(e);
-		}
-	}
+    if (subject == null) {
+      subject = client.register(topic, "org.apache.avro.repo.Validator");
+    }
 
-	@Override
-	public Schema getSchemaByID(String topic, String id) {
-		Subject subject = client.lookup(topic);
+    try {
+      return subject.register(schema.toString()).getId();
+    } catch (SchemaValidationException e) {
+      throw new SchemaRegistryException(e);
+    }
+  }
 
-		if (subject == null) {
-			throw new SchemaNotFoundException("Schema not found for " + topic);
-		}
+  @Override
+  public Schema getSchemaByID(String topic, String id) {
+    Subject subject = client.lookup(topic);
 
-		SchemaEntry entry = subject.lookupById(id);
+    if (subject == null) {
+      throw new SchemaNotFoundException("Schema not found for " + topic);
+    }
 
-		if (entry == null)
-			throw new SchemaNotFoundException("Schema not found for " + topic
-					+ " " + id);
+    SchemaEntry entry = subject.lookupById(id);
 
-		return Schema.parse(entry.getSchema());
-	}
+    if (entry == null)
+      throw new SchemaNotFoundException("Schema not found for " + topic + " " + id);
 
-	@Override
-	public SchemaDetails<Schema> getLatestSchemaByTopic(String topicName) {
-		Subject subject = client.lookup(topicName);
+    return Schema.parse(entry.getSchema());
+  }
 
-		if (subject == null) {
-			throw new SchemaNotFoundException("Schema not found for "
-					+ topicName);
-		}
+  @Override
+  public SchemaDetails<Schema> getLatestSchemaByTopic(String topicName) {
+    Subject subject = client.lookup(topicName);
 
-		SchemaEntry entry = subject.latest();
+    if (subject == null) {
+      throw new SchemaNotFoundException("Schema not found for " + topicName);
+    }
 
-		if (entry == null)
-			throw new SchemaNotFoundException("Schema not found for "
-					+ topicName);
+    SchemaEntry entry = subject.latest();
 
-		return new SchemaDetails<Schema>(topicName, entry.getId(),
-				Schema.parse(entry.getSchema()));
-	}
+    if (entry == null)
+      throw new SchemaNotFoundException("Schema not found for " + topicName);
+
+    return new SchemaDetails<Schema>(topicName, entry.getId(), Schema.parse(entry.getSchema()));
+  }
 }

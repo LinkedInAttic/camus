@@ -12,7 +12,7 @@ public interface IEtlKey {
 
     String getTopic();
 
-    String getNodeId();
+    //String getNodeId();
 
     int getPartition();
 
@@ -21,6 +21,8 @@ public interface IEtlKey {
     long getOffset();
 
     long getChecksum();
+    
+    long getMessageSize();
 
     MapWritable getPartitionMap();
 

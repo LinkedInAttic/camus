@@ -3,214 +3,266 @@ package com.linkedin.camus.etl.kafka.common;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
-import kafka.api.FetchRequest;
-import kafka.common.ErrorMapping;
+
+import kafka.api.PartitionFetchInfo;
+import kafka.common.TopicAndPartition;
+import kafka.javaapi.FetchRequest;
+import kafka.javaapi.FetchResponse;
 import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.javaapi.message.ByteBufferMessageSet;
 import kafka.message.Message;
 import kafka.message.MessageAndOffset;
 
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
+
+import com.linkedin.camus.etl.kafka.CamusJob;
+
 
 /**
  * Poorly named class that handles kafka pull events within each
  * KafkaRecordReader.
- * 
+ *
  * @author Richard Park
  */
 public class KafkaReader {
-	// index of context
-	private EtlRequest kafkaRequest = null;
-	private SimpleConsumer simpleConsumer = null;
+  // index of context
+  private static Logger log = Logger.getLogger(KafkaReader.class);
+  private EtlRequest kafkaRequest = null;
+  private SimpleConsumer simpleConsumer = null;
 
-	private long beginOffset;
-	private long currentOffset;
-	private long lastOffset;
-	private long currentCount;
+  private long beginOffset;
+  private long currentOffset;
+  private long lastOffset;
+  private long currentCount;
 
-	private Iterator<MessageAndOffset> messageIter = null;
+  private TaskAttemptContext context;
 
-	private long totalFetchTime = 0;
-	private long lastFetchTime = 0;
+  private Iterator<MessageAndOffset> messageIter = null;
 
-	private int fetchBufferSize;
+  private long totalFetchTime = 0;
+  private long lastFetchTime = 0;
 
-	/**
-	 * Construct using the json represention of the kafka request
-	 */
-	public KafkaReader(EtlRequest request, int clientTimeout, int fetchBufferSize) throws Exception {
-		this.fetchBufferSize = fetchBufferSize;
+  private int fetchBufferSize;
 
-		System.out.println("bufferSize=" + fetchBufferSize);
-		System.out.println("timeout=" + clientTimeout);
+  /**
+   * Construct using the json representation of the kafka request
+   */
+  public KafkaReader(TaskAttemptContext context, EtlRequest request, int clientTimeout, int fetchBufferSize)
+      throws Exception {
+    this.fetchBufferSize = fetchBufferSize;
+    this.context = context;
 
-		// Create the kafka request from the json
-		kafkaRequest = request;
+    log.info("bufferSize=" + fetchBufferSize);
+    log.info("timeout=" + clientTimeout);
 
-		beginOffset = request.getOffset();
-		currentOffset = request.getOffset();
-		lastOffset = request.getLastOffset();
-		currentCount = 0;
-		totalFetchTime = 0;
+    // Create the kafka request from the json
 
-		// read data from queue
-		URI uri = kafkaRequest.getURI();
-		simpleConsumer = new SimpleConsumer(uri.getHost(), uri.getPort(), clientTimeout, fetchBufferSize);
-		
-		fetch();
+    kafkaRequest = request;
 
-		System.out.println("Connected to node " + uri + " beginning reading at offset " + beginOffset + " latest offset=" + lastOffset);
-	}
+    beginOffset = request.getOffset();
+    currentOffset = request.getOffset();
+    lastOffset = request.getLastOffset();
+    currentCount = 0;
+    totalFetchTime = 0;
 
-	public String getTopic() {
-		return kafkaRequest.getTopic();
-	}
-	
-	public boolean hasNext() throws IOException {
-		return (messageIter != null && messageIter.hasNext()) || fetch();
-	}
+    // read data from queue
 
-	/**
-	 * Fetches the next Kafka message and stuffs the results into the key and
-	 * value
-	 * 
-	 * @param key
-	 * @param value
-	 * @return true if there exists more events
-	 * @throws IOException
-	 */
-	public boolean getNext(EtlKey key, BytesWritable value) throws IOException {
-		if (hasNext()) {
-			MessageAndOffset msgAndOffset = messageIter.next();
+    URI uri = kafkaRequest.getURI();
+    simpleConsumer =
+        new SimpleConsumer(uri.getHost(), uri.getPort(), CamusJob.getKafkaTimeoutValue(context),
+            CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
+    log.info("Connected to leader " + uri + " beginning reading at offset " + beginOffset + " latest offset="
+        + lastOffset);
+    fetch();
+  }
 
-			Message message = msgAndOffset.message();
+  public boolean hasNext() throws IOException {
+    if (messageIter != null && messageIter.hasNext())
+      return true;
+    else
+      return fetch();
 
-			ByteBuffer buf = message.payload();
-			int origSize = buf.remaining();
-			byte[] bytes = new byte[origSize];
-			buf.get(bytes, buf.position(), origSize);
-			value.set(bytes, 0, origSize);
-			
-			key.clear();
-			key.set(kafkaRequest.getTopic(), kafkaRequest.getNodeId(), kafkaRequest.getPartition(), currentOffset, msgAndOffset.offset(), message.checksum());
+  }
 
-			currentOffset = msgAndOffset.offset(); // increase offset
-			currentCount++; // increase count
+  /**
+   * Fetches the next Kafka message and stuffs the results into the key and
+   * value
+   *
+   * @param key
+   * @param payload
+   * @param pKey
+   * @return true if there exists more events
+   * @throws IOException
+   */
+  public boolean getNext(EtlKey key, BytesWritable payload, BytesWritable pKey) throws IOException {
+    if (hasNext()) {
 
-			return true;
-		} else {
-			return false;
-		}
-	}
+      MessageAndOffset msgAndOffset = messageIter.next();
+      Message message = msgAndOffset.message();
 
-	/**
-	 * Creates a fetch request.
-	 * 
-	 * @return false if there's no more fetches
-	 * @throws IOException
-	 */
-	public boolean fetch() throws IOException {
-		if (currentOffset >= lastOffset)
-			return false;
+      ByteBuffer buf = message.payload();
+      int origSize = buf.remaining();
+      byte[] bytes = new byte[origSize];
+      buf.get(bytes, buf.position(), origSize);
+      payload.set(bytes, 0, origSize);
 
-		FetchRequest fetchRequest = new FetchRequest(kafkaRequest.getTopic(), kafkaRequest.getPartition(), currentOffset, fetchBufferSize);
-		long tempTime = System.currentTimeMillis();
-		ByteBufferMessageSet messageBuffer = simpleConsumer.fetch(fetchRequest);
-		lastFetchTime = (System.currentTimeMillis() - tempTime);
-		totalFetchTime += lastFetchTime;
+      buf = message.key();
+      if (buf != null) {
+        origSize = buf.remaining();
+        bytes = new byte[origSize];
+        buf.get(bytes, buf.position(), origSize);
+        pKey.set(bytes, 0, origSize);
+      }
 
-		if (!hasError(messageBuffer)) {
-			messageIter = messageBuffer.iterator();
-			return true;
-		} else {
-			return false;
-		}
+      key.clear();
+      key.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(), kafkaRequest.getPartition(), currentOffset,
+          msgAndOffset.offset() + 1, message.checksum());
 
-	}
+      key.setMessageSize(msgAndOffset.message().size());
 
-	/**
-	 * Closes this context
-	 * 
-	 * @throws IOException
-	 */
-	public void close() throws IOException {
-		if (simpleConsumer != null) {
-			simpleConsumer.close();
-		}
-	}
+      currentOffset = msgAndOffset.offset() + 1; // increase offset
+      currentCount++; // increase count
 
-	/**
-	 * Called by the default implementation of {@link #map} to check error code
-	 * to determine whether to continue.
-	 */
-	private boolean hasError(ByteBufferMessageSet messages) throws IOException {
-		int errorCode = messages.getErrorCode();
+      return true;
+    } else {
+      return false;
+    }
+  }
 
-		if (errorCode == ErrorMapping.OffsetOutOfRangeCode()) {
-			// offset cannot cross the maximum offset (guaranteed by Kafka
-			// protocol).
-			// Kafka server may delete old files from time to time
-			if (currentOffset != kafkaRequest.getEarliestOffset()) {
-				// get the current offset range
-				currentOffset = kafkaRequest.getEarliestOffset();
-				return false;
-			}
-			throw new IOException(kafkaRequest + " earliest offset=" + currentOffset + " : invalid offset.");
-		} else if (errorCode == ErrorMapping.InvalidMessageCode()) {
-			throw new IOException(kafkaRequest + " current offset=" + currentOffset + " : invalid offset.");
-		} else if (errorCode == ErrorMapping.WrongPartitionCode()) {
-			throw new IOException(kafkaRequest + " : wrong partition");
-		} else if (errorCode != ErrorMapping.NoError()) {
-			throw new IOException(kafkaRequest + " current offset=" + currentOffset + " error:" + errorCode);
-		} else {
-			return false;
-		}
-	}
+  /**
+   * Creates a fetch request.
+   *
+   * @return false if there's no more fetches
+   * @throws IOException
+   */
 
-	/**
-	 * Returns the total bytes that will be fetched. This is calculated by
-	 * taking the diffs of the offsets
-	 * 
-	 * @return
-	 */
-	public long getTotalBytes() {
-		return (lastOffset > beginOffset) ? lastOffset - beginOffset : 0;
-	}
+  public boolean fetch() throws IOException {
+    if (currentOffset >= lastOffset) {
+      return false;
+    }
+    long tempTime = System.currentTimeMillis();
+    TopicAndPartition topicAndPartition = new TopicAndPartition(kafkaRequest.getTopic(), kafkaRequest.getPartition());
+    log.debug("\nAsking for offset : " + (currentOffset));
+    PartitionFetchInfo partitionFetchInfo = new PartitionFetchInfo(currentOffset, fetchBufferSize);
 
-	/**
-	 * Returns the total bytes that have been fetched so far
-	 * 
-	 * @return
-	 */
-	public long getReadBytes() {
-		return currentOffset - beginOffset;
-	}
+    HashMap<TopicAndPartition, PartitionFetchInfo> fetchInfo = new HashMap<TopicAndPartition, PartitionFetchInfo>();
+    fetchInfo.put(topicAndPartition, partitionFetchInfo);
 
-	/**
-	 * Returns the number of events that have been read
-	 * 
-	 * @return
-	 */
-	public long getCount() {
-		return currentCount;
-	}
+    FetchRequest fetchRequest =
+        new FetchRequest(CamusJob.getKafkaFetchRequestCorrelationId(context), CamusJob.getKafkaClientName(context),
+            CamusJob.getKafkaFetchRequestMaxWait(context), CamusJob.getKafkaFetchRequestMinBytes(context), fetchInfo);
 
-	/**
-	 * Returns the fetch time of the last fetch in ms
-	 * 
-	 * @return
-	 */
-	public long getFetchTime() {
-		return lastFetchTime;
-	}
-	
-	/**
-	 * Returns the totalFetchTime in ms
-	 * 
-	 * @return
-	 */
-	public long getTotalFetchTime() {
-		return totalFetchTime;
-	}
+    FetchResponse fetchResponse = null;
+    try {
+      fetchResponse = simpleConsumer.fetch(fetchRequest);
+      if (fetchResponse.hasError()) {
+        log.info("Error encountered during a fetch request from Kafka");
+        log.info("Error Code generated : "
+            + fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition()));
+        return false;
+      } else {
+        ByteBufferMessageSet messageBuffer =
+            fetchResponse.messageSet(kafkaRequest.getTopic(), kafkaRequest.getPartition());
+        lastFetchTime = (System.currentTimeMillis() - tempTime);
+        log.debug("Time taken to fetch : " + (lastFetchTime / 1000) + " seconds");
+        log.debug("The size of the ByteBufferMessageSet returned is : " + messageBuffer.sizeInBytes());
+        int skipped = 0;
+        totalFetchTime += lastFetchTime;
+        messageIter = messageBuffer.iterator();
+        //boolean flag = false;
+        Iterator<MessageAndOffset> messageIter2 = messageBuffer.iterator();
+        MessageAndOffset message = null;
+        while (messageIter2.hasNext()) {
+          message = messageIter2.next();
+          if (message.offset() < currentOffset) {
+            //flag = true;
+            skipped++;
+          } else {
+            log.debug("Skipped offsets till : " + message.offset());
+            break;
+          }
+        }
+        log.debug("Number of offsets to be skipped: " + skipped);
+        while (skipped != 0) {
+          MessageAndOffset skippedMessage = messageIter.next();
+          log.debug("Skipping offset : " + skippedMessage.offset());
+          skipped--;
+        }
+
+        if (!messageIter.hasNext()) {
+          System.out.println("No more data left to process. Returning false");
+          messageIter = null;
+          return false;
+        }
+
+        return true;
+      }
+    } catch (Exception e) {
+      log.info("Exception generated during fetch");
+      e.printStackTrace();
+      return false;
+    }
+
+  }
+
+  /**
+   * Closes this context
+   *
+   * @throws IOException
+   */
+  public void close() throws IOException {
+    if (simpleConsumer != null) {
+      simpleConsumer.close();
+    }
+  }
+
+  /**
+   * Returns the total bytes that will be fetched. This is calculated by
+   * taking the diffs of the offsets
+   *
+   * @return
+   */
+  public long getTotalBytes() {
+    return (lastOffset > beginOffset) ? lastOffset - beginOffset : 0;
+  }
+
+  /**
+   * Returns the total bytes that have been fetched so far
+   *
+   * @return
+   */
+  public long getReadBytes() {
+    return currentOffset - beginOffset;
+  }
+
+  /**
+   * Returns the number of events that have been read r
+   *
+   * @return
+   */
+  public long getCount() {
+    return currentCount;
+  }
+
+  /**
+   * Returns the fetch time of the last fetch in ms
+   *
+   * @return
+   */
+  public long getFetchTime() {
+    return lastFetchTime;
+  }
+
+  /**
+   * Returns the totalFetchTime in ms
+   *
+   * @return
+   */
+  public long getTotalFetchTime() {
+    return totalFetchTime;
+  }
 }

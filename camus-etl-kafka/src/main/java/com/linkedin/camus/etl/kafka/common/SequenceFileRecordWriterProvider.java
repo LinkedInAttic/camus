@@ -23,6 +23,7 @@ import org.apache.hadoop.conf.Configuration;
 
 import org.apache.log4j.Logger;
 
+
 /**
  * Provides a RecordWriter that uses SequenceFile.Writer to write
  * SequenceFiles records to HDFS.  Compression settings are controlled via
@@ -34,89 +35,72 @@ import org.apache.log4j.Logger;
  *
  */
 public class SequenceFileRecordWriterProvider implements RecordWriterProvider {
-    public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";
-    public static final String DEFAULT_RECORD_DELIMITER    = "";
+  public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";
+  public static final String DEFAULT_RECORD_DELIMITER = "";
 
-    private static Logger log = Logger.getLogger(SequenceFileRecordWriterProvider.class);
+  private static Logger log = Logger.getLogger(SequenceFileRecordWriterProvider.class);
 
-    protected String recordDelimiter = null;
-    
-    public SequenceFileRecordWriterProvider(TaskAttemptContext  context) {
-    	
+  protected String recordDelimiter = null;
+
+  public SequenceFileRecordWriterProvider(TaskAttemptContext context) {
+
+  }
+
+  // TODO: Make this configurable somehow.
+  // To do this, we'd have to make SequenceFileRecordWriterProvider have an
+  // init(JobContext context) method signature that EtlMultiOutputFormat would always call.
+  @Override
+  public String getFilenameExtension() {
+    return "";
+  }
+
+  @Override
+  public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
+      CamusWrapper camusWrapper, FileOutputCommitter committer) throws IOException, InterruptedException {
+
+    Configuration conf = context.getConfiguration();
+
+    // If recordDelimiter hasn't been initialized, do so now
+    if (recordDelimiter == null) {
+      recordDelimiter = conf.get(ETL_OUTPUT_RECORD_DELIMITER, DEFAULT_RECORD_DELIMITER);
     }
 
-    // TODO: Make this configurable somehow.
-    // To do this, we'd have to make SequenceFileRecordWriterProvider have an
-    // init(JobContext context) method signature that EtlMultiOutputFormat would always call.
-    @Override
-    public String getFilenameExtension() {
-        return "";
+    CompressionCodec compressionCodec = null;
+    CompressionType compressionType = CompressionType.NONE;
+
+    // Determine compression type (BLOCK or RECORD) and compression codec to use.
+    if (SequenceFileOutputFormat.getCompressOutput(context)) {
+      compressionType = SequenceFileOutputFormat.getOutputCompressionType(context);
+      Class<?> codecClass = SequenceFileOutputFormat.getOutputCompressorClass(context, DefaultCodec.class);
+      // Instantiate the CompressionCodec Class
+      compressionCodec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, conf);
     }
 
-    @Override
-    public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(
-            TaskAttemptContext  context,
-            String              fileName,
-            CamusWrapper        camusWrapper,
-            FileOutputCommitter committer) throws IOException, InterruptedException {
+    // Get the filename for this RecordWriter.
+    Path path =
+        new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
 
-        Configuration conf = context.getConfiguration();
+    log.info("Creating new SequenceFile.Writer with compression type " + compressionType + " and compression codec "
+        + (compressionCodec != null ? compressionCodec.getClass().getName() : "null"));
+    final SequenceFile.Writer writer =
+        SequenceFile.createWriter(path.getFileSystem(conf), conf, path, LongWritable.class, Text.class,
+            compressionType, compressionCodec, context);
 
-        // If recordDelimiter hasn't been initialized, do so now
-        if (recordDelimiter == null) {
-            recordDelimiter = conf.get(
-                ETL_OUTPUT_RECORD_DELIMITER,
-                DEFAULT_RECORD_DELIMITER
-            );
-        }
+    // Return a new anonymous RecordWriter that uses the
+    // SequenceFile.Writer to write data to HDFS
+    return new RecordWriter<IEtlKey, CamusWrapper>() {
+      @Override
+      public void write(IEtlKey key, CamusWrapper data) throws IOException, InterruptedException {
+        String record = (String) data.getRecord() + recordDelimiter;
+        // Use the timestamp from the EtlKey as the key for this record.
+        // TODO: Is there a better key to use here?
+        writer.append(new LongWritable(key.getTime()), new Text(record));
+      }
 
-        CompressionCodec compressionCodec = null;
-        CompressionType  compressionType  = CompressionType.NONE;
-
-        // Determine compression type (BLOCK or RECORD) and compression codec to use.
-        if (SequenceFileOutputFormat.getCompressOutput(context)) {
-            compressionType     = SequenceFileOutputFormat.getOutputCompressionType(context);
-            Class<?> codecClass = SequenceFileOutputFormat.getOutputCompressorClass(context, DefaultCodec.class);
-            // Instantiate the CompressionCodec Class
-            compressionCodec    = (CompressionCodec)ReflectionUtils.newInstance(codecClass, conf);
-        }
-
-
-        // Get the filename for this RecordWriter.
-        Path path = new Path(
-            committer.getWorkPath(),
-            EtlMultiOutputFormat.getUniqueFile(
-                context, fileName, getFilenameExtension()
-            )
-        );
-
-        log.info("Creating new SequenceFile.Writer with compression type " + compressionType + " and compression codec " + ( compressionCodec != null ? compressionCodec.getClass().getName() : "null"));
-        final SequenceFile.Writer writer = SequenceFile.createWriter(
-            path.getFileSystem(conf),
-            conf,
-            path,
-            LongWritable.class,
-            Text.class,
-            compressionType,
-            compressionCodec,
-            context
-        );
-
-        // Return a new anonymous RecordWriter that uses the
-        // SequenceFile.Writer to write data to HDFS
-        return new RecordWriter<IEtlKey, CamusWrapper>() {
-            @Override
-            public void write(IEtlKey key, CamusWrapper data) throws IOException, InterruptedException {
-                String record = (String)data.getRecord() + recordDelimiter;
-                // Use the timestamp from the EtlKey as the key for this record.
-                // TODO: Is there a better key to use here?
-                writer.append(new LongWritable(key.getTime()), new Text(record));
-            }
-
-            @Override
-            public void close(TaskAttemptContext context) throws IOException, InterruptedException {
-                writer.close();
-            }
-        };
-    }
+      @Override
+      public void close(TaskAttemptContext context) throws IOException, InterruptedException {
+        writer.close();
+      }
+    };
+  }
 }

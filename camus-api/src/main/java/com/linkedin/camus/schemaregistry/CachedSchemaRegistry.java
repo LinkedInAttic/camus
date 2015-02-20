@@ -6,14 +6,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
 	private final SchemaRegistry<S> registry;
 	private final ConcurrentHashMap<CachedSchemaTuple, S> cachedById;
-	private final ConcurrentHashMap<String, S> cachedLatest;
+	private final ConcurrentHashMap<String, SchemaDetails<S>> cachedLatest;
 	
 	public void init(Properties props) {}
 
 	public CachedSchemaRegistry(SchemaRegistry<S> registry) {
 		this.registry = registry;
 		this.cachedById = new ConcurrentHashMap<CachedSchemaTuple, S>();
-		this.cachedLatest = new ConcurrentHashMap<String, S>();
+		this.cachedLatest = new ConcurrentHashMap<String, SchemaDetails<S>>();
 	}
 
 	public String register(String topic, S schema) {
@@ -31,12 +31,12 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
 	}
 
 	public SchemaDetails<S> getLatestSchemaByTopic(String topicName) {
-		S schema = cachedLatest.get(topicName);
+		SchemaDetails<S> schema = cachedLatest.get(topicName);
 		if (schema == null) {
-			schema = registry.getLatestSchemaByTopic(topicName).getSchema();
+			schema = registry.getLatestSchemaByTopic(topicName);
 			cachedLatest.putIfAbsent(topicName, schema);
 		}
-		return registry.getLatestSchemaByTopic(topicName);
+		return schema;
 	}
 
 	public static class CachedSchemaTuple {

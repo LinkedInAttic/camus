@@ -18,10 +18,6 @@
 		</dependency>
 		<dependency>
 			<groupId>com.linkedin.camus</groupId>
-			<artifactId>camus-schema-registry</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>com.linkedin.camus</groupId>
 			<artifactId>camus-kafka-coders</artifactId>
 		</dependency>
 		<dependency>
@@ -73,9 +69,20 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.easymock</groupId>
+			<artifactId>easymock</artifactId>
+			<version>3.3</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>commons-httpclient</groupId>
 			<artifactId>commons-httpclient</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.indeed</groupId>
+			<artifactId>java-dogstatsd-client</artifactId>
+			<version>2.0.8</version>
 		</dependency>
 	</dependencies>
 

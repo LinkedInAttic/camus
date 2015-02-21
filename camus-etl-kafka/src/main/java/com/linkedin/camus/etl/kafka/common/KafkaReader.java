@@ -117,6 +117,7 @@ public class KafkaReader {
         buf.get(bytes, buf.position(), origSize);
         pKey.set(bytes, 0, origSize);
       } else {
+        log.warn("Received message with null message.key(): " + msgAndOffset);
         pKey.setSize(0);
       }
 

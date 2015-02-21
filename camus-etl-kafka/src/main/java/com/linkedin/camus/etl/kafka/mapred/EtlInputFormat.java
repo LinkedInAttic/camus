@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+
 import kafka.api.PartitionOffsetRequestInfo;
 import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
@@ -35,6 +37,7 @@ import kafka.javaapi.PartitionMetadata;
 import kafka.javaapi.TopicMetadata;
 import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -75,6 +78,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
+
+  public static final int FETCH_FROM_LEADER_MAX_RETRIES = 2;
+
+  public static boolean reportJobFailureDueToSkippedMsg = false;
 
   private static Logger log = null;
 
@@ -176,13 +183,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         earliestOffsetInfo.put(topicAndPartition, partitionEarliestOffsetRequestInfo);
       }
 
-      OffsetResponse latestOffsetResponse =
-          consumer.getOffsetsBefore(new OffsetRequest(latestOffsetInfo, kafka.api.OffsetRequest.CurrentVersion(),
-              CamusJob.getKafkaClientName(context)));
-      OffsetResponse earliestOffsetResponse =
-          consumer.getOffsetsBefore(new OffsetRequest(earliestOffsetInfo, kafka.api.OffsetRequest.CurrentVersion(),
-              CamusJob.getKafkaClientName(context)));
+      OffsetResponse latestOffsetResponse = getLatestOffsetResponse(consumer, latestOffsetInfo, context);
+      OffsetResponse earliestOffsetResponse = null;
+      if (latestOffsetResponse != null) {
+        earliestOffsetResponse = getLatestOffsetResponse(consumer, earliestOffsetInfo, context);
+      }
       consumer.close();
+      if (earliestOffsetResponse == null) {
+        log.warn(generateLogWarnForSkippedTopics(earliestOffsetInfo, consumer));
+        reportJobFailureDueToSkippedMsg = true;
+        continue;
+      }
+
       for (TopicAndPartition topicAndPartition : topicAndPartitions) {
         long latestOffset = latestOffsetResponse.offsets(topicAndPartition.topic(), topicAndPartition.partition())[0];
         long earliestOffset =
@@ -198,6 +210,34 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     }
     return finalRequests;
+  }
+
+  private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
+      Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
+    for (int i = 0; i <= FETCH_FROM_LEADER_MAX_RETRIES; i++) {
+      try {
+        OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
+            kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
+        if (offsetResponse == null || offsetResponse.hasError()) {
+          throw new RuntimeException();
+        }
+        return offsetResponse;
+      } catch (RuntimeException e) {
+        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
+            + " has failed " + (i + 1) + " time(s). " + (FETCH_FROM_LEADER_MAX_RETRIES - i) + " retries left.");
+      }
+    }
+    return null;
+  }
+
+  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, SimpleConsumer consumer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("The following topics will be skipped due to failure in fetching latest offsets from leader "
+        + consumer.host() + ":" + consumer.port());
+    for (TopicAndPartition topicAndPartition : offsetInfo.keySet()) {
+      sb.append("  " + topicAndPartition.topic());
+    }
+    return sb.toString();
   }
 
   public String createTopicRegEx(HashSet<String> topicsSet) {

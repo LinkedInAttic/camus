@@ -390,6 +390,10 @@ public class CamusJob extends Configured implements Tool {
         && props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString()).equalsIgnoreCase(Boolean.TRUE.toString())) {
       throw new RuntimeException("Camus saw errors, check stderr");
     }
+
+    if (EtlInputFormat.reportJobFailureDueToSkippedMsg) {
+      throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
+    }
   }
 
   public void cancel() throws IOException {

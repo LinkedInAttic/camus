@@ -270,8 +270,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             continue;
           }
 
-          curTimeStamp = wrapper.getTimestamp();
           try {
+            curTimeStamp = wrapper.getTimestamp();
             key.setTime(curTimeStamp);
             key.addAllPartitionMap(wrapper.getPartitionMap());
             setServerService();

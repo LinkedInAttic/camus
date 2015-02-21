@@ -5,13 +5,14 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
+import java.text.ParseException;
 import java.util.Properties;
 
 
 public class TestJsonStringMessageDecoder {
 
   @Test
-  public void testDecodeUnixMilliseconds() {
+  public void testDecodeUnixMilliseconds() throws ParseException {
 
     // Test that the decoder extracts unix_milliseconds
     // It should take and return milliseconds
@@ -32,7 +33,7 @@ public class TestJsonStringMessageDecoder {
   }
 
   @Test
-  public void testDecodeUnixSeconds() {
+  public void testDecodeUnixSeconds() throws ParseException {
 
     // Test that the decoder extracts unix_seconds
     // It should receive seconds and return milliseconds
@@ -54,7 +55,7 @@ public class TestJsonStringMessageDecoder {
   }
 
   @Test
-  public void testDecodeWithTimestampFormat() {
+  public void testDecodeWithTimestampFormat() throws ParseException {
 
     // Test that we can specify a date and a pattern and
     // get back unix timestamp milliseconds
@@ -78,7 +79,7 @@ public class TestJsonStringMessageDecoder {
   }
 
   @Test
-  public void testDecodeWithIsoFormat() {
+  public void testDecodeWithIsoFormat() throws ParseException {
 
     // Test that when no format is specified then both
     // ISO 8601 format: 1994-11-05T08:15:30-05:00

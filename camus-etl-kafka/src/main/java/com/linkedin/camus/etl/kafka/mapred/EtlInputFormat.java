@@ -79,7 +79,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
-  public static final int FETCH_FROM_LEADER_MAX_RETRIES = 2;
+  public static final int FETCH_FROM_LEADER_MAX_RETRIES = 3;
 
   public static boolean reportJobFailureDueToSkippedMsg = false;
 

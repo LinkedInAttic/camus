@@ -76,6 +76,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
+  public static boolean reportJobFailureDueToOffsetOutOfRange = false;
+
   private static Logger log = null;
 
   public EtlInputFormat() {
@@ -348,11 +350,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
                   .getOffset()));
         } else {
-          log.error("Offset range from kafka metadata is outside the previously persisted offset," +
-                    " please check whether kafka cluster configuration is correct." +
+          log.error("Offset range from kafka metadata is outside the previously persisted offset, " + request + "\n" +
+                    " Topic " + request.getTopic() + " will be skipped.\n" +
+                    " Please check whether kafka cluster configuration is correct." +
                     " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET +
                     " to start processing from earliest kafka metadata offset.");
-          throw new IOException("Offset from kafka metadata is out of range: " + request);
+          reportJobFailureDueToOffsetOutOfRange = true;
         }
       }
       log.info(request);

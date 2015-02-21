@@ -82,10 +82,11 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
   private S fetchFromSchemaRegistry(String topic, String id) {
     try {
       S schema = registry.getSchemaByID(topic, id);
+      cachedById.putIfAbsent(new CachedSchemaTuple(topic, id), schema);
       return schema;
     } catch (SchemaNotFoundException e) {
       addFetchToFailureHistory(id);
-      throw new SchemaNotFoundException(e);
+      throw e;
     }
   }
 

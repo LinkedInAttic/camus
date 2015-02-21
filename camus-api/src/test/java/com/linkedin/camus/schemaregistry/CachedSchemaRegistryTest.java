@@ -20,12 +20,12 @@ public class CachedSchemaRegistryTest {
   public void setupRegistryMock() {
     props = new Properties();
     registry = EasyMock.createNiceMock(SchemaRegistry.class);
-    EasyMock.expect(registry.getSchemaByID(EasyMock.anyString(), EasyMock.anyString())).andThrow(
-        new SchemaNotFoundException());
   }
 
   @Test
   public void testMaxRetries() {
+    EasyMock.expect(registry.getSchemaByID(EasyMock.anyString(), EasyMock.anyString())).andThrow(
+        new SchemaNotFoundException());
     EasyMock.expectLastCall().times(20);
     EasyMock.replay(registry);
     props.setProperty(GET_SCHEMA_BY_ID_MAX_RETIRES, "10");
@@ -46,6 +46,8 @@ public class CachedSchemaRegistryTest {
 
   @Test
   public void testMinInterval() throws InterruptedException {
+    EasyMock.expect(registry.getSchemaByID(EasyMock.anyString(), EasyMock.anyString())).andThrow(
+        new SchemaNotFoundException());
     EasyMock.expectLastCall().times(4);
     EasyMock.replay(registry);
     props.setProperty(GET_SCHEMA_BY_ID_MAX_RETIRES, String.valueOf(Integer.MAX_VALUE));

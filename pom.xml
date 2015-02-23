@@ -38,11 +38,18 @@
 				<artifactId>camus-kafka-coders</artifactId>
 				<version>0.1.0-SNAPSHOT</version>
 			</dependency>
-			<dependency>
-				<groupId>com.linkedin.camus</groupId>
-				<artifactId>camus-schema-registry</artifactId>
-				<version>0.1.0-SNAPSHOT</version>
-			</dependency>
+            <dependency>
+                <groupId>com.linkedin.camus</groupId>
+                <artifactId>camus-schema-registry</artifactId>
+                <version>0.1.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>com.linkedin.camus</groupId>
+                <artifactId>camus-schema-registry</artifactId>
+                <classifier>tests</classifier>
+                <scope>test</scope>
+                <version>0.1.0-SNAPSHOT</version>
+            </dependency>
             <dependency>
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-schema-registry-avro</artifactId>
@@ -71,9 +78,9 @@
 				<version>1.7.7</version>
 			</dependency>
 			<dependency>
-				<groupId>org.apache.avro</groupId>
-				<version>1.7.4-SNAPSHOT</version>
-				<artifactId>avro-repo-bundle</artifactId>
+                <groupId>org.schemarepo</groupId>
+                <artifactId>schema-repo-bundle</artifactId>
+				<version>0.1.2</version>
 			</dependency>
 			<dependency>
 				<groupId>joda-time</groupId>

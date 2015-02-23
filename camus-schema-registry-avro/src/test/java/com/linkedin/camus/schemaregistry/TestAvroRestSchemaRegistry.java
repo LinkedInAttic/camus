@@ -5,8 +5,8 @@ import java.util.Collection;
 import java.util.Properties;
 
 import org.apache.avro.Schema;
-import org.apache.avro.repo.InMemoryRepository;
-import org.apache.avro.repo.server.RepositoryServer;
+import org.schemarepo.InMemoryRepository;
+import org.schemarepo.server.RepositoryServer;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.After;
 import org.junit.Before;
@@ -43,9 +43,9 @@ public class TestAvroRestSchemaRegistry extends TestSchemaRegistries {
   @Before
   public void doSetup() throws Exception {
     Properties props = new Properties();
-    props.put("avro.repo.class", InMemoryRepository.class.getName());
-    props.put("jetty.host", "localhost");
-    props.put("jetty.port", "8123");
+    props.put("schema-repo.class", InMemoryRepository.class.getName());
+    props.put("schema-repo.jetty.host", "localhost");
+    props.put("schema-repo.jetty.port", "8123");
     server = new RepositoryServer(props);
     server.start();
   }

@@ -3,10 +3,11 @@ package com.linkedin.camus.schemaregistry;
 import java.util.Properties;
 
 import org.apache.avro.Schema;
-import org.apache.avro.repo.SchemaEntry;
-import org.apache.avro.repo.SchemaValidationException;
-import org.apache.avro.repo.Subject;
-import org.apache.avro.repo.client.RESTRepositoryClient;
+import org.schemarepo.SchemaEntry;
+import org.schemarepo.SchemaValidationException;
+import org.schemarepo.Subject;
+import org.schemarepo.SubjectConfig;
+import org.schemarepo.client.RESTRepositoryClient;
 import org.apache.hadoop.conf.Configuration;
 
 
@@ -20,7 +21,7 @@ public class AvroRestSchemaRegistry implements SchemaRegistry<Schema> {
 
   @Override
   public void init(Properties props) {
-    client = new RESTRepositoryClient(props.getProperty(ETL_SCHEMA_REGISTRY_URL));
+    client = new RESTRepositoryClient(props.getProperty(ETL_SCHEMA_REGISTRY_URL),new org.schemarepo.json.GsonJsonUtil(),false);
   }
 
   @Override
@@ -28,7 +29,7 @@ public class AvroRestSchemaRegistry implements SchemaRegistry<Schema> {
     Subject subject = client.lookup(topic);
 
     if (subject == null) {
-      subject = client.register(topic, "org.apache.avro.repo.Validator");
+      subject = client.register(topic, new SubjectConfig.Builder().build());
     }
 
     try {

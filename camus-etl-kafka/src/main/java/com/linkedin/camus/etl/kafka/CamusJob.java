@@ -91,8 +91,6 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_MAX_SKIPPED_MSG_SCHEMANOTFOUND_DEFAULT = String.valueOf(Integer.MAX_VALUE);
   public static final String ETL_MAX_SKIPPED_MSG_OTHER = "etl.max.skipped.msg.other";
   public static final String ETL_MAX_SKIPPED_MSG_OTHER_DEFAULT = String.valueOf(Integer.MAX_VALUE);
-  public static final String ETL_PUBLISH_COUNT_MAX_RETRIES = "etl.publish.count.max.retries";
-  public static final String ETL_PUBLISH_COUNT_MAX_RETRIES_DEFAULT = String.valueOf(Integer.MAX_VALUE);
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -511,23 +509,9 @@ public class CamusJob extends Configured implements Tool {
         }
       }
 
-      int publishCountMaxRetries =
-          Integer.parseInt(props.getProperty(ETL_PUBLISH_COUNT_MAX_RETRIES, ETL_PUBLISH_COUNT_MAX_RETRIES_DEFAULT));
       String brokerList = getKafkaBrokers(job);
       for (EtlCounts finalCounts : allCounts.values()) {
-        for (int i = 0; i <= publishCountMaxRetries; i++) {
-          try {
-            finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER),
-                brokerList);
-            break;
-          } catch (RuntimeException e) {
-            log.error("Publishing count for topic " + finalCounts.getTopic() + " has failed " + (i + 1) + " times. "
-                + (publishCountMaxRetries - i) + " more attempts will be made.");
-            if (i == publishCountMaxRetries) {
-              throw new RuntimeException(e);
-            }
-          }
-        }
+        finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER), brokerList);
       }
     }
   }

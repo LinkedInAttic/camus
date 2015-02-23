@@ -222,9 +222,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           throw new RuntimeException();
         }
         return offsetResponse;
-      } catch (RuntimeException e) {
+      } catch (Exception e) {
         log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
             + " has failed " + (i + 1) + " time(s). " + (FETCH_FROM_LEADER_MAX_RETRIES - i) + " retries left.");
+        if (i < FETCH_FROM_LEADER_MAX_RETRIES) {
+          try {
+            Thread.sleep(1000 * (i + 1));
+          } catch (InterruptedException e1) {
+            log.error("Caught interrupted exception between retries of getting latest offsets. "
+                + e1.getMessage());
+          }
+        }
       }
     }
     return null;

@@ -192,7 +192,6 @@ public class KafkaReader {
     } catch (Exception e) {
       log.info("Exception generated during fetch for topic " + kafkaRequest.getTopic()
           + ". This topic will be skipped.");
-      e.printStackTrace();
       return false;
     }
   }
@@ -250,7 +249,6 @@ public class KafkaReader {
       return true;
     } catch (Exception e) {
       log.info("Exception generated during processing fetchResponse");
-      e.printStackTrace();
       return false;
     }
   }

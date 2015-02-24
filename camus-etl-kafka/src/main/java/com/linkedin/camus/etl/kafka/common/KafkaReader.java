@@ -168,12 +168,14 @@ public class KafkaReader {
     try {
       fetchResponse = simpleConsumer.fetch(fetchRequest);
       if (fetchResponse.hasError()) {
-        throw new RuntimeException();
+        String message = "Error Code generated : "
+            + fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition()) + "\n";
+        throw new RuntimeException(message);
       }
       return processFetchResponse(fetchResponse, tempTime);
     } catch (Exception e) {
       log.info("Exception generated during fetch for topic " + kafkaRequest.getTopic()
-          + ". Will refresh topic metadata and retry.");
+          + ": " + e.getMessage() + ". Will refresh topic metadata and retry.");
       return refreshTopicMetadataAndRetryFetch(fetchRequest, tempTime);
     }
   }
@@ -183,8 +185,8 @@ public class KafkaReader {
       refreshTopicMetadata();
       FetchResponse fetchResponse = simpleConsumer.fetch(fetchRequest);
       if (fetchResponse.hasError()) {
-        log.info("Error encountered during a fetch request from Kafka");
-        log.info("Error Code generated : "
+        log.warn("Error encountered during fetch request retry from Kafka");
+        log.warn("Error Code generated : "
             + fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition()));
         return false;
       }

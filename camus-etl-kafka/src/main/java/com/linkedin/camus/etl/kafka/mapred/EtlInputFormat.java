@@ -3,6 +3,7 @@ package com.linkedin.camus.etl.kafka.mapred;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.CamusJobTest;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
+
 import kafka.api.PartitionOffsetRequestInfo;
 import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
@@ -35,6 +37,7 @@ import kafka.javaapi.PartitionMetadata;
 import kafka.javaapi.TopicMetadata;
 import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -77,6 +80,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
   public static boolean reportJobFailureDueToOffsetOutOfRange = false;
+  public static boolean useMockRequestForUnitTest = false;
 
   private static Logger log = null;
 
@@ -330,13 +334,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         request.setAvgMsgSize(key.getMessageSize());
       }
 
+      if (useMockRequestForUnitTest) {
+        request = CamusJobTest.mockRequest;
+        context.getConfiguration().setBoolean("KAFKA_MOVE_TO_EARLIEST_OFFSET", false);
+      }
+
       if (request.getEarliestOffset() > request.getOffset() || request.getOffset() > request.getLastOffset()) {
         if (request.getEarliestOffset() > request.getOffset()) {
           log.error("The earliest offset was found to be more than the current offset: " + request);
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
         }
-        
+
         boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
         boolean offsetUnset = request.getOffset() == EtlRequest.DEFAULT_OFFSET;
         log.info("move_to_earliest: " + move_to_earliest_offset + " offset_unset: " + offsetUnset);

@@ -87,6 +87,8 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE = "etl.fail.on.offset.outofrange";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT = Boolean.TRUE.toString();
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -400,7 +402,10 @@ public class CamusJob extends Configured implements Tool {
 
     if (EtlInputFormat.reportJobFailureDueToOffsetOutOfRange) {
       EtlInputFormat.reportJobFailureDueToOffsetOutOfRange = false;
-      throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
+      if (props.getProperty(ETL_FAIL_ON_OFFSET_OUTOFRANGE, ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT)
+        .equalsIgnoreCase(Boolean.TRUE.toString())) {
+        throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
+      }
     }
   }
 

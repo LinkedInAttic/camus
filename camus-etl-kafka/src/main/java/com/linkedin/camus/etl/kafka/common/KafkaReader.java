@@ -198,7 +198,14 @@ public class KafkaReader {
 
   private void refreshTopicMetadata() {
     TopicMetadataRequest request = new TopicMetadataRequest(Collections.singletonList(kafkaRequest.getTopic()));
-    TopicMetadataResponse response = simpleConsumer.send(request);
+    TopicMetadataResponse response;
+    try {
+      response = simpleConsumer.send(request);
+    } catch (Exception e) {
+      log.error("Exception caught when refreshing metadata for topic " + request.topics().get(0) + ": "
+          + e.getMessage());
+      return;
+    }
     TopicMetadata metadata = response.topicsMetadata().get(0);
     for (PartitionMetadata partitionMetadata : metadata.partitionsMetadata()) {
       if (partitionMetadata.partitionId() == kafkaRequest.getPartition()) {

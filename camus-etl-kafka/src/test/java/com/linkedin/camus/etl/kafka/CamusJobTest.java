@@ -130,7 +130,6 @@ public class CamusJobTest {
     folder.delete();
   }
 
-  @Ignore
   @Test
   public void runJob() throws Exception {
     job.run();
@@ -149,7 +148,7 @@ public class CamusJobTest {
   }
 
   @Test
-  public void testJobFailureDueToOffsetOutOfRange() throws Exception {
+  public void testJobFailureDueToOffsetTooEarly() throws Exception {
     EtlInputFormat.useMockRequestForUnitTest = true;
     createMockRequestOffsetTooEarly();
     try {
@@ -161,7 +160,19 @@ public class CamusJobTest {
     }
   }
 
-  @Ignore
+  @Test
+  public void testJobFailureDueToOffsetTooLate() throws Exception {
+    EtlInputFormat.useMockRequestForUnitTest = true;
+    createMockRequestOffsetTooLate();
+    try {
+      job.run();
+      fail("Should have thrown RuntimeException due to offset out of range.");
+    } catch (RuntimeException e) {
+      String msg = "Some topics skipped due to offsets from Kafka metadata out of range.";
+      assertEquals(msg, e.getMessage());
+    }
+  }
+
   @Test
   public void runJobWithErrors() throws Exception {
     props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
@@ -173,7 +184,6 @@ public class CamusJobTest {
     assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
   }
 
-  @Ignore
   @Test
   public void runJobWithoutErrorsAndFailOnErrors() throws Exception {
     props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
@@ -181,7 +191,6 @@ public class CamusJobTest {
     runJob();
   }
 
-  @Ignore
   @Test(expected = RuntimeException.class)
   public void runJobWithErrorsAndFailOnErrors() throws Exception {
     props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
@@ -298,6 +307,14 @@ public class CamusJobTest {
     mockRequest = EasyMock.createNiceMock(CamusRequest.class);
     EasyMock.expect(mockRequest.getEarliestOffset()).andReturn(-1L).anyTimes();
     EasyMock.expect(mockRequest.getOffset()).andReturn(-2L).anyTimes();
+    EasyMock.expect(mockRequest.getLastOffset()).andReturn(1L).anyTimes();
+    EasyMock.replay(mockRequest);
+  }
+
+  public static void createMockRequestOffsetTooLate() {
+    mockRequest = EasyMock.createNiceMock(CamusRequest.class);
+    EasyMock.expect(mockRequest.getEarliestOffset()).andReturn(-1L).anyTimes();
+    EasyMock.expect(mockRequest.getOffset()).andReturn(2L).anyTimes();
     EasyMock.expect(mockRequest.getLastOffset()).andReturn(1L).anyTimes();
     EasyMock.replay(mockRequest);
   }

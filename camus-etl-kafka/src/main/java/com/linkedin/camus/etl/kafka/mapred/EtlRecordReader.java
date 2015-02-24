@@ -32,10 +32,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
   private static final String DEFAULT_SERVER = "server";
   private static final String DEFAULT_SERVICE = "service";
+  public static boolean useMockDecoderForUnitTest = false;
 
-  public static enum MSG_SKIPPED {
-    SCHEMA_NOT_FOUND,
-    OTHER
+  public static enum KAFKA_MSG {
+    DECODE_SUCCESSFUL,
+    SKIPPED_SCHEMA_NOT_FOUND,
+    SKIPPED_OTHER
   };
 
   private TaskAttemptContext context;
@@ -127,13 +129,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     CamusWrapper r = null;
     try {
       r = decoder.decode(payload);
+      mapperContext.getCounter(KAFKA_MSG.DECODE_SUCCESSFUL).increment(1);
     } catch (SchemaNotFoundException e) {
-      mapperContext.getCounter(MSG_SKIPPED.SCHEMA_NOT_FOUND).increment(1);
+      mapperContext.getCounter(KAFKA_MSG.SKIPPED_SCHEMA_NOT_FOUND).increment(1);
       if (!skipSchemaErrors) {
         throw new IOException(e);
       }
     } catch (Exception e) {
-      mapperContext.getCounter(MSG_SKIPPED.OTHER).increment(1);
+      mapperContext.getCounter(KAFKA_MSG.SKIPPED_OTHER).increment(1);
       if (!skipSchemaErrors) {
         throw new IOException(e);
       }
@@ -240,7 +243,12 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               new KafkaReader(context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
                   CamusJob.getKafkaBufferSize(mapperContext));
 
-          decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+          if (useMockDecoderForUnitTest) {
+            decoder = EtlRecordReaderTest.mockDecoder;
+          }
+          else {
+            decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+          }
         }
         int count = 0;
         while (reader.getNext(key, msgValue, msgKey)) {

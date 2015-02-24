@@ -59,6 +59,7 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
       synchronized (this) {
         if (shouldFetchFromSchemaRegistry(id)) {
           schema = fetchFromSchemaRegistry(topic, id);
+          cachedById.putIfAbsent(new CachedSchemaTuple(topic, id), schema);
         } else {
           throw new SchemaNotFoundException();
         }
@@ -82,7 +83,6 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
   private S fetchFromSchemaRegistry(String topic, String id) {
     try {
       S schema = registry.getSchemaByID(topic, id);
-      cachedById.putIfAbsent(new CachedSchemaTuple(topic, id), schema);
       return schema;
     } catch (SchemaNotFoundException e) {
       addFetchToFailureHistory(id);

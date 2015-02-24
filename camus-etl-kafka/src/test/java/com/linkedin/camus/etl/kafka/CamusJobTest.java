@@ -1,8 +1,10 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.util.Properties;
 import java.util.Random;
 
 import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -40,6 +43,8 @@ import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReaderTest;
 
 
 public class CamusJobTest {
@@ -113,6 +118,8 @@ public class CamusJobTest {
     // Run M/R for Hadoop1
     props.setProperty("mapreduce.jobtracker.address", "local");
 
+    EtlRecordReader.useMockDecoderForUnitTest = false;
+
     job = new CamusJob(props);
   }
 
@@ -140,14 +147,29 @@ public class CamusJobTest {
   }
 
   @Test
-  public void runJobWithErrors() throws Exception {
-    props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
-    job = new CamusJob(props);
-    job.run();
+  public void testJobFailDueToSkippedMsgSchemaNotFound() throws Exception {
+    EtlRecordReaderTest.createMockDecoder30PercentSchemaNotFound();
+    EtlRecordReader.useMockDecoderForUnitTest = true;
+    try {
+      job.run();
+      fail("Should have thrown RuntimeException: too many msg skipped due to schema not found");
+    } catch (RuntimeException e) {
+      String msg = "job failed: 30.0% messages skipped due to schema not found, maximum allowed is 10.0%";
+      assertEquals(msg, e.getMessage());
+    }
+  }
 
-    assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
+  @Test
+  public void testJobFailDueToSkippedMsgOther() throws Exception {
+    EtlRecordReaderTest.createMockDecoder30PercentOther();
+    EtlRecordReader.useMockDecoderForUnitTest = true;
+    try {
+      job.run();
+      fail("Should have thrown RuntimeException: too many msg skipped due to other");
+    } catch (RuntimeException e) {
+      String msg = "job failed: 30.0% messages skipped due to other, maximum allowed is 10.0%";
+      assertEquals(msg, e.getMessage());
+    }
   }
 
   @Test

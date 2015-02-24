@@ -1,8 +1,10 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.util.Properties;
 import java.util.Random;
 
 import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -114,6 +117,7 @@ public class CamusJobTest {
     props.setProperty("mapreduce.jobtracker.address", "local");
 
     job = new CamusJob(props);
+    CamusJob.useFakeEtlInputFormatForUnitTest = false;
   }
 
   @After
@@ -137,6 +141,18 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
+  }
+
+  @Test
+  public void testJobFailureDueToOffsetOutOfRange() throws Exception {
+    CamusJob.useFakeEtlInputFormatForUnitTest = true;
+    try {
+      job.run();
+      fail("Should have thrown RuntimeException due to offset out of range.");
+    } catch (RuntimeException e) {
+      String msg = "Some topics skipped due to offsets from Kafka metadata out of range.";
+      assertEquals(msg, e.getMessage());
+    }
   }
 
   @Test

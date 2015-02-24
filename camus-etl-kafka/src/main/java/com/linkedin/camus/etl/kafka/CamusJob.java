@@ -6,6 +6,7 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormatFake;
 import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
@@ -102,6 +103,8 @@ public class CamusJob extends Configured implements Tool {
   public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
   public static final String CAMUS_REPORTER_CLASS = "etl.reporter.class";
   public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+
+  public static boolean useFakeEtlInputFormatForUnitTest = false;
   private static org.apache.log4j.Logger log;
   private Job hadoopJob = null;
 
@@ -328,6 +331,10 @@ public class CamusJob extends Configured implements Tool {
     job.setMapperClass(EtlMapper.class);
 
     job.setInputFormatClass(EtlInputFormat.class);
+    if (useFakeEtlInputFormatForUnitTest) {
+      job.setInputFormatClass(EtlInputFormatFake.class);
+    }
+
     job.setOutputFormatClass(EtlMultiOutputFormat.class);
     job.setNumReduceTasks(0);
 
@@ -392,6 +399,7 @@ public class CamusJob extends Configured implements Tool {
     }
 
     if (EtlInputFormat.reportJobFailureDueToOffsetOutOfRange) {
+      EtlInputFormat.reportJobFailureDueToOffsetOutOfRange = false;
       throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
     }
   }

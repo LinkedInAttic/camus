@@ -99,8 +99,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
    * @param context
    * @return
    */
-  public List<TopicMetadata> getKafkaMetadata(JobContext context) {
-    ArrayList<String> metaRequestTopics = new ArrayList<String>();
+  public List<TopicMetadata> getKafkaMetadata(JobContext context, List<String> metaRequestTopics) {
     CamusJob.startTiming("kafkaSetupTime");
     String brokerString = CamusJob.getKafkaBrokers(context);
     if (brokerString.isEmpty())
@@ -235,7 +234,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     try {
 
       // Get Metadata for all topics
-      List<TopicMetadata> topicMetadataList = getKafkaMetadata(context);
+      List<TopicMetadata> topicMetadataList = getKafkaMetadata(context, new ArrayList<String>());
 
       // Filter any white list topics
       HashSet<String> whiteListTopics = new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));
@@ -262,6 +261,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           for (PartitionMetadata partitionMetadata : topicMetadata.partitionsMetadata()) {
             // We only care about LeaderNotAvailableCode error on partitionMetadata level
             // Error codes such as ReplicaNotAvailableCode should not stop us.
+            if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
+              refreshPartitionMetadata(partitionMetadata, topicMetadata, context);
+            }
+
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
                   + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
@@ -460,6 +463,17 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     }
     return offsetKeysMap;
+  }
+  
+  private void refreshPartitionMetadata(PartitionMetadata partitionMetadata, TopicMetadata topicMetadata, JobContext context) {
+    List<TopicMetadata> topicMetadataList = this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
+    topicMetadata = topicMetadataList.get(0);
+    for(PartitionMetadata metadataPerPartition : topicMetadata.partitionsMetadata()) {
+      if (metadataPerPartition.partitionId() == partitionMetadata.partitionId()) {
+        partitionMetadata = metadataPerPartition;
+        return;
+      }
+    }
   }
 
   public static void setWorkAllocator(JobContext job, Class<WorkAllocator> val) {

@@ -392,6 +392,7 @@ public class CamusJob extends Configured implements Tool {
     }
 
     if (EtlInputFormat.reportJobFailureDueToSkippedMsg) {
+      EtlInputFormat.reportJobFailureDueToSkippedMsg = false;
       throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
     }
   }

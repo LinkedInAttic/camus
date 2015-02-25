@@ -3,6 +3,7 @@ package com.linkedin.camus.etl.kafka.mapred;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.CamusJobTest;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -82,6 +83,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final int FETCH_FROM_LEADER_MAX_RETRIES = 3;
 
   public static boolean reportJobFailureDueToSkippedMsg = false;
+  public static boolean useMockConsumerForUnitTest = false;
 
   private static Logger log = null;
 
@@ -214,17 +216,22 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
+    if (useMockConsumerForUnitTest) {
+      consumer = CamusJobTest.mockConsumer;
+    }
     for (int i = 0; i <= FETCH_FROM_LEADER_MAX_RETRIES; i++) {
       try {
         OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
             kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
-        if (offsetResponse == null || offsetResponse.hasError()) {
-          throw new RuntimeException();
+        if (offsetResponse.hasError()) {
+          throw new RuntimeException("offsetReponse has error.");
         }
         return offsetResponse;
       } catch (Exception e) {
         log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
-            + " has failed " + (i + 1) + " time(s). " + (FETCH_FROM_LEADER_MAX_RETRIES - i) + " retries left.");
+            + " has failed " + (i + 1) + " time(s). Reason: "
+            + e.getMessage() + " "
+            + (FETCH_FROM_LEADER_MAX_RETRIES - i) + " retries left.");
         if (i < FETCH_FROM_LEADER_MAX_RETRIES) {
           try {
             Thread.sleep(1000 * (i + 1));
@@ -382,7 +389,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
         }
-        
+
         boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
         boolean offsetUnset = request.getOffset() == EtlRequest.DEFAULT_OFFSET;
         log.info("move_to_earliest: " + move_to_earliest_offset + " offset_unset: " + offsetUnset);

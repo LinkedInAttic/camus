@@ -1,8 +1,10 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -15,6 +17,9 @@ import java.util.Properties;
 import java.util.Random;
 
 import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+
+import kafka.javaapi.OffsetRequest;
+import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -27,6 +32,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
+import org.easymock.EasyMock;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -59,6 +65,8 @@ public class CamusJobTest {
   private static FileSystem fs;
   private static Gson gson;
   private static Map<String, List<Message>> messagesWritten;
+
+  public static SimpleConsumer mockConsumer;
 
   @BeforeClass
   public static void beforeClass() throws IOException {
@@ -113,6 +121,8 @@ public class CamusJobTest {
     // Run M/R for Hadoop1
     props.setProperty("mapreduce.jobtracker.address", "local");
 
+    EtlInputFormat.useMockConsumerForUnitTest = false;
+
     job = new CamusJob(props);
   }
 
@@ -121,6 +131,7 @@ public class CamusJobTest {
     // Delete all camus data
     folder.delete();
   }
+
 
   @Test
   public void runJob() throws Exception {
@@ -137,6 +148,19 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
+  }
+
+  @Test
+  public void testJobFailDueToOffsetRangeCallFailure() throws Exception {
+    EtlInputFormat.useMockConsumerForUnitTest = true;
+    createMockConsumer();
+    try {
+      job.run();
+      fail("Should have thrown RuntimeException: offset range call failed.");
+    } catch (RuntimeException e) {
+      String msg = "Some topics skipped due to failure in getting latest offset from Kafka leaders.";
+      assertEquals(msg, e.getMessage());
+    }
   }
 
   @Test
@@ -269,4 +293,12 @@ public class CamusJobTest {
     field.set(null, null);
   }
 
+  private static void createMockConsumer() {
+    mockConsumer = EasyMock.createNiceMock(SimpleConsumer.class);
+    EasyMock.expect(mockConsumer.getOffsetsBefore((OffsetRequest) EasyMock.anyObject()))
+      .andThrow(new RuntimeException()).anyTimes();
+    EasyMock.expect(mockConsumer.host()).andReturn("mockedHost").anyTimes();
+    EasyMock.expect(mockConsumer.port()).andReturn(0).anyTimes();
+    EasyMock.replay(mockConsumer);
+  }
 }

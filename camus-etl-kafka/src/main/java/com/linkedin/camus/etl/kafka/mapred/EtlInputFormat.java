@@ -262,7 +262,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             // We only care about LeaderNotAvailableCode error on partitionMetadata level
             // Error codes such as ReplicaNotAvailableCode should not stop us.
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
-              refreshPartitionMetadata(partitionMetadata, topicMetadata, context);
+              partitionMetadata = refreshPartitionMetadata(partitionMetadata, topicMetadata, context);
             }
 
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
@@ -465,15 +465,15 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return offsetKeysMap;
   }
   
-  private void refreshPartitionMetadata(PartitionMetadata partitionMetadata, TopicMetadata topicMetadata, JobContext context) {
+  private PartitionMetadata refreshPartitionMetadata(PartitionMetadata partitionMetadata, TopicMetadata topicMetadata, JobContext context) {
     List<TopicMetadata> topicMetadataList = this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
     topicMetadata = topicMetadataList.get(0);
     for(PartitionMetadata metadataPerPartition : topicMetadata.partitionsMetadata()) {
       if (metadataPerPartition.partitionId() == partitionMetadata.partitionId()) {
-        partitionMetadata = metadataPerPartition;
-        return;
+        return metadataPerPartition;
       }
     }
+    return partitionMetadata;
   }
 
   public static void setWorkAllocator(JobContext job, Class<WorkAllocator> val) {

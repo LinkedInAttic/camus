@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
+
 import kafka.api.PartitionOffsetRequestInfo;
 import kafka.common.ErrorMapping;
 import kafka.common.TopicAndPartition;
@@ -76,6 +77,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
+  private static final int RETRY_TIMES = 1;
+  private static final int BACKOFF_UNIT_MILLISECONDS = 1000;
   private static Logger log = null;
 
   public EtlInputFormat() {
@@ -97,7 +100,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
    * Gets the metadata from Kafka
    * 
    * @param context
-   * @return
+   * @param metaRequestTopics specify the list of topics to get topicMetadata. The empty list means
+   * get the TopicsMetadata for all topics.
+   * @return the list of TopicMetadata
    */
   public List<TopicMetadata> getKafkaMetadata(JobContext context, List<String> metaRequestTopics) {
     CamusJob.startTiming("kafkaSetupTime");
@@ -261,9 +266,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           for (PartitionMetadata partitionMetadata : topicMetadata.partitionsMetadata()) {
             // We only care about LeaderNotAvailableCode error on partitionMetadata level
             // Error codes such as ReplicaNotAvailableCode should not stop us.
-            if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
-              partitionMetadata = refreshPartitionMetadata(partitionMetadata, topicMetadata, context);
-            }
+            partitionMetadata =
+                this.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, topicMetadata, context,
+                    RETRY_TIMES);
 
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
@@ -337,7 +342,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
         }
-        
+
         boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
         boolean offsetUnset = request.getOffset() == EtlRequest.DEFAULT_OFFSET;
         log.info("move_to_earliest: " + move_to_earliest_offset + " offset_unset: " + offsetUnset);
@@ -351,10 +356,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
                   .getOffset()));
         } else {
-          log.error("Offset range from kafka metadata is outside the previously persisted offset," +
-                    " please check whether kafka cluster configuration is correct." +
-                    " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET +
-                    " to start processing from earliest kafka metadata offset.");
+          log.error("Offset range from kafka metadata is outside the previously persisted offset,"
+              + " please check whether kafka cluster configuration is correct."
+              + " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET
+              + " to start processing from earliest kafka metadata offset.");
           throw new IOException("Offset from kafka metadata is out of range: " + request);
         }
       }
@@ -464,14 +469,36 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     }
     return offsetKeysMap;
   }
-  
-  private PartitionMetadata refreshPartitionMetadata(PartitionMetadata partitionMetadata, TopicMetadata topicMetadata, JobContext context) {
-    List<TopicMetadata> topicMetadataList = this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
-    topicMetadata = topicMetadataList.get(0);
-    for(PartitionMetadata metadataPerPartition : topicMetadata.partitionsMetadata()) {
-      if (metadataPerPartition.partitionId() == partitionMetadata.partitionId()) {
-        return metadataPerPartition;
+
+  public PartitionMetadata refreshPartitionMetadataOnLeaderNotAvailable(PartitionMetadata partitionMetadata,
+      TopicMetadata topicMetadata, JobContext context, int retryTimes) throws InterruptedException {
+    int retryCounter = 0;
+    while (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode() && retryCounter < retryTimes) {
+      log.info("Retry to referesh the topicMetadata on LeaderNotAvailable...");
+      Thread.sleep((retryCounter + 1) * BACKOFF_UNIT_MILLISECONDS);
+      List<TopicMetadata> topicMetadataList =
+          this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
+      if (topicMetadataList == null || topicMetadataList.size() == 0) {
+        log.warn("The topicMetadataList for topic " + topicMetadata.topic() + " is empty.");
+      } else {
+        topicMetadata = topicMetadataList.get(0);
+        boolean partitionFound = false;
+        for (PartitionMetadata metadataPerPartition : topicMetadata.partitionsMetadata()) {
+          if (metadataPerPartition.partitionId() == partitionMetadata.partitionId()) {
+            partitionFound = true;
+            if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
+              return metadataPerPartition;
+            } else { //retry again.
+              break;
+            }
+          }
+        }
+        if (!partitionFound) {
+          log.error("No matching partition found in the topicMetadata for Partition: "
+              + partitionMetadata.partitionId());
+        }
       }
+      retryCounter++;
     }
     return partitionMetadata;
   }
@@ -589,8 +616,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   public static Class<MessageDecoder> getMessageDecoderClass(JobContext job, String topicName) {
-    Class<MessageDecoder> topicDecoder = (Class<MessageDecoder>) job.getConfiguration().getClass(
-            CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
+    Class<MessageDecoder> topicDecoder =
+        (Class<MessageDecoder>) job.getConfiguration().getClass(CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
     return topicDecoder == null ? getMessageDecoderClass(job) : topicDecoder;
   }
 

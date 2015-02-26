@@ -70,8 +70,6 @@ public class CamusJobTestWithMock {
 
   private static final String TOPIC_1 = "topic_1";
   private static final int PARTITION_1_ID = 0;
-  private static final int EARLY_OFFSET = 0;
-  private static final int LATE_OFFSET = 1;
 
   private static FileSystem fs;
   private static Gson gson;
@@ -88,7 +86,7 @@ public class CamusJobTestWithMock {
 
     // You can't delete messages in Kafka so just writing a set of known messages that can be used for testing
     messagesWritten = new HashMap<String, List<MyMessage>>();
-    messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 1));
+    messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 2));
   }
 
   @AfterClass
@@ -137,7 +135,6 @@ public class CamusJobTestWithMock {
 
   @After
   public void after() throws IOException {
-    EasyMock.verify(_mocks.toArray());
     // Delete all camus data
     folder.delete();
   }
@@ -177,21 +174,22 @@ public class CamusJobTestWithMock {
     // For OffsetResponse
     OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
     _mocks.add(offsetResponse);
-    // The first call is getLatestOffset, we set the value to 2
-    EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{LATE_OFFSET}).times(1);
-    // The second call is getEarliestOffset, we set the value to 1
-    EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{EARLY_OFFSET}).times(1);
+    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
+    // The first call is getLatestOffset, we set the value to 1
+    EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
+    // The second call is getEarliestOffset, we set the value to 0
+    EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
 
     // For SimpleConsumer.fetch()
     FetchResponse fetchResponse = EasyMock.createMock(FetchResponse.class);
     EasyMock.expect(fetchResponse.hasError()).andReturn(false).times(1);
-    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
-    MyMessage myMessage = myMessages.get(0);
-    String payload = gson.toJson(myMessage);
-    String msgKey = Integer.toString(myMessage.number);
-    Message message = new Message(payload.getBytes(), msgKey.getBytes());
     List<Message> messages = new ArrayList<Message>();
-    messages.add(message);
+    for (MyMessage myMessage:myMessages) {
+      String payload = gson.toJson(myMessage);
+      String msgKey = Integer.toString(PARTITION_1_ID);
+      Message message = new Message(payload.getBytes(), msgKey.getBytes());
+      messages.add(message);
+    }
     ByteBufferMessageSet messageSet = new ByteBufferMessageSet(messages);
     EasyMock.expect(fetchResponse.messageSet(EasyMock.anyString(), EasyMock.anyInt())).andReturn(messageSet).times(1);
     _mocks.add(fetchResponse);
@@ -210,6 +208,7 @@ public class CamusJobTestWithMock {
   }
   
   private void verifyJob1() throws Exception {
+    EasyMock.verify(_mocks.toArray());
     assertCamusContains(TOPIC_1);
   }
   

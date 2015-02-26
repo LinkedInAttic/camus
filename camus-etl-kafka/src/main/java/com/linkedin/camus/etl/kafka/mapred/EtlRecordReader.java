@@ -33,6 +33,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private static final String DEFAULT_SERVICE = "service";
   private TaskAttemptContext context;
 
+  private EtlInputFormat inputFormat;
   private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
   private KafkaReader reader;
 
@@ -65,13 +66,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) 
+      throws IOException, InterruptedException {
+    this.inputFormat = inputFormat;
     initialize(split, context);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
-  public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
+  public void initialize(InputSplit split, TaskAttemptContext context) 
+      throws IOException, InterruptedException {
     // For class path debugging
     log.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = EtlRecordReader.class.getClassLoader();
@@ -224,7 +228,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             closeReader();
           }
           reader =
-              new KafkaReader(context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
+              new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
                   CamusJob.getKafkaBufferSize(mapperContext));
 
           decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());

@@ -76,6 +76,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
+  public static final int NUM_TRIES_TOPIC_METADATA = 3;
+  
   private static Logger log = null;
 
   public EtlInputFormat() {
@@ -116,13 +118,23 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s", brokers.get(i),
           consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
       try {
-        topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
-        fetchMetaDataSucceeded = true;
-      } catch (Exception e) {
-        savedException = e;
-        log.warn(
-            String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed",
-                consumer.clientId(), metaRequestTopics, brokers.get(i)), e);
+        for (int iter = 0; iter < NUM_TRIES_TOPIC_METADATA; iter++) {
+          try {
+            topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
+            fetchMetaDataSucceeded = true;
+            break;
+          } catch (Exception e) {
+            savedException = e;
+            log.warn(
+                     String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
+                                   consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
+            try {
+              Thread.sleep((long)(Math.random() * (iter + 1) * 1000));
+            } catch (InterruptedException ex) {
+              log.warn("Caught InterruptedException: " + ex);
+            }
+          }
+        }
       } finally {
         consumer.close();
         i++;

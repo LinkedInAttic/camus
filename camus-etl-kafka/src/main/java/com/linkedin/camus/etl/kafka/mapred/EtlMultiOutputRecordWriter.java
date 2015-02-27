@@ -30,7 +30,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private String currentTopic = "";
   private long beginTimeStamp = 0;
   private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
-  private static Counter topicSkipOldCounter = null;
+  private final Counter topicSkipOldCounter;
 
   private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
       new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();

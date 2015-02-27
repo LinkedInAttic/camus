@@ -68,9 +68,9 @@ public class EtlInputFormatTest {
 
     SimpleConsumer simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
     mocks.add(simpleConsumer);
-    EasyMock.expect(simpleConsumer.clientId()).andReturn(DUMMY_VALUE).times(4);
+    EasyMock.expect(simpleConsumer.clientId()).andReturn(DUMMY_VALUE).times(EtlInputFormat.NUM_TRIES_TOPIC_METADATA + 1);
     Exception ex = new RuntimeException("No TopicMeta");
-    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject())).andThrow(ex).times(3);
+    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject())).andThrow(ex).times(EtlInputFormat.NUM_TRIES_TOPIC_METADATA);
     simpleConsumer.close();
     EasyMock.expectLastCall().andVoid().anyTimes();
 

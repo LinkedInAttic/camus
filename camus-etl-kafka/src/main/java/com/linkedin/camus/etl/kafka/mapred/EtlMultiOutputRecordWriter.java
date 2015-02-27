@@ -2,12 +2,15 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
+import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -68,7 +71,24 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         //TODO: fix this logging message, should be logged once as a total count of old records skipped for each topic
         // for now, commenting this out
         //log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
+        try {
+          //In Hadoop 2, TaskAttemptContext.getCounter() is available
+          //In Hadoop 2, TaskAttemptContextImpl cannot be cast to Mapper.Context
+          Method getCounterMethod = context.getClass().getMethod("getCounter", String.class, String.class);
+          ((Counter) getCounterMethod.invoke(context, "total", "skip-old")).increment(1);
+        } catch (NoSuchMethodException e) {
+          //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
+          ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
+        } catch (IllegalArgumentException e) {
+          log.error("IllegalArgumentException while incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+          log.error("IllegalAccessException while incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+          log.error("InvocationTargetException while incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
+        }
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {

@@ -1,5 +1,6 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import kafka.javaapi.consumer.SimpleConsumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.easymock.EasyMock;
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -18,6 +20,21 @@ import static org.junit.Assert.assertEquals;
 public class EtlInputFormatTest {
 
   private static final String DUMMY_VALUE = "dummy:1234";
+
+  @Test
+  public void testEmptyWhitelistBlacklistEntries() {
+    Configuration conf = new Configuration();
+    conf.set(EtlInputFormat.KAFKA_WHITELIST_TOPIC, ",TopicA,TopicB,,TopicC,");
+    conf.set(EtlInputFormat.KAFKA_BLACKLIST_TOPIC, ",TopicD,TopicE,,,,,TopicF,");
+
+    String[] whitelistTopics = EtlInputFormat.getKafkaWhitelistTopic(conf);
+    Assert.assertEquals(Arrays.asList("TopicA", "TopicB", "TopicC"),
+                        Arrays.asList(whitelistTopics));
+
+    String[] blacklistTopics = EtlInputFormat.getKafkaBlacklistTopic(conf);
+    Assert.assertEquals(Arrays.asList("TopicD", "TopicE", "TopicF"),
+                        Arrays.asList(blacklistTopics));
+  }
   
   @Test
   public void testWithOneRetry() {
@@ -95,6 +112,4 @@ public class EtlInputFormatTest {
       return _simpleConsumer;
     }
   }
-  
-
 }

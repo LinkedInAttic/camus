@@ -30,6 +30,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private String currentTopic = "";
   private long beginTimeStamp = 0;
   private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
+  private static Counter topicSkipOldCounter = null;
 
   private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
       new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
@@ -54,6 +55,28 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
       beginTimeStamp = 0;
     }
     log.info("beginTimeStamp set to: " + beginTimeStamp);
+    topicSkipOldCounter = getTopicSkipOldCounter();
+  }
+
+  private Counter getTopicSkipOldCounter() {
+    try {
+      //In Hadoop 2, TaskAttemptContext.getCounter() is available
+      //In Hadoop 2, TaskAttemptContextImpl cannot be cast to Mapper.Context
+      Method getCounterMethod = context.getClass().getMethod("getCounter", String.class, String.class);
+      return ((Counter) getCounterMethod.invoke(context, "total", "skip-old"));
+    } catch (NoSuchMethodException e) {
+      //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
+      return ((Mapper.Context)context).getCounter("total", "skip-old");
+    } catch (IllegalArgumentException e) {
+      log.error("IllegalArgumentException while obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    } catch (IllegalAccessException e) {
+      log.error("IllegalAccessException while obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    } catch (InvocationTargetException e) {
+      log.error("InvocationTargetException obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -71,24 +94,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         //TODO: fix this logging message, should be logged once as a total count of old records skipped for each topic
         // for now, commenting this out
         //log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        try {
-          //In Hadoop 2, TaskAttemptContext.getCounter() is available
-          //In Hadoop 2, TaskAttemptContextImpl cannot be cast to Mapper.Context
-          Method getCounterMethod = context.getClass().getMethod("getCounter", String.class, String.class);
-          ((Counter) getCounterMethod.invoke(context, "total", "skip-old")).increment(1);
-        } catch (NoSuchMethodException e) {
-          //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
-          ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
-        } catch (IllegalArgumentException e) {
-          log.error("IllegalArgumentException while incrementing counter 'total:skip-old': " + e.getMessage());
-          throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-          log.error("IllegalAccessException while incrementing counter 'total:skip-old': " + e.getMessage());
-          throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-          log.error("InvocationTargetException while incrementing counter 'total:skip-old': " + e.getMessage());
-          throw new RuntimeException(e);
-        }
+        topicSkipOldCounter.increment(1);
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {

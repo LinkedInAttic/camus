@@ -60,8 +60,10 @@ import org.apache.hadoop.mapred.TaskReport;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
+import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -221,6 +223,11 @@ public class CamusJob extends Configured implements Tool {
   }
 
   public void run() throws Exception {
+    run(EtlInputFormat.class, EtlMultiOutputFormat.class);
+  }
+  
+  public void run(Class<? extends InputFormat> inputFormatClass,
+                  Class<? extends OutputFormat> outputFormatClass) throws Exception {
 
     startTiming("pre-setup");
     startTiming("total");
@@ -327,8 +334,8 @@ public class CamusJob extends Configured implements Tool {
     EtlInputFormat.setLogger(log);
     job.setMapperClass(EtlMapper.class);
 
-    job.setInputFormatClass(EtlInputFormat.class);
-    job.setOutputFormatClass(EtlMultiOutputFormat.class);
+    job.setInputFormatClass(inputFormatClass);
+    job.setOutputFormatClass(outputFormatClass);
     job.setNumReduceTasks(0);
 
     stopTiming("pre-setup");

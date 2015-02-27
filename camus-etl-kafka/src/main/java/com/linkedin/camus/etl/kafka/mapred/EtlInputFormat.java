@@ -99,7 +99,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   @Override
   public RecordReader<EtlKey, CamusWrapper> createRecordReader(InputSplit split, TaskAttemptContext context)
       throws IOException, InterruptedException {
-    return new EtlRecordReader(split, context);
+    return new EtlRecordReader(this, split, context);
   }
 
   /**
@@ -121,7 +121,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     List<TopicMetadata> topicMetadataList = null;
     Exception savedException = null;
     while (i < brokers.size() && !fetchMetaDataSucceeded) {
-      SimpleConsumer consumer = createConsumer(context, brokers.get(i));
+      SimpleConsumer consumer = createBrokerConsumer(context, brokers.get(i));
       log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s", brokers.get(i),
           consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
       try {
@@ -144,16 +144,21 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return topicMetadataList;
   }
 
-  private SimpleConsumer createConsumer(JobContext context, String broker) {
+  private SimpleConsumer createBrokerConsumer(JobContext context, String broker) {
     if (!broker.matches(".+:\\d+"))
       throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
     String[] hostPort = broker.split(":");
-    SimpleConsumer consumer =
-        new SimpleConsumer(hostPort[0], Integer.valueOf(hostPort[1]), CamusJob.getKafkaTimeoutValue(context),
-            CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
-    return consumer;
+    return createSimpleConsumer(context, hostPort[0], Integer.valueOf(hostPort[1]));
   }
 
+  public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
+    SimpleConsumer consumer =
+        new SimpleConsumer(host, port,
+            CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
+            CamusJob.getKafkaClientName(context));
+    return consumer;
+  }
+  
   /**
    * Gets the latest offsets and create the requests as needed
    * 
@@ -165,10 +170,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo) {
     ArrayList<CamusRequest> finalRequests = new ArrayList<CamusRequest>();
     for (LeaderInfo leader : offsetRequestInfo.keySet()) {
-      SimpleConsumer consumer =
-          new SimpleConsumer(leader.getUri().getHost(), leader.getUri().getPort(),
-              CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
-              CamusJob.getKafkaClientName(context));
+      SimpleConsumer consumer = createSimpleConsumer(context, leader.getUri().getHost(), leader.getUri().getPort());
       // Latest Offset
       PartitionOffsetRequestInfo partitionLatestOffsetRequestInfo =
           new PartitionOffsetRequestInfo(kafka.api.OffsetRequest.LatestTime(), 1);

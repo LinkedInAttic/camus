@@ -121,8 +121,6 @@ public class CamusJobTest {
     // Run M/R for Hadoop1
     props.setProperty("mapreduce.jobtracker.address", "local");
 
-    EtlInputFormat.useMockConsumerForUnitTest = false;
-
     job = new CamusJob(props);
   }
 
@@ -150,18 +148,6 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_3);
   }
 
-  @Test
-  public void testJobFailDueToOffsetRangeCallFailure() throws Exception {
-    EtlInputFormat.useMockConsumerForUnitTest = true;
-    createMockConsumer();
-    try {
-      job.run();
-      fail("Should have thrown RuntimeException: offset range call failed.");
-    } catch (RuntimeException e) {
-      String msg = "Some topics skipped due to failure in getting latest offset from Kafka leaders.";
-      assertEquals(msg, e.getMessage());
-    }
-  }
 
   @Test
   public void runJobWithErrors() throws Exception {

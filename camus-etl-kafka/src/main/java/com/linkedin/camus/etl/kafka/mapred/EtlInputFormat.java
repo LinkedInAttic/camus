@@ -3,7 +3,6 @@ package com.linkedin.camus.etl.kafka.mapred;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.CamusJobTest;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -83,7 +82,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final int FETCH_FROM_LEADER_MAX_RETRIES = 3;
 
   public static boolean reportJobFailureDueToSkippedMsg = false;
-  public static boolean useMockConsumerForUnitTest = false;
 
   private static Logger log = null;
 
@@ -218,9 +216,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
-    if (useMockConsumerForUnitTest) {
-      consumer = CamusJobTest.mockConsumer;
-    }
     for (int i = 0; i <= FETCH_FROM_LEADER_MAX_RETRIES; i++) {
       try {
         OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,

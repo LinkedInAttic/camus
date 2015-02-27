@@ -80,6 +80,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
           ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
         } catch (Exception e) {
           log.error("error incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
         }
         committer.addOffset(key);
       } else {

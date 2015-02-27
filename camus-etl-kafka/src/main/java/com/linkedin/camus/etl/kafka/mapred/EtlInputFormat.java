@@ -116,13 +116,23 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       log.info(String.format("Fetching metadata from broker %s with client id %s for %d topic(s) %s", brokers.get(i),
           consumer.clientId(), metaRequestTopics.size(), metaRequestTopics));
       try {
-        topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
-        fetchMetaDataSucceeded = true;
-      } catch (Exception e) {
-        savedException = e;
-        log.warn(
-            String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed",
-                consumer.clientId(), metaRequestTopics, brokers.get(i)), e);
+        for (int iter = 0; iter < 3; iter++) {
+          try {
+            topicMetadataList = consumer.send(new TopicMetadataRequest(metaRequestTopics)).topicsMetadata();
+            fetchMetaDataSucceeded = true;
+            break;
+          } catch (Exception e) {
+            savedException = e;
+            log.warn(
+                     String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
+                                   consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
+            try {
+              Thread.sleep((long)(Math.random() * (iter + 1) * 1000));
+            } catch (InterruptedException ex) {
+              log.warn("Caught InterruptedException: " + ex);
+            }
+          }
+        }
       } finally {
         consumer.close();
         i++;

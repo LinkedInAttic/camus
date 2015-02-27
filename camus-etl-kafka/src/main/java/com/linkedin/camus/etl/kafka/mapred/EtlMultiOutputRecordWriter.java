@@ -2,6 +2,7 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
@@ -78,8 +79,14 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         } catch (NoSuchMethodException e) {
           //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
           ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
-        } catch (Exception e) {
-          log.error("error incrementing counter 'total:skip-old': " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+          log.error("IllegalArgumentException while incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+          log.error("IllegalAccessException while incrementing counter 'total:skip-old': " + e.getMessage());
+          throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+          log.error("InvocationTargetException while incrementing counter 'total:skip-old': " + e.getMessage());
           throw new RuntimeException(e);
         }
         committer.addOffset(key);

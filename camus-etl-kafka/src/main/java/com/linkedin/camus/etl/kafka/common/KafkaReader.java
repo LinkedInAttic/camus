@@ -20,6 +20,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 
 
 /**
@@ -51,7 +52,8 @@ public class KafkaReader {
   /**
    * Construct using the json representation of the kafka request
    */
-  public KafkaReader(TaskAttemptContext context, EtlRequest request, int clientTimeout, int fetchBufferSize)
+  public KafkaReader(EtlInputFormat inputFormat, TaskAttemptContext context, EtlRequest request, 
+                     int clientTimeout, int fetchBufferSize)
       throws Exception {
     this.fetchBufferSize = fetchBufferSize;
     this.context = context;
@@ -73,8 +75,7 @@ public class KafkaReader {
 
     URI uri = kafkaRequest.getURI();
     simpleConsumer =
-        new SimpleConsumer(uri.getHost(), uri.getPort(), CamusJob.getKafkaTimeoutValue(context),
-            CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
+        inputFormat.createSimpleConsumer(context, uri.getHost(), uri.getPort());
     log.info("Connected to leader " + uri + " beginning reading at offset " + beginOffset + " latest offset="
         + lastOffset);
     fetch();
@@ -116,6 +117,9 @@ public class KafkaReader {
         bytes = new byte[origSize];
         buf.get(bytes, buf.position(), origSize);
         pKey.set(bytes, 0, origSize);
+      } else {
+        log.warn("Received message with null message.key(): " + msgAndOffset);
+        pKey.setSize(0);
       }
 
       key.clear();

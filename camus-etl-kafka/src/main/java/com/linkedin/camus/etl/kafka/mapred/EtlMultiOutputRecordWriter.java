@@ -2,12 +2,15 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
+import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
@@ -27,6 +30,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private String currentTopic = "";
   private long beginTimeStamp = 0;
   private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
+  private final Counter topicSkipOldCounter;
 
   private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
       new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
@@ -51,6 +55,28 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
       beginTimeStamp = 0;
     }
     log.info("beginTimeStamp set to: " + beginTimeStamp);
+    topicSkipOldCounter = getTopicSkipOldCounter();
+  }
+
+  private Counter getTopicSkipOldCounter() {
+    try {
+      //In Hadoop 2, TaskAttemptContext.getCounter() is available
+      //In Hadoop 2, TaskAttemptContextImpl cannot be cast to Mapper.Context
+      Method getCounterMethod = context.getClass().getMethod("getCounter", String.class, String.class);
+      return ((Counter) getCounterMethod.invoke(context, "total", "skip-old"));
+    } catch (NoSuchMethodException e) {
+      //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
+      return ((Mapper.Context)context).getCounter("total", "skip-old");
+    } catch (IllegalArgumentException e) {
+      log.error("IllegalArgumentException while obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    } catch (IllegalAccessException e) {
+      log.error("IllegalAccessException while obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    } catch (InvocationTargetException e) {
+      log.error("InvocationTargetException obtaining counter 'total:skip-old': " + e.getMessage());
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -68,7 +94,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         //TODO: fix this logging message, should be logged once as a total count of old records skipped for each topic
         // for now, commenting this out
         //log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
+        topicSkipOldCounter.increment(1);
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {

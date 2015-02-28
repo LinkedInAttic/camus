@@ -143,17 +143,17 @@ public class CamusJobTestWithMock {
   }
 
   @Test
-  public void runJob1() throws Exception {
-    setupJob1();
+  public void testRegularJob() throws Exception {
+    setupRegularJob();
 
     // Run a second time (no additional messages should be found)
     job = new CamusJob(props);
     job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
 
-    verifyJob1();
+    verifyJobSucceed();
   }
 
-  private void setupJob1() {
+  private void setupRegularJob() {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
     OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
@@ -191,7 +191,7 @@ public class CamusJobTestWithMock {
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     // The second call is getEarliestOffset, we set the value to 0
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
-    EasyMock.expect(offsetResponse.hasError()).andReturn(false).anyTimes();
+    EasyMock.expect(offsetResponse.hasError()).andReturn(false).times(2);
     return offsetResponse;
   }
 
@@ -213,7 +213,7 @@ public class CamusJobTestWithMock {
 
   private void mockSimpleConsumer(TopicMetadataResponse metadataResponse, OffsetResponse offsetResponse,
       FetchResponse fetchResponse) {
-    _simpleConsumer = EasyMock.createNiceMock(SimpleConsumer.class);
+    _simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
     _mocks.add(_simpleConsumer);
     EasyMock.expect(_simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject())).andReturn(metadataResponse).times(1);
     EasyMock.expect(_simpleConsumer.getOffsetsBefore((OffsetRequest)EasyMock.anyObject())).andReturn(offsetResponse).anyTimes();
@@ -221,101 +221,90 @@ public class CamusJobTestWithMock {
     EasyMock.expectLastCall().andVoid().anyTimes();
     EasyMock.expect(_simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
     EasyMock.expect(_simpleConsumer.fetch((FetchRequest)EasyMock.anyObject())).andReturn(fetchResponse).times(1);
+    EasyMock.expect(_simpleConsumer.host()).andReturn("dummyHost").anyTimes();
+    EasyMock.expect(_simpleConsumer.port()).andReturn(8888).anyTimes();
   }
 
-  private void verifyJob1() throws Exception {
+  private void verifyJobSucceed() throws Exception {
     EasyMock.verify(_mocks.toArray());
     assertCamusContains(TOPIC_1);
   }
 
-  @Test
+  @Test(expected = RuntimeException.class)
   public void testJobFailDueToOffsetRangeCallException() throws Exception {
     setupJobFailDueToOffsetRangeCallException();
-    try {
-      job = new CamusJob(props);
-      job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
-      fail("Should have thrown RuntimeException: offset range call failed.");
-    } catch (RuntimeException e) {
-      String msg = "Some topics skipped due to failure in getting latest offset from Kafka leaders.";
-      assertEquals(msg, e.getMessage());
-    }
+    job = new CamusJob(props);
+    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
   }
 
   private void setupJobFailDueToOffsetRangeCallException() {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
-    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
-    OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
-    FetchResponse fetchResponse = mockFetchResponse(myMessages);
-    mockConsumerThrowsExceptionForOffsetRangeCall(metadataResponse, offsetResponse, fetchResponse);
+    mockConsumerThrowsExceptionForOffsetRangeCall(metadataResponse);
     EasyMock.replay(_mocks.toArray());
   }
 
-  private void mockConsumerThrowsExceptionForOffsetRangeCall(TopicMetadataResponse metadataResponse,
-      OffsetResponse offsetResponse, FetchResponse fetchResponse) {
-    _simpleConsumer = EasyMock.createNiceMock(SimpleConsumer.class);
+  private void mockConsumerThrowsExceptionForOffsetRangeCall(TopicMetadataResponse metadataResponse) {
+    _simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
     _mocks.add(_simpleConsumer);
     EasyMock.expect(_simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject()))
       .andReturn(metadataResponse).times(1);
     EasyMock.expect(_simpleConsumer.getOffsetsBefore((OffsetRequest) EasyMock.anyObject()))
-      .andThrow(new RuntimeException()).anyTimes();
+      .andThrow(new RuntimeException()).times(3);
     EasyMock.expect(_simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
-    EasyMock.expect(_simpleConsumer.fetch((FetchRequest)EasyMock.anyObject())).andReturn(fetchResponse).times(1);
+    _simpleConsumer.close();
+    EasyMock.expectLastCall().andVoid().times(2);
+    EasyMock.expect(_simpleConsumer.host()).andReturn("dummyHost").times(4);
+    EasyMock.expect(_simpleConsumer.port()).andReturn(8888).times(4);
   }
 
-  @Test
+  @Test(expected = RuntimeException.class)
   public void testJobFailDueToOffsetRangeCallError() throws Exception {
     setupJobFailDueToOffsetRangeCallError();
-    try {
-      job = new CamusJob(props);
-      job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
-      fail("Should have thrown RuntimeException: offset range call failed.");
-    } catch (RuntimeException e) {
-      String msg = "Some topics skipped due to failure in getting latest offset from Kafka leaders.";
-      assertEquals(msg, e.getMessage());
-    }
+    job = new CamusJob(props);
+    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
+    verifyJobSucceed();
   }
 
   private void setupJobFailDueToOffsetRangeCallError() {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
     OffsetResponse offsetResponse = mockOffsetResponseWithError(myMessages);
-    FetchResponse fetchResponse = mockFetchResponse(myMessages);
-    mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    mockSimpleConsumer(metadataResponse, offsetResponse, null);
     EasyMock.replay(_mocks.toArray());
   }
 
   private OffsetResponse mockOffsetResponseWithError(List<MyMessage> myMessages) {
-    OffsetResponse offsetResponse = EasyMock.createNiceMock(OffsetResponse.class);
+    OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
     _mocks.add(offsetResponse);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
-    EasyMock.expect(offsetResponse.hasError()).andReturn(true).anyTimes();
+    EasyMock.expect(offsetResponse.hasError()).andReturn(true).times(3);
     return offsetResponse;
   }
 
   @Test
-  public void testJobOffsetRangeCallThirdRetrySucceed() throws Exception {
-    setupJobOffsetRangeCallThirdRetrySucceed();
+  public void testJobOffsetRangeCallThirdTrySucceed() throws Exception {
+    setupJobOffsetRangeCallThirdTrySucceed();
     job = new CamusJob(props);
     job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
   }
 
-  private void setupJobOffsetRangeCallThirdRetrySucceed() {
+  private void setupJobOffsetRangeCallThirdTrySucceed() {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
-    OffsetResponse offsetResponse = mockOffsetResponseThridRetrySucceed(myMessages);
+    OffsetResponse offsetResponse = mockOffsetResponseThirdTrySucceed(myMessages);
     FetchResponse fetchResponse = mockFetchResponse(myMessages);
     mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
     EasyMock.replay(_mocks.toArray());
   }
 
-  private OffsetResponse mockOffsetResponseThridRetrySucceed(List<MyMessage> myMessages) {
-    OffsetResponse offsetResponse = EasyMock.createNiceMock(OffsetResponse.class);
+  private OffsetResponse mockOffsetResponseThirdTrySucceed(List<MyMessage> myMessages) {
+    OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
     _mocks.add(offsetResponse);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
-    EasyMock.expect(offsetResponse.hasError()).andReturn(true).times(3);
-    EasyMock.expect(offsetResponse.hasError()).andReturn(false).anyTimes();
+    EasyMock.expect(offsetResponse.hasError()).andReturn(true).times(2);
+    EasyMock.expect(offsetResponse.hasError()).andReturn(false).times(2);
     return offsetResponse;
   }
 

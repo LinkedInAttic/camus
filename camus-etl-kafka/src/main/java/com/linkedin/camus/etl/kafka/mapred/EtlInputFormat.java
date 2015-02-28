@@ -80,11 +80,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
-  public static final int FETCH_FROM_LEADER_MAX_RETRIES = 3;
+  public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
+  public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
   public static boolean reportJobFailureDueToSkippedMsg = false;
-
-  public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
   private static Logger log = null;
 
@@ -229,7 +228,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
-    for (int i = 0; i <= FETCH_FROM_LEADER_MAX_RETRIES; i++) {
+    for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
         OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
             kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
@@ -241,10 +240,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
             + " has failed " + (i + 1) + " time(s). Reason: "
             + e.getMessage() + " "
-            + (FETCH_FROM_LEADER_MAX_RETRIES - i) + " retries left.");
-        if (i < FETCH_FROM_LEADER_MAX_RETRIES) {
+            + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
+        if (i < NUM_TRIES_FETCH_FROM_LEADER - 1) {
           try {
-            Thread.sleep(1000 * (i + 1));
+            Thread.sleep((long)(Math.random() * (i + 1) * 1000));
           } catch (InterruptedException e1) {
             log.error("Caught interrupted exception between retries of getting latest offsets. "
                 + e1.getMessage());

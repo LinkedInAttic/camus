@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import kafka.api.PartitionOffsetRequestInfo;
@@ -79,8 +80,11 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
+  public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
   public static final int NUM_TRIES_TOPIC_METADATA = 3;
-  
+
+  public static boolean reportJobFailureDueToSkippedMsg = false;
+
   private static Logger log = null;
 
   public EtlInputFormat() {
@@ -193,13 +197,18 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         earliestOffsetInfo.put(topicAndPartition, partitionEarliestOffsetRequestInfo);
       }
 
-      OffsetResponse latestOffsetResponse =
-          consumer.getOffsetsBefore(new OffsetRequest(latestOffsetInfo, kafka.api.OffsetRequest.CurrentVersion(),
-              CamusJob.getKafkaClientName(context)));
-      OffsetResponse earliestOffsetResponse =
-          consumer.getOffsetsBefore(new OffsetRequest(earliestOffsetInfo, kafka.api.OffsetRequest.CurrentVersion(),
-              CamusJob.getKafkaClientName(context)));
+      OffsetResponse latestOffsetResponse = getLatestOffsetResponse(consumer, latestOffsetInfo, context);
+      OffsetResponse earliestOffsetResponse = null;
+      if (latestOffsetResponse != null) {
+        earliestOffsetResponse = getLatestOffsetResponse(consumer, earliestOffsetInfo, context);
+      }
       consumer.close();
+      if (earliestOffsetResponse == null) {
+        log.warn(generateLogWarnForSkippedTopics(earliestOffsetInfo, consumer));
+        reportJobFailureDueToSkippedMsg = true;
+        continue;
+      }
+
       for (TopicAndPartition topicAndPartition : topicAndPartitions) {
         long latestOffset = latestOffsetResponse.offsets(topicAndPartition.topic(), topicAndPartition.partition())[0];
         long earliestOffset =
@@ -215,6 +224,44 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     }
     return finalRequests;
+  }
+
+  private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
+      Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
+    for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
+      try {
+        OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
+            kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
+        if (offsetResponse.hasError()) {
+          throw new RuntimeException("offsetReponse has error.");
+        }
+        return offsetResponse;
+      } catch (Exception e) {
+        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
+            + " has failed " + (i + 1) + " time(s). Reason: "
+            + e.getMessage() + " "
+            + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
+        if (i < NUM_TRIES_FETCH_FROM_LEADER - 1) {
+          try {
+            Thread.sleep((long)(Math.random() * (i + 1) * 1000));
+          } catch (InterruptedException e1) {
+            log.error("Caught interrupted exception between retries of getting latest offsets. "
+                + e1.getMessage());
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, SimpleConsumer consumer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("The following topics will be skipped due to failure in fetching latest offsets from leader "
+        + consumer.host() + ":" + consumer.port());
+    for (TopicAndPartition topicAndPartition : offsetInfo.keySet()) {
+      sb.append("  " + topicAndPartition.topic());
+    }
+    return sb.toString();
   }
 
   public String createTopicRegEx(HashSet<String> topicsSet) {

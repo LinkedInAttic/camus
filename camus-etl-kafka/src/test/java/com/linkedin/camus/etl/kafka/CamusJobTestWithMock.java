@@ -437,21 +437,6 @@ public class CamusJobTestWithMock {
     return messages;
   }
 
-//  private static class TestEtlInputFormat extends EtlInputFormat {
-//    public TestEtlInputFormat() {
-//      super();
-//    }
-//
-//    public static void setLogger(Logger log) {
-//      EtlInputFormat.setLogger(log);
-//    }
-//    
-//    @Override
-//    public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
-//      return _simpleConsumer;
-//    }
-//  }
-  
   private static class MyMessage {
 
     private int number;

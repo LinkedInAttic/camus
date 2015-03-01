@@ -60,37 +60,4 @@ public class EtlInputFormatForUnitTest extends EtlInputFormat {
         throw new RuntimeException("record reader class not found");
     }
   }
-
-  private SimpleConsumer createRegularMockConsumer() {
-    SimpleConsumer simpleConsumer = EasyMock.createNiceMock(SimpleConsumer.class);
-    EasyMock.expect(simpleConsumer.clientId()).andReturn("dummy:1234").anyTimes();
-    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest) EasyMock.anyObject())).times(2);
-    simpleConsumer.close();
-    EasyMock.expectLastCall().andVoid().times(2);
-    EasyMock.replay(simpleConsumer);
-    return simpleConsumer;
-  }
-
-  private SimpleConsumer createMockConsumerSendAndClientIdAlwaysFail() {
-    SimpleConsumer simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
-    EasyMock.expect(simpleConsumer.clientId()).andReturn("dummy:1234").anyTimes();
-    Exception ex = new RuntimeException("No TopicMeta");
-    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest) EasyMock.anyObject())).andThrow(ex).anyTimes();
-    simpleConsumer.close();
-    EasyMock.expectLastCall().andVoid().anyTimes();
-    EasyMock.replay(simpleConsumer);
-    return simpleConsumer;
-  }
-
-  private SimpleConsumer createMockConsumerSendAndClientIdFailTwice() {
-    SimpleConsumer simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
-    EasyMock.expect(simpleConsumer.clientId()).andReturn("dummy:1234").anyTimes();
-    Exception ex = new RuntimeException("No TopicMeta");
-    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest) EasyMock.anyObject())).andThrow(ex).times(2);
-    simpleConsumer.close();
-    EasyMock.expectLastCall().andVoid().times(2);
-    EasyMock.replay(simpleConsumer);
-    return simpleConsumer;
-  }
-
 }

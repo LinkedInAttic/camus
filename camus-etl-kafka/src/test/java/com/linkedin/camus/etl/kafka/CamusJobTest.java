@@ -44,7 +44,6 @@ import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
-import com.linkedin.camus.etl.kafka.mapred.EtlRecordReaderTest;
 
 
 public class CamusJobTest {
@@ -118,8 +117,6 @@ public class CamusJobTest {
     // Run M/R for Hadoop1
     props.setProperty("mapreduce.jobtracker.address", "local");
 
-    EtlRecordReader.useMockDecoderForUnitTest = false;
-
     job = new CamusJob(props);
   }
 
@@ -144,32 +141,6 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
-  }
-
-  @Test
-  public void testJobFailDueToSkippedMsgSchemaNotFound() throws Exception {
-    EtlRecordReaderTest.createMockDecoder30PercentSchemaNotFound();
-    EtlRecordReader.useMockDecoderForUnitTest = true;
-    try {
-      job.run();
-      fail("Should have thrown RuntimeException: too many msg skipped due to schema not found");
-    } catch (RuntimeException e) {
-      String msg = "job failed: 30.0% messages skipped due to schema not found, maximum allowed is 10.0%";
-      assertEquals(msg, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testJobFailDueToSkippedMsgOther() throws Exception {
-    EtlRecordReaderTest.createMockDecoder30PercentOther();
-    EtlRecordReader.useMockDecoderForUnitTest = true;
-    try {
-      job.run();
-      fail("Should have thrown RuntimeException: too many msg skipped due to other");
-    } catch (RuntimeException e) {
-      String msg = "job failed: 30.0% messages skipped due to other, maximum allowed is 10.0%";
-      assertEquals(msg, e.getMessage());
-    }
   }
 
   @Test

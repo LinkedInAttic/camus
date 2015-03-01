@@ -32,7 +32,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
   private static final String DEFAULT_SERVER = "server";
   private static final String DEFAULT_SERVICE = "service";
-  public static boolean useMockDecoderForUnitTest = false;
 
   public static enum KAFKA_MSG {
     DECODE_SUCCESSFUL,
@@ -40,7 +39,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     SKIPPED_OTHER
   };
 
-  private TaskAttemptContext context;
+  protected TaskAttemptContext context;
 
   private EtlInputFormat inputFormat;
   private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
@@ -247,12 +246,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
                   CamusJob.getKafkaBufferSize(mapperContext));
 
-          if (useMockDecoderForUnitTest) {
-            decoder = EtlRecordReaderTest.mockDecoder;
-          }
-          else {
-            decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
-          }
+          decoder = createDecoder(request.getTopic());
         }
         int count = 0;
         while (reader.getNext(key, msgValue, msgKey)) {
@@ -346,6 +340,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         continue;
       }
     }
+  }
+
+  protected MessageDecoder createDecoder(String topic) {
+    return MessageDecoderFactory.createMessageDecoder(context, topic);
   }
 
   private void closeReader() throws IOException {

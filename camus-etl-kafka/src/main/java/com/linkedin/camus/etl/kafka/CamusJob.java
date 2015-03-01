@@ -90,9 +90,9 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
   public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND = "etl.max.percent.skipped.schemanotfound";
-  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT = "10.0";
+  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT = "0.1";
   public static final String ETL_MAX_PERCENT_SKIPPED_OTHER = "etl.max.percent.skipped.other";
-  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT = "10.0";
+  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT = "0.1";
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";

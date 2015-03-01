@@ -46,6 +46,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -53,7 +54,9 @@ import com.google.gson.Gson;
 import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormatForUnitTest;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReaderForUnitTest;
 
 public class CamusJobTestWithMock {
 
@@ -78,8 +81,7 @@ public class CamusJobTestWithMock {
   private static Map<String, List<MyMessage>> messagesWritten;
 
   // mock objects
-  private static List<Object> _mocks = new ArrayList<Object>();
-  private static SimpleConsumer _simpleConsumer;
+  private static List<Object> mocks = new ArrayList<Object>();
 
   @BeforeClass
   public static void beforeClass() throws IOException {
@@ -88,7 +90,7 @@ public class CamusJobTestWithMock {
 
     // You can't delete messages in Kafka so just writing a set of known messages that can be used for testing
     messagesWritten = new HashMap<String, List<MyMessage>>();
-    messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 2));
+    messagesWritten.put(TOPIC_1, writeKafka(TOPIC_1, 10));
   }
 
   @AfterClass
@@ -102,7 +104,6 @@ public class CamusJobTestWithMock {
 
   @Before
   public void before() throws IOException, NoSuchFieldException, IllegalAccessException {
-    resetCamus();
 
     folder = new TemporaryFolder();
     folder.create();
@@ -136,10 +137,17 @@ public class CamusJobTestWithMock {
   }
 
   @After
-  public void after() throws IOException {
+  public void after() throws IOException, SecurityException, NoSuchFieldException,
+    IllegalArgumentException, IllegalAccessException {
     // Delete all camus data
     folder.delete();
-    _mocks.clear();
+    mocks.clear();
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.REGULAR;
+    EtlInputFormatForUnitTest.recordReaderClass = EtlInputFormatForUnitTest.RecordReaderClass.REGULAR;
+    EtlRecordReaderForUnitTest.decoderType = EtlRecordReaderForUnitTest.DecoderType.REGULAR;
+    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
+    field.setAccessible(true);
+    field.set(null, null);
   }
 
   @Test
@@ -148,7 +156,7 @@ public class CamusJobTestWithMock {
 
     // Run a second time (no additional messages should be found)
     job = new CamusJob(props);
-    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
 
     verifyJobSucceed();
   }
@@ -158,13 +166,14 @@ public class CamusJobTestWithMock {
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
     OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
     FetchResponse fetchResponse = mockFetchResponse(myMessages);
-    mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
-    EasyMock.replay(_mocks.toArray());
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EasyMock.replay(mocks.toArray());
   }
 
   private TopicMetadataResponse mockTopicMetaDataResponse() {
     PartitionMetadata pMeta = EasyMock.createMock(PartitionMetadata.class);
-    _mocks.add(pMeta);
+    mocks.add(pMeta);
     EasyMock.expect(pMeta.errorCode()).andReturn((short)0).anyTimes();
     Broker broker = new Broker(0, "localhost", 2121);
     EasyMock.expect(pMeta.leader()).andReturn(broker).anyTimes();
@@ -172,21 +181,21 @@ public class CamusJobTestWithMock {
     List<PartitionMetadata> partitionMetadatas = new ArrayList<PartitionMetadata>();
     partitionMetadatas.add(pMeta);    
     TopicMetadata tMeta = EasyMock.createMock(TopicMetadata.class);
-    _mocks.add(tMeta);
+    mocks.add(tMeta);
     EasyMock.expect(tMeta.topic()).andReturn(TOPIC_1).anyTimes();
     EasyMock.expect(tMeta.errorCode()).andReturn((short)0).anyTimes();
     EasyMock.expect(tMeta.partitionsMetadata()).andReturn(partitionMetadatas).anyTimes();
     List<TopicMetadata> topicMetadatas = new ArrayList<TopicMetadata>();
     topicMetadatas.add(tMeta);
     TopicMetadataResponse metadataResponse = EasyMock.createMock(TopicMetadataResponse.class);
-    _mocks.add(metadataResponse);
+    mocks.add(metadataResponse);
     EasyMock.expect(metadataResponse.topicsMetadata()).andReturn(topicMetadatas).anyTimes();
     return metadataResponse;
   }
 
   private OffsetResponse mockOffsetResponse(List<MyMessage> myMessages) {
     OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
-    _mocks.add(offsetResponse);
+    mocks.add(offsetResponse);
     // The first call is getLatestOffset, we set the value to 1
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     // The second call is getEarliestOffset, we set the value to 0
@@ -207,26 +216,27 @@ public class CamusJobTestWithMock {
     }
     ByteBufferMessageSet messageSet = new ByteBufferMessageSet(messages);
     EasyMock.expect(fetchResponse.messageSet(EasyMock.anyString(), EasyMock.anyInt())).andReturn(messageSet).times(1);
-    _mocks.add(fetchResponse);
+    mocks.add(fetchResponse);
     return fetchResponse;
   }
 
-  private void mockSimpleConsumer(TopicMetadataResponse metadataResponse, OffsetResponse offsetResponse,
+  private SimpleConsumer mockSimpleConsumer(TopicMetadataResponse metadataResponse, OffsetResponse offsetResponse,
       FetchResponse fetchResponse) {
-    _simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
-    _mocks.add(_simpleConsumer);
-    EasyMock.expect(_simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject())).andReturn(metadataResponse).times(1);
-    EasyMock.expect(_simpleConsumer.getOffsetsBefore((OffsetRequest)EasyMock.anyObject())).andReturn(offsetResponse).anyTimes();
-    _simpleConsumer.close();
+    SimpleConsumer simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
+    mocks.add(simpleConsumer);
+    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject())).andReturn(metadataResponse).times(1);
+    EasyMock.expect(simpleConsumer.getOffsetsBefore((OffsetRequest)EasyMock.anyObject())).andReturn(offsetResponse).anyTimes();
+    simpleConsumer.close();
     EasyMock.expectLastCall().andVoid().anyTimes();
-    EasyMock.expect(_simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
-    EasyMock.expect(_simpleConsumer.fetch((FetchRequest)EasyMock.anyObject())).andReturn(fetchResponse).times(1);
-    EasyMock.expect(_simpleConsumer.host()).andReturn("dummyHost").anyTimes();
-    EasyMock.expect(_simpleConsumer.port()).andReturn(8888).anyTimes();
+    EasyMock.expect(simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
+    EasyMock.expect(simpleConsumer.fetch((FetchRequest)EasyMock.anyObject())).andReturn(fetchResponse).times(1);
+    EasyMock.expect(simpleConsumer.host()).andReturn("dummyHost").anyTimes();
+    EasyMock.expect(simpleConsumer.port()).andReturn(8888).anyTimes();
+    return simpleConsumer;
   }
 
   private void verifyJobSucceed() throws Exception {
-    EasyMock.verify(_mocks.toArray());
+    EasyMock.verify(mocks.toArray());
     assertCamusContains(TOPIC_1);
   }
 
@@ -234,34 +244,36 @@ public class CamusJobTestWithMock {
   public void testJobFailDueToOffsetRangeCallException() throws Exception {
     setupJobFailDueToOffsetRangeCallException();
     job = new CamusJob(props);
-    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
   }
 
   private void setupJobFailDueToOffsetRangeCallException() {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
-    mockConsumerThrowsExceptionForOffsetRangeCall(metadataResponse);
-    EasyMock.replay(_mocks.toArray());
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockConsumerThrowsExceptionForOffsetRangeCall(metadataResponse);
+    EasyMock.replay(mocks.toArray());
   }
 
-  private void mockConsumerThrowsExceptionForOffsetRangeCall(TopicMetadataResponse metadataResponse) {
-    _simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
-    _mocks.add(_simpleConsumer);
-    EasyMock.expect(_simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject()))
+  private SimpleConsumer mockConsumerThrowsExceptionForOffsetRangeCall(TopicMetadataResponse metadataResponse) {
+    SimpleConsumer simpleConsumer = EasyMock.createMock(SimpleConsumer.class);
+    mocks.add(simpleConsumer);
+    EasyMock.expect(simpleConsumer.send((TopicMetadataRequest)EasyMock.anyObject()))
       .andReturn(metadataResponse).times(1);
-    EasyMock.expect(_simpleConsumer.getOffsetsBefore((OffsetRequest) EasyMock.anyObject()))
+    EasyMock.expect(simpleConsumer.getOffsetsBefore((OffsetRequest) EasyMock.anyObject()))
       .andThrow(new RuntimeException()).times(3);
-    EasyMock.expect(_simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
-    _simpleConsumer.close();
+    EasyMock.expect(simpleConsumer.clientId()).andReturn(KAFKA_CLIENT_ID).times(1);
+    simpleConsumer.close();
     EasyMock.expectLastCall().andVoid().times(2);
-    EasyMock.expect(_simpleConsumer.host()).andReturn("dummyHost").times(4);
-    EasyMock.expect(_simpleConsumer.port()).andReturn(8888).times(4);
+    EasyMock.expect(simpleConsumer.host()).andReturn("dummyHost").times(4);
+    EasyMock.expect(simpleConsumer.port()).andReturn(8888).times(4);
+    return simpleConsumer;
   }
 
   @Test(expected = RuntimeException.class)
   public void testJobFailDueToOffsetRangeCallError() throws Exception {
     setupJobFailDueToOffsetRangeCallError();
     job = new CamusJob(props);
-    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
     verifyJobSucceed();
   }
 
@@ -269,13 +281,14 @@ public class CamusJobTestWithMock {
     TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
     OffsetResponse offsetResponse = mockOffsetResponseWithError(myMessages);
-    mockSimpleConsumer(metadataResponse, offsetResponse, null);
-    EasyMock.replay(_mocks.toArray());
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, null);
+    EasyMock.replay(mocks.toArray());
   }
 
   private OffsetResponse mockOffsetResponseWithError(List<MyMessage> myMessages) {
     OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
-    _mocks.add(offsetResponse);
+    mocks.add(offsetResponse);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
     EasyMock.expect(offsetResponse.hasError()).andReturn(true).times(3);
@@ -286,7 +299,7 @@ public class CamusJobTestWithMock {
   public void testJobOffsetRangeCallThirdTrySucceed() throws Exception {
     setupJobOffsetRangeCallThirdTrySucceed();
     job = new CamusJob(props);
-    job.run(TestEtlInputFormat.class, EtlMultiOutputFormat.class);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
   }
 
   private void setupJobOffsetRangeCallThirdTrySucceed() {
@@ -294,18 +307,77 @@ public class CamusJobTestWithMock {
     List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
     OffsetResponse offsetResponse = mockOffsetResponseThirdTrySucceed(myMessages);
     FetchResponse fetchResponse = mockFetchResponse(myMessages);
-    mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
-    EasyMock.replay(_mocks.toArray());
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EasyMock.replay(mocks.toArray());
   }
 
   private OffsetResponse mockOffsetResponseThirdTrySucceed(List<MyMessage> myMessages) {
     OffsetResponse offsetResponse = EasyMock.createMock(OffsetResponse.class);
-    _mocks.add(offsetResponse);
+    mocks.add(offsetResponse);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{myMessages.size()}).times(1);
     EasyMock.expect(offsetResponse.offsets(EasyMock.anyString(), EasyMock.anyInt())).andReturn(new long[]{0}).times(1);
     EasyMock.expect(offsetResponse.hasError()).andReturn(true).times(2);
     EasyMock.expect(offsetResponse.hasError()).andReturn(false).times(2);
     return offsetResponse;
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testJobFailTooManySkippedMsgSchemaNotFound() throws Exception {
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "10.0");
+    setupJobWithSkippedMsgSchemaNotFound();
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+  }
+
+  @Test
+  public void testJobSucceedWithSkippedMsgSchemaNotFound() throws Exception {
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "40.0");
+    setupJobWithSkippedMsgSchemaNotFound();
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    EasyMock.verify(mocks.toArray());
+  }
+
+  private void setupJobWithSkippedMsgSchemaNotFound() {
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.recordReaderClass = EtlInputFormatForUnitTest.RecordReaderClass.TEST;
+    EtlRecordReaderForUnitTest.decoderType = EtlRecordReaderForUnitTest.DecoderType.SCHEMA_NOT_FOUND_30_PERCENT;
+    TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
+    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
+    OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
+    FetchResponse fetchResponse = mockFetchResponse(myMessages);
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EasyMock.replay(mocks.toArray());
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testJobFailTooManySkippedMsgOther() throws Exception {
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "10.0");
+    setupJobWithSkippedMsgOther();
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+  }
+
+  @Test
+  public void testJobSucceedWithSkippedMsgOther() throws Exception {
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "40.0");
+    setupJobWithSkippedMsgSchemaNotFound();
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    EasyMock.verify(mocks.toArray());
+  }
+
+  private void setupJobWithSkippedMsgOther() {
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.recordReaderClass = EtlInputFormatForUnitTest.RecordReaderClass.TEST;
+    EtlRecordReaderForUnitTest.decoderType = EtlRecordReaderForUnitTest.DecoderType.OTHER_30_PERCENT;
+    TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
+    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
+    OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
+    FetchResponse fetchResponse = mockFetchResponse(myMessages);
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EasyMock.replay(mocks.toArray());
   }
 
   private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {
@@ -365,20 +437,20 @@ public class CamusJobTestWithMock {
     return messages;
   }
 
-  private static class TestEtlInputFormat extends EtlInputFormat {
-    public TestEtlInputFormat() {
-      super();
-    }
-
-    public static void setLogger(Logger log) {
-      EtlInputFormat.setLogger(log);
-    }
-    
-    @Override
-    public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
-      return _simpleConsumer;
-    }
-  }
+//  private static class TestEtlInputFormat extends EtlInputFormat {
+//    public TestEtlInputFormat() {
+//      super();
+//    }
+//
+//    public static void setLogger(Logger log) {
+//      EtlInputFormat.setLogger(log);
+//    }
+//    
+//    @Override
+//    public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
+//      return _simpleConsumer;
+//    }
+//  }
   
   private static class MyMessage {
 
@@ -401,20 +473,6 @@ public class CamusJobTestWithMock {
 
       return number == other.number;
     }
-  }
-
-  private static void resetCamus() throws NoSuchFieldException, IllegalAccessException {
-    _mocks.clear();
-    _simpleConsumer = null;
-    
-    // The EtlMultiOutputFormat has a static private field called committer which is only created if null. The problem is this
-    // writes the Camus metadata meaning the first execution of the camus job defines where all committed output goes causing us
-    // problems if you want to run Camus again using the meta data (i.e. what offsets we processed). Setting it null here forces
-    // it to re-instantiate the object with the appropriate output path
-
-    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
-    field.setAccessible(true);
-    field.set(null, null);
   }
 
   // Kafka Scala layer only provides desearilization as a way to create response, it's very hairy on 

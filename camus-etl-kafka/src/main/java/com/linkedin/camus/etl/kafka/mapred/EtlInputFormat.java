@@ -80,9 +80,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
-  private static final int RETRY_TIMES = 1;
+  public static final int RETRY_TIMES = 3;
   private static final int BACKOFF_UNIT_MILLISECONDS = 1000;
-  
+
   public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
   public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
@@ -136,11 +136,11 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             break;
           } catch (Exception e) {
             savedException = e;
-            log.warn(
-                     String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
-                                   consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
+            log.warn(String.format(
+                "Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
+                consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
             try {
-              Thread.sleep((long)(Math.random() * (iter + 1) * 1000));
+              Thread.sleep((long) (Math.random() * (iter + 1) * 1000));
             } catch (InterruptedException ex) {
               log.warn("Caught InterruptedException: " + ex);
             }
@@ -167,8 +167,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
     SimpleConsumer consumer =
-        new SimpleConsumer(host, port,
-            CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
+        new SimpleConsumer(host, port, CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
             CamusJob.getKafkaClientName(context));
     return consumer;
   }
@@ -234,23 +233,21 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
     for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
-        OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
-            kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
+        OffsetResponse offsetResponse =
+            consumer.getOffsetsBefore(new OffsetRequest(offsetInfo, kafka.api.OffsetRequest.CurrentVersion(), CamusJob
+                .getKafkaClientName(context)));
         if (offsetResponse.hasError()) {
           throw new RuntimeException("offsetReponse has error.");
         }
         return offsetResponse;
       } catch (Exception e) {
-        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
-            + " has failed " + (i + 1) + " time(s). Reason: "
-            + e.getMessage() + " "
-            + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
+        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port() + " has failed " + (i + 1)
+            + " time(s). Reason: " + e.getMessage() + " " + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
         if (i < NUM_TRIES_FETCH_FROM_LEADER - 1) {
           try {
-            Thread.sleep((long)(Math.random() * (i + 1) * 1000));
+            Thread.sleep((long) (Math.random() * (i + 1) * 1000));
           } catch (InterruptedException e1) {
-            log.error("Caught interrupted exception between retries of getting latest offsets. "
-                + e1.getMessage());
+            log.error("Caught interrupted exception between retries of getting latest offsets. " + e1.getMessage());
           }
         }
       }
@@ -258,7 +255,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return null;
   }
 
-  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, SimpleConsumer consumer) {
+  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo,
+      SimpleConsumer consumer) {
     StringBuilder sb = new StringBuilder();
     sb.append("The following topics will be skipped due to failure in fetching latest offsets from leader "
         + consumer.host() + ":" + consumer.port());
@@ -538,9 +536,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public PartitionMetadata refreshPartitionMetadataOnLeaderNotAvailable(PartitionMetadata partitionMetadata,
       TopicMetadata topicMetadata, JobContext context, int retryTimes) throws InterruptedException {
     int retryCounter = 0;
-    while (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode() && retryCounter < retryTimes) {
+    while (retryCounter < retryTimes && partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
       log.info("Retry to referesh the topicMetadata on LeaderNotAvailable...");
-      Thread.sleep((retryCounter + 1) * BACKOFF_UNIT_MILLISECONDS);
       List<TopicMetadata> topicMetadataList =
           this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
       if (topicMetadataList == null || topicMetadataList.size() == 0) {
@@ -554,6 +551,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
               return metadataPerPartition;
             } else { //retry again.
+              Thread.sleep((long) (Math.random() * (retryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
               break;
             }
           }
@@ -656,7 +654,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static String[] getKafkaWhitelistTopic(Configuration conf) {
     final String whitelistStr = conf.get(KAFKA_WHITELIST_TOPIC);
-    if (whitelistStr != null&& !whitelistStr.isEmpty()) {
+    if (whitelistStr != null && !whitelistStr.isEmpty()) {
       return conf.getStrings(KAFKA_WHITELIST_TOPIC);
     } else {
       return new String[] {};

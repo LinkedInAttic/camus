@@ -68,7 +68,7 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
     return schema;
   }
 
-  private boolean shouldFetchFromSchemaRegistry(String id) {
+  private synchronized boolean shouldFetchFromSchemaRegistry(String id) {
     if (!failedFetchHistories.containsKey(id)) {
       return true;
     }
@@ -80,7 +80,7 @@ public class CachedSchemaRegistry<S> implements SchemaRegistry<S> {
     return maxRetriesNotExceeded && minRetryIntervalSatisfied;
   }
 
-  private S fetchFromSchemaRegistry(String topic, String id) {
+  private synchronized S fetchFromSchemaRegistry(String topic, String id) {
     try {
       S schema = registry.getSchemaByID(topic, id);
       return schema;

@@ -39,7 +39,7 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
       log.info("Underlying schema registry for topic: " + topicName + " is: " + registry);
       registry.init(props);
 
-      this.registry = new CachedSchemaRegistry<Schema>(registry);
+      this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
     } catch (Exception e) {
       throw new MessageDecoderException(e);

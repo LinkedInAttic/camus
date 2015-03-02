@@ -80,9 +80,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
-  public static final int NUM_TRIES_PARTITION_METADATA = 3;
   private static final int BACKOFF_UNIT_MILLISECONDS = 1000;
 
+  public static final int NUM_TRIES_PARTITION_METADATA = 3;
   public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
   public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
@@ -551,7 +551,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
               return metadataPerPartition;
             } else { //retry again.
-              if (tryCounter < numTries) {
+              if (tryCounter < numTries - 1) {
                 Thread.sleep((long) (Math.random() * (tryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
               }
               break;

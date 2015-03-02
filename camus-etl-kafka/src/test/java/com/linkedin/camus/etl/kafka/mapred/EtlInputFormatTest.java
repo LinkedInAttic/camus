@@ -20,7 +20,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.easymock.EasyMock.createNiceMock;
 import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.replay;
@@ -118,23 +117,23 @@ public class EtlInputFormatTest {
   public void testRefreshPartitioMetadataOnLeaderNotAvailable() throws Exception {
     JobContext dummyContext = null;
     //A partitionMetadata with errorCode LeaderNotAvailable
-    PartitionMetadata partitionMetadata1 = createNiceMock(PartitionMetadata.class);
+    PartitionMetadata partitionMetadata1 = createMock(PartitionMetadata.class);
     expect(partitionMetadata1.errorCode()).andReturn(ErrorMapping.LeaderNotAvailableCode());
     expect(partitionMetadata1.partitionId()).andReturn(0);
     replay(partitionMetadata1);
     
     //A partitionMetadata with errorCode not LeaderNotAvailable
-    PartitionMetadata partitionMetadata2 = createNiceMock(PartitionMetadata.class);
+    PartitionMetadata partitionMetadata2 = createMock(PartitionMetadata.class);
     expect(partitionMetadata2.errorCode()).andReturn(ErrorMapping.InvalidMessageCode());
     expect(partitionMetadata2.partitionId()).andReturn(0);
     replay(partitionMetadata2);
 
-    PartitionMetadata mockedReturnedPartitionMetadata = createNiceMock(PartitionMetadata.class);
+    PartitionMetadata mockedReturnedPartitionMetadata = createMock(PartitionMetadata.class);
     expect(mockedReturnedPartitionMetadata.errorCode()).andReturn(ErrorMapping.NoError());
     expect(mockedReturnedPartitionMetadata.partitionId()).andReturn(0);
     replay(mockedReturnedPartitionMetadata);
     
-    TopicMetadata mockedTopicMetadata = createNiceMock(TopicMetadata.class);
+    TopicMetadata mockedTopicMetadata = createMock(TopicMetadata.class);
     expect(mockedTopicMetadata.topic()).andReturn("testTopic");
     expect(mockedTopicMetadata.partitionsMetadata()).andReturn(
         Collections.singletonList(mockedReturnedPartitionMetadata));

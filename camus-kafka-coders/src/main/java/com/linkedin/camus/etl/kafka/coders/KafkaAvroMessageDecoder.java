@@ -18,9 +18,11 @@ import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import org.apache.hadoop.io.Text;
-
+import org.apache.log4j.Logger;
 
 public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
+  private static final Logger log = Logger.getLogger(KafkaAvroMessageDecoder.class);
+      
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
@@ -32,10 +34,12 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
       SchemaRegistry<Schema> registry =
           (SchemaRegistry<Schema>) Class.forName(
               props.getProperty(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS)).newInstance();
-
+      log.info("Prop " + KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS + " is: "
+               + props.getProperty(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS));
+      log.info("Underlying schema registry for topic: " + topicName + " is: " + registry);
       registry.init(props);
 
-      this.registry = new CachedSchemaRegistry<Schema>(registry);
+      this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
     } catch (Exception e) {
       throw new MessageDecoderException(e);

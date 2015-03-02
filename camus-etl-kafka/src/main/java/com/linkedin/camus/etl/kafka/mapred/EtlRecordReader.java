@@ -8,6 +8,7 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
+import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -31,8 +32,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
   private static final String DEFAULT_SERVER = "server";
   private static final String DEFAULT_SERVICE = "service";
-  private TaskAttemptContext context;
 
+  public static enum KAFKA_MSG {
+    DECODE_SUCCESSFUL,
+    SKIPPED_SCHEMA_NOT_FOUND,
+    SKIPPED_OTHER
+  };
+
+  protected TaskAttemptContext context;
+
+  private EtlInputFormat inputFormat;
   private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
   private KafkaReader reader;
 
@@ -65,13 +74,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) 
+      throws IOException, InterruptedException {
+    this.inputFormat = inputFormat;
     initialize(split, context);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
-  public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
+  public void initialize(InputSplit split, TaskAttemptContext context) 
+      throws IOException, InterruptedException {
     // For class path debugging
     log.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = EtlRecordReader.class.getClassLoader();
@@ -120,7 +132,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     CamusWrapper r = null;
     try {
       r = decoder.decode(payload);
+      mapperContext.getCounter(KAFKA_MSG.DECODE_SUCCESSFUL).increment(1);
+    } catch (SchemaNotFoundException e) {
+      mapperContext.getCounter(KAFKA_MSG.SKIPPED_SCHEMA_NOT_FOUND).increment(1);
+      if (!skipSchemaErrors) {
+        throw new IOException(e);
+      }
     } catch (Exception e) {
+      mapperContext.getCounter(KAFKA_MSG.SKIPPED_OTHER).increment(1);
       if (!skipSchemaErrors) {
         throw new IOException(e);
       }
@@ -224,10 +243,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             closeReader();
           }
           reader =
-              new KafkaReader(context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
+              new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
                   CamusJob.getKafkaBufferSize(mapperContext));
 
-          decoder = MessageDecoderFactory.createMessageDecoder(context, request.getTopic());
+          decoder = createDecoder(request.getTopic());
         }
         int count = 0;
         while (reader.getNext(key, msgValue, msgKey)) {
@@ -239,7 +258,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           byte[] bytes = getBytes(msgValue);
           byte[] keyBytes = getBytes(msgKey);
           // check the checksum of message.
-          // If message has partition key, need to construct it with Key for checkSum to match
+          // If message has partition key, need to construct it with Key for
+          // checkSum to match
           Message messageWithKey = new Message(bytes, keyBytes);
           Message messageWithoutKey = new Message(bytes);
           long checksum = key.getChecksum();
@@ -258,7 +278,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               mapperContext.write(key, new ExceptionWritable(e));
               exceptionCount++;
             } else if (exceptionCount == getMaximumDecoderExceptionsToPrint(context)) {
-              exceptionCount = Integer.MAX_VALUE; //Any random value
+              exceptionCount = Integer.MAX_VALUE; // Any random value
               log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context)
                   + " records. All further exceptions will not be printed");
             }
@@ -320,6 +340,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         continue;
       }
     }
+  }
+
+  protected MessageDecoder createDecoder(String topic) {
+    return MessageDecoderFactory.createMessageDecoder(context, topic);
   }
 
   private void closeReader() throws IOException {

@@ -45,6 +45,8 @@ import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 import com.linkedin.camus.workallocater.CamusRequest;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
+
 
 
 public class CamusJobTest {

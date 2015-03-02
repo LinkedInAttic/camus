@@ -8,6 +8,7 @@ import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
 import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
 import com.linkedin.camus.etl.kafka.reporter.TimeReporter;
 
@@ -60,8 +61,10 @@ import org.apache.hadoop.mapred.TaskReport;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
+import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -88,6 +91,10 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
   public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE = "etl.fail.on.offset.outofrange";
   public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT = Boolean.TRUE.toString();
+  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND = "etl.max.percent.skipped.schemanotfound";
+  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT = "0.1";
+  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER = "etl.max.percent.skipped.other";
+  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT = "0.1";
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -224,6 +231,11 @@ public class CamusJob extends Configured implements Tool {
   }
 
   public void run() throws Exception {
+    run(EtlInputFormat.class, EtlMultiOutputFormat.class);
+  }
+  
+  public void run(Class<? extends InputFormat> inputFormatClass,
+                  Class<? extends OutputFormat> outputFormatClass) throws Exception {
 
     startTiming("pre-setup");
     startTiming("total");
@@ -330,8 +342,8 @@ public class CamusJob extends Configured implements Tool {
     EtlInputFormat.setLogger(log);
     job.setMapperClass(EtlMapper.class);
 
-    job.setInputFormatClass(EtlInputFormat.class);
-    job.setOutputFormatClass(EtlMultiOutputFormat.class);
+    job.setInputFormatClass(inputFormatClass);
+    job.setOutputFormatClass(outputFormatClass);
     job.setNumReduceTasks(0);
 
     stopTiming("pre-setup");
@@ -347,6 +359,8 @@ public class CamusJob extends Configured implements Tool {
         log.info(counter.getDisplayName() + ":\t" + counter.getValue());
       }
     }
+
+    checkIfTooManySkippedMsg(counters);
 
     stopTiming("hadoop");
     startTiming("commit");
@@ -400,6 +414,54 @@ public class CamusJob extends Configured implements Tool {
         .equalsIgnoreCase(Boolean.TRUE.toString())) {
         throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
       }
+    }
+
+    if (EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka) {
+      EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka = false;
+      throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
+    }
+  }
+
+  private void checkIfTooManySkippedMsg(Counters counters) {
+    double maxPercentSkippedSchemaNotFound = Double.parseDouble(props.getProperty(ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND,
+        ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT));
+    double maxPercentSkippedOther = Double.parseDouble(props.getProperty(ETL_MAX_PERCENT_SKIPPED_OTHER,
+        ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT));
+
+    long actualSkippedSchemaNotFound = 0;
+    long actualSkippedOther = 0;
+    long actualDecodeSuccessful = 0; 
+    for (String groupName : counters.getGroupNames()) {
+      if (groupName.equals(EtlRecordReader.KAFKA_MSG.class.getName())) {
+        CounterGroup group = counters.getGroup(groupName);
+        for (Counter counter : group) {
+          if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.DECODE_SUCCESSFUL.toString())) {
+            actualDecodeSuccessful = counter.getValue();
+          } else if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.SKIPPED_SCHEMA_NOT_FOUND.toString())) {
+            actualSkippedSchemaNotFound = counter.getValue();
+          } else if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.SKIPPED_OTHER.toString())) {
+            actualSkippedOther = counter.getValue();
+          }
+        }
+      }
+    }
+    checkIfTooManySkippedMsg(maxPercentSkippedSchemaNotFound, actualSkippedSchemaNotFound, actualDecodeSuccessful,
+        "schema not found");
+    checkIfTooManySkippedMsg(maxPercentSkippedOther, actualSkippedOther, actualDecodeSuccessful, "other");
+  }
+
+  private void checkIfTooManySkippedMsg(double maxPercentAllowed, long actualSkipped, long actualSuccessful,
+      String reason) {
+    if (actualSkipped == 0 && actualSuccessful == 0) {
+      return;
+    }
+    double actualSkippedPercent = (double)actualSkipped / (double)(actualSkipped + actualSuccessful) * 100;
+    if (actualSkippedPercent > maxPercentAllowed) {
+      String message =
+          "job failed: " + actualSkippedPercent + "% messages skipped due to " + reason + ", maximum allowed is "
+              + maxPercentAllowed + "%";
+      log.error(message);
+      throw new RuntimeException(message);
     }
   }
 

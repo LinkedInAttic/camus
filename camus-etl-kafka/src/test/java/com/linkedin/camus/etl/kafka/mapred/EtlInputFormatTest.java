@@ -149,11 +149,11 @@ public class EtlInputFormatTest {
 
     // For partitionMetadata2, it will not refresh if the errorcode is not LeaderNotAvailable.
     assertEquals(partitionMetadata2, etlInputFormat.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata2,
-        mockedTopicMetadata, dummyContext, EtlInputFormat.RETRY_TIMES));
+        mockedTopicMetadata, dummyContext, EtlInputFormat.NUM_TRIES_PARTITION_METADATA));
 
     // For partitionMetadata1, it will refresh if the errorcode is LeaderNotAvailable.
     assertEquals(mockedReturnedPartitionMetadata, etlInputFormat.refreshPartitionMetadataOnLeaderNotAvailable(
-        partitionMetadata1, mockedTopicMetadata, dummyContext, EtlInputFormat.RETRY_TIMES));
+        partitionMetadata1, mockedTopicMetadata, dummyContext, EtlInputFormat.NUM_TRIES_PARTITION_METADATA));
 
   }
 
@@ -166,26 +166,26 @@ public class EtlInputFormatTest {
     JobContext dummyContext = null;
     //A partitionMetadata with errorCode LeaderNotAvailable
     PartitionMetadata partitionMetadata = createMock(PartitionMetadata.class);
-    expect(partitionMetadata.errorCode()).andReturn(ErrorMapping.LeaderNotAvailableCode()).times(EtlInputFormat.RETRY_TIMES * 2);
-    expect(partitionMetadata.partitionId()).andReturn(0).times(EtlInputFormat.RETRY_TIMES * 2);
+    expect(partitionMetadata.errorCode()).andReturn(ErrorMapping.LeaderNotAvailableCode()).times(EtlInputFormat.NUM_TRIES_PARTITION_METADATA * 2);
+    expect(partitionMetadata.partitionId()).andReturn(0).times(EtlInputFormat.NUM_TRIES_PARTITION_METADATA * 2);
     replay(partitionMetadata);
 
     TopicMetadata mockedTopicMetadata = createMock(TopicMetadata.class);
-    expect(mockedTopicMetadata.topic()).andReturn("testTopic").times(EtlInputFormat.RETRY_TIMES);
+    expect(mockedTopicMetadata.topic()).andReturn("testTopic").times(EtlInputFormat.NUM_TRIES_PARTITION_METADATA);
     expect(mockedTopicMetadata.partitionsMetadata()).andReturn(Collections.singletonList(partitionMetadata)).times(
-        EtlInputFormat.RETRY_TIMES);
+        EtlInputFormat.NUM_TRIES_PARTITION_METADATA);
     replay(mockedTopicMetadata);
 
     EtlInputFormat etlInputFormat =
         createMock(EtlInputFormat.class,
             EtlInputFormat.class.getMethod("getKafkaMetadata", new Class[] { JobContext.class, List.class }));
     EasyMock.expect(etlInputFormat.getKafkaMetadata(dummyContext, Collections.singletonList("testTopic"))).andReturn(
-        Collections.singletonList(mockedTopicMetadata)).times(EtlInputFormat.RETRY_TIMES);
+        Collections.singletonList(mockedTopicMetadata)).times(EtlInputFormat.NUM_TRIES_PARTITION_METADATA);
     etlInputFormat.setLogger(Logger.getLogger(getClass()));
     replay(etlInputFormat);
 
     etlInputFormat.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, mockedTopicMetadata, dummyContext,
-        EtlInputFormat.RETRY_TIMES);
+        EtlInputFormat.NUM_TRIES_PARTITION_METADATA);
     
     verify(mockedTopicMetadata);
     verify(etlInputFormat);

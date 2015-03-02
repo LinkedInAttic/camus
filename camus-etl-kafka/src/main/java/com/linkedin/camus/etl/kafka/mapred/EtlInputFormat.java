@@ -80,7 +80,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
-  public static final int RETRY_TIMES = 3;
+  public static final int NUM_TRIES_PARTITION_METADATA = 3;
   private static final int BACKOFF_UNIT_MILLISECONDS = 1000;
 
   public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
@@ -330,7 +330,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             // Error codes such as ReplicaNotAvailableCode should not stop us.
             partitionMetadata =
                 this.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, topicMetadata, context,
-                    RETRY_TIMES);
+                    NUM_TRIES_PARTITION_METADATA);
 
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
@@ -534,9 +534,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   public PartitionMetadata refreshPartitionMetadataOnLeaderNotAvailable(PartitionMetadata partitionMetadata,
-      TopicMetadata topicMetadata, JobContext context, int retryTimes) throws InterruptedException {
-    int retryCounter = 0;
-    while (retryCounter < retryTimes && partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
+      TopicMetadata topicMetadata, JobContext context, int numTries) throws InterruptedException {
+    int tryCounter = 0;
+    while (tryCounter < numTries && partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
       log.info("Retry to referesh the topicMetadata on LeaderNotAvailable...");
       List<TopicMetadata> topicMetadataList =
           this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
@@ -551,7 +551,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
               return metadataPerPartition;
             } else { //retry again.
-              Thread.sleep((long) (Math.random() * (retryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
+              if (tryCounter < numTries) {
+                Thread.sleep((long) (Math.random() * (tryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
+              }
               break;
             }
           }
@@ -561,7 +563,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               + partitionMetadata.partitionId());
         }
       }
-      retryCounter++;
+      tryCounter++;
     }
     return partitionMetadata;
   }

@@ -34,6 +34,7 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
               props.getProperty(KafkaAvroMessageEncoder.KAFKA_MESSAGE_CODER_SCHEMA_REGISTRY_CLASS)).newInstance();
 
       registry.init(props);
+      CamusAvroWrapper.SetProperties(props);
 
       this.registry = new CachedSchemaRegistry<Schema>(registry);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
@@ -126,6 +127,27 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
   }
 
   public static class CamusAvroWrapper extends CamusWrapper<Record> {
+      public static final String CAMUS_REQUEST_TIMESTAMP_FIELD = "camus.request.timestamp.field";
+      public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
+      public static final String CAMUS_MESSAGE_TIMESTAMP_SUBFIELD = "camus.message.timestamp.subfield";
+      public static final String DEFAULT_HEADER_FIELD = "default.header.field";
+      public static final String DEFAULT_TIMESTAMP_FIELD = "default.timestamp.field";
+      public static final String CUSTOM_TIMESTAMP_FIELD = "custom.timestamp.field";
+
+      private static String camusRequestTimeStamp = "RequestDateUtc";
+      private static String camusTimeStamp = "LogDate";
+      private static String camusTimeStampSubField =  "msSinceEpoch";
+      private static String defaultHeader = "header";
+      private static String defaultTimeStamp = "time";
+      private static String customTimeStampField = "timestamp";
+
+      public static void SetProperties(Properties props){
+          camusRequestTimeStamp = props.getProperty(CAMUS_REQUEST_TIMESTAMP_FIELD, camusRequestTimeStamp);
+          camusTimeStamp = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, camusTimeStamp);
+          camusTimeStampSubField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_SUBFIELD, camusTimeStampSubField);
+          defaultHeader = props.getProperty(DEFAULT_HEADER_FIELD, defaultHeader);
+          defaultTimeStamp = props.getProperty(DEFAULT_TIMESTAMP_FIELD, defaultTimeStamp);
+          customTimeStampField = props.getProperty(CUSTOM_TIMESTAMP_FIELD, customTimeStampField);}
 
     public CamusAvroWrapper(Record record) {
       super(record);
@@ -142,15 +164,29 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
     @Override
     public long getTimestamp() {
-      Record header = (Record) super.getRecord().get("header");
-
-      if (header != null && header.get("time") != null) {
-        return (Long) header.get("time");
-      } else if (super.getRecord().get("timestamp") != null) {
-        return (Long) super.getRecord().get("timestamp");
-      } else {
-        return System.currentTimeMillis();
-      }
+        //*CAMUS_REQUEST_TIMESTAMP_FIELD*//
+        Record customLogDate = (Record) super.getRecord().get(camusRequestTimeStamp);
+        if (customLogDate != null && customLogDate.get(camusTimeStampSubField) != null) {
+            return Long.parseLong(customLogDate.get(camusTimeStampSubField).toString());
+        } else{
+            //*CAMUS_MESSAGE_TIMESTAMP_FIELD*//
+            Record logDate = (Record) super.getRecord().get(camusTimeStamp);
+            if (logDate != null && logDate.get(camusTimeStampSubField) != null) {
+                return Long.parseLong(logDate.get(camusTimeStampSubField).toString());
+            }
+            //*DEFAULT_HEADER_FIELD*//
+            Record header = (Record) super.getRecord().get(defaultHeader);
+            //*DEFAULT_TIMESTAMP_FIELD*//
+            if (header != null && header.get(defaultTimeStamp) != null) {
+                return (Long) header.get(defaultTimeStamp);
+            }
+            //*CUSTOM_TIMESTAMP_FIELD*//
+            else if (super.getRecord().get(customTimeStampField) != null) {
+                return (Long) super.getRecord().get(customTimeStampField);
+            } else {
+                return System.currentTimeMillis();
+            }
+        }
     }
   }
 }

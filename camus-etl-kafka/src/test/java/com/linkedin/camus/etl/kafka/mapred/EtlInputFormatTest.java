@@ -12,6 +12,7 @@ import kafka.javaapi.consumer.SimpleConsumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.easymock.EasyMock;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -63,7 +64,9 @@ public class EtlInputFormatTest {
 
     EasyMock.replay(mocks.toArray());
     
-    EtlInputFormat inputFormat = new TestEtlInputFormat(simpleConsumer);    
+    EtlInputFormat inputFormat = new EtlInputFormatForUnitTest();
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = simpleConsumer;
     List<TopicMetadata> actualTopicMetadatas = inputFormat.getKafkaMetadata(jobContext);
     
     EasyMock.verify(mocks.toArray());
@@ -93,23 +96,16 @@ public class EtlInputFormatTest {
 
     EasyMock.replay(mocks.toArray());
 
-    EtlInputFormat inputFormat = new TestEtlInputFormat(simpleConsumer);    
+    EtlInputFormat inputFormat = new EtlInputFormatForUnitTest();
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = simpleConsumer;
     List<TopicMetadata> actualTopicMetadatas = inputFormat.getKafkaMetadata(jobContext);
 
     EasyMock.verify(mocks.toArray());
   }
-  
-  private static class TestEtlInputFormat extends EtlInputFormat {
-    private final SimpleConsumer _simpleConsumer;
-    
-    public TestEtlInputFormat(SimpleConsumer simpleConsumer) {
-      super();
-      _simpleConsumer = simpleConsumer;
-    }
 
-    @Override
-    public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
-      return _simpleConsumer;
-    }
+  @After
+  public void after() {
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.REGULAR;
   }
 }

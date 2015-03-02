@@ -1,8 +1,10 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.util.Properties;
 import java.util.Random;
 
 import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -40,6 +43,7 @@ import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
 
 
 public class CamusJobTest {
@@ -137,17 +141,6 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
-  }
-
-  @Test
-  public void runJobWithErrors() throws Exception {
-    props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
-    job = new CamusJob(props);
-    job.run();
-
-    assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
   }
 
   @Test

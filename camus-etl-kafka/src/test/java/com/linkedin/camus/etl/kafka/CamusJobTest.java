@@ -30,7 +30,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.easymock.EasyMock;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -44,9 +43,7 @@ import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import com.linkedin.camus.workallocater.CamusRequest;
 import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
-
 
 
 public class CamusJobTest {
@@ -66,8 +63,6 @@ public class CamusJobTest {
   private static FileSystem fs;
   private static Gson gson;
   private static Map<String, List<Message>> messagesWritten;
-
-  public static CamusRequest mockRequest;
 
   @BeforeClass
   public static void beforeClass() throws IOException {
@@ -146,17 +141,6 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
-  }
-
-  @Test(expected = RuntimeException.class)
-  public void runJobWithErrors() throws Exception {
-    props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
-    job = new CamusJob(props);
-    job.run();
-
-    assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
   }
 
   @Test
@@ -278,19 +262,4 @@ public class CamusJobTest {
     field.set(null, null);
   }
 
-  public static void createMockRequestOffsetTooEarly() {
-    mockRequest = EasyMock.createNiceMock(CamusRequest.class);
-    EasyMock.expect(mockRequest.getEarliestOffset()).andReturn(-1L).anyTimes();
-    EasyMock.expect(mockRequest.getOffset()).andReturn(-2L).anyTimes();
-    EasyMock.expect(mockRequest.getLastOffset()).andReturn(1L).anyTimes();
-    EasyMock.replay(mockRequest);
-  }
-
-  public static void createMockRequestOffsetTooLate() {
-    mockRequest = EasyMock.createNiceMock(CamusRequest.class);
-    EasyMock.expect(mockRequest.getEarliestOffset()).andReturn(-1L).anyTimes();
-    EasyMock.expect(mockRequest.getOffset()).andReturn(2L).anyTimes();
-    EasyMock.expect(mockRequest.getLastOffset()).andReturn(1L).anyTimes();
-    EasyMock.replay(mockRequest);
-  }
 }

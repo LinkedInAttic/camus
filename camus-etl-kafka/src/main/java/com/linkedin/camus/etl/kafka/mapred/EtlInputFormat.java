@@ -238,7 +238,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return finalRequests;
   }
 
-  private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
+  protected OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
     for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
@@ -405,11 +405,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         request.setAvgMsgSize(key.getMessageSize());
       }
 
-      if (useMockRequestForUnitTest) {
-        request = CamusJobTest.mockRequest;
-        context.getConfiguration().setBoolean("KAFKA_MOVE_TO_EARLIEST_OFFSET", false);
-      }
-
       if (request.getEarliestOffset() > request.getOffset() || request.getOffset() > request.getLastOffset()) {
         if (request.getEarliestOffset() > request.getOffset()) {
           log.error("The earliest offset was found to be more than the current offset: " + request);
@@ -498,7 +493,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     writer.close();
   }
 
-  private void writeRequests(List<CamusRequest> requests, JobContext context) throws IOException {
+  protected void writeRequests(List<CamusRequest> requests, JobContext context) throws IOException {
     FileSystem fs = FileSystem.get(context.getConfiguration());
     Path output = FileOutputFormat.getOutputPath(context);
 

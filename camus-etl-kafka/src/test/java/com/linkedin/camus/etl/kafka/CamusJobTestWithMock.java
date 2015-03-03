@@ -1,10 +1,8 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,14 +37,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.log4j.Logger;
 import org.easymock.EasyMock;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
@@ -142,9 +137,8 @@ public class CamusJobTestWithMock {
     // Delete all camus data
     folder.delete();
     mocks.clear();
-    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.REGULAR;
-    EtlInputFormatForUnitTest.recordReaderClass = EtlInputFormatForUnitTest.RecordReaderClass.REGULAR;
-    EtlRecordReaderForUnitTest.decoderType = EtlRecordReaderForUnitTest.DecoderType.REGULAR;
+    EtlInputFormatForUnitTest.reset();
+    EtlRecordReaderForUnitTest.reset();
     Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
     field.setAccessible(true);
     field.set(null, null);
@@ -353,7 +347,7 @@ public class CamusJobTestWithMock {
 
   @Test(expected = RuntimeException.class)
   public void testJobFailTooManySkippedMsgOther() throws Exception {
-    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "10.0");
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_OTHER, "10.0");
     setupJobWithSkippedMsgOther();
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
@@ -361,8 +355,8 @@ public class CamusJobTestWithMock {
 
   @Test
   public void testJobSucceedWithSkippedMsgOther() throws Exception {
-    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND, "40.0");
-    setupJobWithSkippedMsgSchemaNotFound();
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_OTHER, "40.0");
+    setupJobWithSkippedMsgOther();
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
     EasyMock.verify(mocks.toArray());
@@ -378,6 +372,24 @@ public class CamusJobTestWithMock {
     FetchResponse fetchResponse = mockFetchResponse(myMessages);
     EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
     EasyMock.replay(mocks.toArray());
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testJobFailOffsetTooEarly() throws Exception {
+    EtlInputFormatForUnitTest.camusRequestType = EtlInputFormatForUnitTest.CamusRequestType.MOCK_OFFSET_TOO_EARLY;
+    setupRegularJob();
+    props.setProperty(EtlInputFormat.KAFKA_MOVE_TO_EARLIEST_OFFSET, Boolean.FALSE.toString());
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testJobFailOffsetTooLate() throws Exception {
+    EtlInputFormatForUnitTest.camusRequestType = EtlInputFormatForUnitTest.CamusRequestType.MOCK_OFFSET_TOO_LATE;
+    setupRegularJob();
+    props.setProperty(EtlInputFormat.KAFKA_MOVE_TO_EARLIEST_OFFSET, Boolean.FALSE.toString());
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
   }
 
   private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {

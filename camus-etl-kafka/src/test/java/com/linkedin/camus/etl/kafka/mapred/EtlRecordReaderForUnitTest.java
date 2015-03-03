@@ -56,4 +56,8 @@ public class EtlRecordReaderForUnitTest extends EtlRecordReader {
     EasyMock.replay(mockDecoder);
     return mockDecoder;
   }
+
+  public static void reset() {
+    decoderType = DecoderType.REGULAR;
+  }
 }

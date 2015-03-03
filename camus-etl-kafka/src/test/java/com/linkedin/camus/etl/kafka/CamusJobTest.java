@@ -123,7 +123,6 @@ public class CamusJobTest {
     props.setProperty("mapreduce.jobtracker.address", "local");
 
     job = new CamusJob(props);
-    EtlInputFormat.useMockRequestForUnitTest = false;
   }
 
   @After
@@ -147,32 +146,6 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_1);
     assertCamusContains(TOPIC_2);
     assertCamusContains(TOPIC_3);
-  }
-
-  @Test
-  public void testJobFailureDueToOffsetTooEarly() throws Exception {
-    EtlInputFormat.useMockRequestForUnitTest = true;
-    createMockRequestOffsetTooEarly();
-    try {
-      job.run();
-      fail("Should have thrown RuntimeException due to offset out of range.");
-    } catch (RuntimeException e) {
-      String msg = "Some topics skipped due to offsets from Kafka metadata out of range.";
-      assertEquals(msg, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testJobFailureDueToOffsetTooLate() throws Exception {
-    EtlInputFormat.useMockRequestForUnitTest = true;
-    createMockRequestOffsetTooLate();
-    try {
-      job.run();
-      fail("Should have thrown RuntimeException due to offset out of range.");
-    } catch (RuntimeException e) {
-      String msg = "Some topics skipped due to offsets from Kafka metadata out of range.";
-      assertEquals(msg, e.getMessage());
-    }
   }
 
   @Test

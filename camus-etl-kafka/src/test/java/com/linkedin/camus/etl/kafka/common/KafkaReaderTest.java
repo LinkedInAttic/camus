@@ -9,6 +9,7 @@ import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.easymock.EasyMock;
@@ -16,6 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 
 
 public class KafkaReaderTest {
@@ -25,12 +27,12 @@ public class KafkaReaderTest {
   public void before() throws Exception {
     Configuration conf = new Configuration();
     conf.set(CamusJob.KAFKA_CLIENT_NAME, "DummyClientName");
-    TaskAttemptContext context = new TaskAttemptContext(conf, new TaskAttemptID());
+    TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
     EtlRequest request = new EtlRequest();
     request.setOffset(0);
     request.setLatestOffset(1);
     request.setURI(new URI("http://localhost:8888"));
-    this.kafkaReader = new KafkaReader(context, request, 100, 100);
+    this.kafkaReader = new KafkaReader(new EtlInputFormat(), context, request, 100, 100);
   }
 
   @Test

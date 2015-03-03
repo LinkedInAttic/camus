@@ -89,6 +89,8 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE = "etl.fail.on.offset.outofrange";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT = Boolean.TRUE.toString();
   public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND = "etl.max.percent.skipped.schemanotfound";
   public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT = "0.1";
   public static final String ETL_MAX_PERCENT_SKIPPED_OTHER = "etl.max.percent.skipped.other";
@@ -109,6 +111,7 @@ public class CamusJob extends Configured implements Tool {
   public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
   public static final String CAMUS_REPORTER_CLASS = "etl.reporter.class";
   public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+
   private static org.apache.log4j.Logger log;
   private Job hadoopJob = null;
 
@@ -405,8 +408,16 @@ public class CamusJob extends Configured implements Tool {
       throw new RuntimeException("Camus saw errors, check stderr");
     }
 
-    if (EtlInputFormat.reportJobFailureDueToSkippedMsg) {
-      EtlInputFormat.reportJobFailureDueToSkippedMsg = false;
+    if (EtlInputFormat.reportJobFailureDueToOffsetOutOfRange) {
+      EtlInputFormat.reportJobFailureDueToOffsetOutOfRange = false;
+      if (props.getProperty(ETL_FAIL_ON_OFFSET_OUTOFRANGE, ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT)
+        .equalsIgnoreCase(Boolean.TRUE.toString())) {
+        throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
+      }
+    }
+
+    if (EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka) {
+      EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka = false;
       throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
     }
   }

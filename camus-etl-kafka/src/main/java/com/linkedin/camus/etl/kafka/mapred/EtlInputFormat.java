@@ -1,5 +1,16 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+import com.linkedin.camus.workallocater.CamusRequest;
+import com.linkedin.camus.workallocater.WorkAllocator;
+
 import java.io.IOException;
 import java.net.URI;
 import java.security.InvalidParameterException;
@@ -86,7 +97,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
   public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
-  public static boolean reportJobFailureDueToSkippedMsg = false;
+  public static boolean reportJobFailureDueToOffsetOutOfRange = false;
+  public static boolean reportJobFailureUnableToGetOffsetFromKafka = false;
 
   private static Logger log = null;
 
@@ -208,7 +220,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       consumer.close();
       if (earliestOffsetResponse == null) {
         log.warn(generateLogWarnForSkippedTopics(earliestOffsetInfo, consumer));
-        reportJobFailureDueToSkippedMsg = true;
+        reportJobFailureUnableToGetOffsetFromKafka = true;
         continue;
       }
 
@@ -229,7 +241,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return finalRequests;
   }
 
-  private OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
+  protected OffsetResponse getLatestOffsetResponse(SimpleConsumer consumer,
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
     for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
@@ -419,11 +431,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
                   .getOffset()));
         } else {
-          log.error("Offset range from kafka metadata is outside the previously persisted offset,"
-              + " please check whether kafka cluster configuration is correct."
-              + " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET
-              + " to start processing from earliest kafka metadata offset.");
-          throw new IOException("Offset from kafka metadata is out of range: " + request);
+          log.error("Offset range from kafka metadata is outside the previously persisted offset, " + request + "\n" +
+                    " Topic " + request.getTopic() + " will be skipped.\n" +
+                    " Please check whether kafka cluster configuration is correct." +
+                    " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET +
+                    " to start processing from earliest kafka metadata offset.");
+          reportJobFailureDueToOffsetOutOfRange = true;
         }
       }
       log.info(request);
@@ -486,7 +499,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     writer.close();
   }
 
-  private void writeRequests(List<CamusRequest> requests, JobContext context) throws IOException {
+  protected void writeRequests(List<CamusRequest> requests, JobContext context) throws IOException {
     FileSystem fs = FileSystem.get(context.getConfiguration());
     Path output = FileOutputFormat.getOutputPath(context);
 

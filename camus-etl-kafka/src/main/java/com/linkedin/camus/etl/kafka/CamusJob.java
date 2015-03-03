@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ClassNotFoundException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.NumberFormat;
@@ -85,6 +86,8 @@ public class CamusJob extends Configured implements Tool {
   public static final String ETL_EXECUTION_BASE_PATH = "etl.execution.base.path";
   public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
   public static final String ETL_COUNTS_PATH = "etl.counts.path";
+  public static final String ETL_COUNTS_CLASS = "etl.counts.class";
+  public static final String ETL_COUNTS_CLASS_DEFAULT = "com.linkedin.camus.etl.kafka.common.EtlCounts";
   public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
   public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
@@ -366,7 +369,9 @@ public class CamusJob extends Configured implements Tool {
     startTiming("commit");
 
     // Send Tracking counts to Kafka
-    sendTrackingCounts(job, fs, newExecutionOutput);
+    String etlCountsClassName = props.getProperty(ETL_COUNTS_CLASS, ETL_COUNTS_CLASS_DEFAULT);
+    Class<? extends EtlCounts> etlCountsClass = (Class<? extends EtlCounts>) Class.forName(etlCountsClassName);
+    sendTrackingCounts(job, fs, newExecutionOutput, etlCountsClass);
 
     Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 
@@ -493,8 +498,10 @@ public class CamusJob extends Configured implements Tool {
   }
 
   // Posts the tracking counts to Kafka
-  public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput) throws IOException,
-      URISyntaxException {
+  public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput,
+      Class<? extends EtlCounts> etlCountsClass) throws IOException, URISyntaxException, IllegalArgumentException,
+      SecurityException, InstantiationException, IllegalAccessException, InvocationTargetException,
+      NoSuchMethodException {
     if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
       FileStatus[] gstatuses = fs.listStatus(newExecutionOutput, new PrefixFilter("counts"));
       HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
@@ -550,8 +557,10 @@ public class CamusJob extends Configured implements Tool {
       }
 
       String brokerList = getKafkaBrokers(job);
-      for (EtlCounts finalCounts : allCounts.values()) {
-        finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER), brokerList);
+      for (EtlCounts finalEtlCounts : allCounts.values()) {
+        EtlCounts finalCounts = etlCountsClass.getDeclaredConstructor(EtlCounts.class).newInstance(finalEtlCounts);
+        finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER),
+            brokerList);
       }
     }
   }

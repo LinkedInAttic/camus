@@ -47,6 +47,7 @@ import org.junit.rules.TemporaryFolder;
 
 import com.google.gson.Gson;
 import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
+import com.linkedin.camus.etl.kafka.common.EtlCountsForUnitTest;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormatForUnitTest;
@@ -139,6 +140,7 @@ public class CamusJobTestWithMock {
     mocks.clear();
     EtlInputFormatForUnitTest.reset();
     EtlRecordReaderForUnitTest.reset();
+    EtlCountsForUnitTest.reset();
     Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
     field.setAccessible(true);
     field.set(null, null);
@@ -293,6 +295,7 @@ public class CamusJobTestWithMock {
     setupJobOffsetRangeCallThirdTrySucceed();
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    verifyJobSucceed();
   }
 
   private void setupJobOffsetRangeCallThirdTrySucceed() {
@@ -389,6 +392,49 @@ public class CamusJobTestWithMock {
     props.setProperty(EtlInputFormat.KAFKA_MOVE_TO_EARLIEST_OFFSET, Boolean.FALSE.toString());
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+  }
+
+  @Test(expected = RuntimeException.class)
+  public void testJobFailDueToPublishCountsException() throws Exception {
+    setupJobFailDueToPublishCountsException();
+    props.setProperty(EtlMultiOutputFormat.ETL_RUN_TRACKING_POST, Boolean.TRUE.toString());
+    props.setProperty(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS, "com.linkedin.camus.etl.kafka.coders.EncoderForUnitTest");
+    props.setProperty(CamusJob.ETL_COUNTS_CLASS, "com.linkedin.camus.etl.kafka.common.EtlCountsForUnitTest");
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+  }
+
+  private void setupJobFailDueToPublishCountsException() {
+    TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
+    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
+    OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
+    FetchResponse fetchResponse = mockFetchResponse(myMessages);
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EtlCountsForUnitTest.producerType = EtlCountsForUnitTest.ProducerType.SEND_THROWS_EXCEPTION;
+    EasyMock.replay(mocks.toArray());
+  }
+
+  @Test
+  public void testJobPublishCountsThirdTimeSucceed() throws Exception {
+    setupJobPublishCountsThirdTimeSucceed();
+    props.setProperty(EtlMultiOutputFormat.ETL_RUN_TRACKING_POST, Boolean.TRUE.toString());
+    props.setProperty(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS, "com.linkedin.camus.etl.kafka.coders.EncoderForUnitTest");
+    props.setProperty(CamusJob.ETL_COUNTS_CLASS, "com.linkedin.camus.etl.kafka.common.EtlCountsForUnitTest");
+    job = new CamusJob(props);
+    job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    verifyJobSucceed();
+  }
+
+  private void setupJobPublishCountsThirdTimeSucceed() {
+    TopicMetadataResponse metadataResponse = mockTopicMetaDataResponse();
+    List<MyMessage> myMessages = messagesWritten.get(TOPIC_1);
+    OffsetResponse offsetResponse = mockOffsetResponse(myMessages);
+    FetchResponse fetchResponse = mockFetchResponse(myMessages);
+    EtlInputFormatForUnitTest.consumerType = EtlInputFormatForUnitTest.ConsumerType.MOCK;
+    EtlInputFormatForUnitTest.consumer = mockSimpleConsumer(metadataResponse, offsetResponse, fetchResponse);
+    EtlCountsForUnitTest.producerType = EtlCountsForUnitTest.ProducerType.SEND_SUCCEED_THIRD_TIME;
+    EasyMock.replay(mocks.toArray());
   }
 
   private void assertCamusContains(String topic) throws InstantiationException, IllegalAccessException, IOException {

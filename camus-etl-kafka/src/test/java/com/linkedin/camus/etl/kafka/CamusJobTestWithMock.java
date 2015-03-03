@@ -268,7 +268,6 @@ public class CamusJobTestWithMock {
     setupJobFailDueToOffsetRangeCallError();
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
-    verifyJobSucceed();
   }
 
   private void setupJobFailDueToOffsetRangeCallError() {

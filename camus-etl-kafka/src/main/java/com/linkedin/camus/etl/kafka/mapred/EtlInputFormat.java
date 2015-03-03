@@ -91,6 +91,9 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
+  private static final int BACKOFF_UNIT_MILLISECONDS = 1000;
+
+  public static final int NUM_TRIES_PARTITION_METADATA = 3;
   public static final int NUM_TRIES_FETCH_FROM_LEADER = 3;
   public static final int NUM_TRIES_TOPIC_METADATA = 3;
 
@@ -118,10 +121,11 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
    * Gets the metadata from Kafka
    *
    * @param context
-   * @return
+   * @param metaRequestTopics specify the list of topics to get topicMetadata. The empty list means
+   * get the TopicsMetadata for all topics.
+   * @return the list of TopicMetadata
    */
-  public List<TopicMetadata> getKafkaMetadata(JobContext context) {
-    ArrayList<String> metaRequestTopics = new ArrayList<String>();
+  public List<TopicMetadata> getKafkaMetadata(JobContext context, List<String> metaRequestTopics) {
     CamusJob.startTiming("kafkaSetupTime");
     String brokerString = CamusJob.getKafkaBrokers(context);
     if (brokerString.isEmpty())
@@ -144,11 +148,11 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             break;
           } catch (Exception e) {
             savedException = e;
-            log.warn(
-                     String.format("Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
-                                   consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
+            log.warn(String.format(
+                "Fetching topic metadata with client id %s for topics [%s] from broker [%s] failed, iter[%s]",
+                consumer.clientId(), metaRequestTopics, brokers.get(i), iter), e);
             try {
-              Thread.sleep((long)(Math.random() * (iter + 1) * 1000));
+              Thread.sleep((long) (Math.random() * (iter + 1) * 1000));
             } catch (InterruptedException ex) {
               log.warn("Caught InterruptedException: " + ex);
             }
@@ -175,8 +179,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
     SimpleConsumer consumer =
-        new SimpleConsumer(host, port,
-            CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
+        new SimpleConsumer(host, port, CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
             CamusJob.getKafkaClientName(context));
     return consumer;
   }
@@ -242,23 +245,21 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
     for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
-        OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
-            kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
+        OffsetResponse offsetResponse =
+            consumer.getOffsetsBefore(new OffsetRequest(offsetInfo, kafka.api.OffsetRequest.CurrentVersion(), CamusJob
+                .getKafkaClientName(context)));
         if (offsetResponse.hasError()) {
           throw new RuntimeException("offsetReponse has error.");
         }
         return offsetResponse;
       } catch (Exception e) {
-        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port()
-            + " has failed " + (i + 1) + " time(s). Reason: "
-            + e.getMessage() + " "
-            + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
+        log.warn("Fetching offset from leader " + consumer.host() + ":" + consumer.port() + " has failed " + (i + 1)
+            + " time(s). Reason: " + e.getMessage() + " " + (NUM_TRIES_FETCH_FROM_LEADER - i - 1) + " retries left.");
         if (i < NUM_TRIES_FETCH_FROM_LEADER - 1) {
           try {
-            Thread.sleep((long)(Math.random() * (i + 1) * 1000));
+            Thread.sleep((long) (Math.random() * (i + 1) * 1000));
           } catch (InterruptedException e1) {
-            log.error("Caught interrupted exception between retries of getting latest offsets. "
-                + e1.getMessage());
+            log.error("Caught interrupted exception between retries of getting latest offsets. " + e1.getMessage());
           }
         }
       }
@@ -266,7 +267,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return null;
   }
 
-  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, SimpleConsumer consumer) {
+  private String generateLogWarnForSkippedTopics(Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo,
+      SimpleConsumer consumer) {
     StringBuilder sb = new StringBuilder();
     sb.append("The following topics will be skipped due to failure in fetching latest offsets from leader "
         + consumer.host() + ":" + consumer.port());
@@ -311,7 +313,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     try {
 
       // Get Metadata for all topics
-      List<TopicMetadata> topicMetadataList = getKafkaMetadata(context);
+      List<TopicMetadata> topicMetadataList = getKafkaMetadata(context, new ArrayList<String>());
 
       // Filter any white list topics
       HashSet<String> whiteListTopics = new HashSet<String>(Arrays.asList(getKafkaWhitelistTopic(context)));
@@ -338,6 +340,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           for (PartitionMetadata partitionMetadata : topicMetadata.partitionsMetadata()) {
             // We only care about LeaderNotAvailableCode error on partitionMetadata level
             // Error codes such as ReplicaNotAvailableCode should not stop us.
+            partitionMetadata =
+                this.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, topicMetadata, context,
+                    NUM_TRIES_PARTITION_METADATA);
+
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
                   + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
@@ -540,6 +546,41 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     return offsetKeysMap;
   }
 
+  public PartitionMetadata refreshPartitionMetadataOnLeaderNotAvailable(PartitionMetadata partitionMetadata,
+      TopicMetadata topicMetadata, JobContext context, int numTries) throws InterruptedException {
+    int tryCounter = 0;
+    while (tryCounter < numTries && partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
+      log.info("Retry to referesh the topicMetadata on LeaderNotAvailable...");
+      List<TopicMetadata> topicMetadataList =
+          this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
+      if (topicMetadataList == null || topicMetadataList.size() == 0) {
+        log.warn("The topicMetadataList for topic " + topicMetadata.topic() + " is empty.");
+      } else {
+        topicMetadata = topicMetadataList.get(0);
+        boolean partitionFound = false;
+        for (PartitionMetadata metadataPerPartition : topicMetadata.partitionsMetadata()) {
+          if (metadataPerPartition.partitionId() == partitionMetadata.partitionId()) {
+            partitionFound = true;
+            if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
+              return metadataPerPartition;
+            } else { //retry again.
+              if (tryCounter < numTries - 1) {
+                Thread.sleep((long) (Math.random() * (tryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
+              }
+              break;
+            }
+          }
+        }
+        if (!partitionFound) {
+          log.error("No matching partition found in the topicMetadata for Partition: "
+              + partitionMetadata.partitionId());
+        }
+      }
+      tryCounter++;
+    }
+    return partitionMetadata;
+  }
+
   public static void setWorkAllocator(JobContext job, Class<WorkAllocator> val) {
     job.getConfiguration().setClass(CAMUS_WORK_ALLOCATOR_CLASS, val, WorkAllocator.class);
   }
@@ -628,7 +669,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static String[] getKafkaWhitelistTopic(Configuration conf) {
     final String whitelistStr = conf.get(KAFKA_WHITELIST_TOPIC);
-    if (whitelistStr != null&& !whitelistStr.isEmpty()) {
+    if (whitelistStr != null && !whitelistStr.isEmpty()) {
       return conf.getStrings(KAFKA_WHITELIST_TOPIC);
     } else {
       return new String[] {};
@@ -661,8 +702,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   public static Class<MessageDecoder> getMessageDecoderClass(JobContext job, String topicName) {
-    Class<MessageDecoder> topicDecoder = (Class<MessageDecoder>) job.getConfiguration().getClass(
-            CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
+    Class<MessageDecoder> topicDecoder =
+        (Class<MessageDecoder>) job.getConfiguration().getClass(CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
     return topicDecoder == null ? getMessageDecoderClass(job) : topicDecoder;
   }
 

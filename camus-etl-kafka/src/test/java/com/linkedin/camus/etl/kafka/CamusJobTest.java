@@ -148,7 +148,7 @@ public class CamusJobTest {
     assertCamusContains(TOPIC_3);
   }
 
-  @Test
+  @Test(expected = RuntimeException.class)
   public void runJobWithErrors() throws Exception {
     props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
     job = new CamusJob(props);

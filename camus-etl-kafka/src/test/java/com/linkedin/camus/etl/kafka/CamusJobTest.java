@@ -121,9 +121,13 @@ public class CamusJobTest {
   }
 
   @After
-  public void after() throws IOException {
+  public void after() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
+    IllegalAccessException {
     // Delete all camus data
     folder.delete();
+    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
+    field.setAccessible(true);
+    field.set(null, null);
   }
 
   @Test

@@ -295,6 +295,7 @@ public class CamusJobTestWithMock {
     setupJobOffsetRangeCallThirdTrySucceed();
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    verifyJobSucceed();
   }
 
   private void setupJobOffsetRangeCallThirdTrySucceed() {
@@ -422,6 +423,7 @@ public class CamusJobTestWithMock {
     props.setProperty(CamusJob.ETL_COUNTS_CLASS, "com.linkedin.camus.etl.kafka.common.EtlCountsForUnitTest");
     job = new CamusJob(props);
     job.run(EtlInputFormatForUnitTest.class, EtlMultiOutputFormat.class);
+    verifyJobSucceed();
   }
 
   private void setupJobPublishCountsThirdTimeSucceed() {

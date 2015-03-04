@@ -9,7 +9,6 @@ import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.consumer.SimpleConsumer;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.easymock.EasyMock;
@@ -27,7 +26,17 @@ public class KafkaReaderTest {
   public void before() throws Exception {
     Configuration conf = new Configuration();
     conf.set(CamusJob.KAFKA_CLIENT_NAME, "DummyClientName");
-    TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
+    TaskAttemptContext context = null;
+    try {
+      Class<?> taskAttemptContextImplClass = Class.forName("org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl");
+      context =
+          (TaskAttemptContext) taskAttemptContextImplClass.getDeclaredConstructor(Configuration.class,
+              TaskAttemptID.class).newInstance(conf, new TaskAttemptID());
+    } catch (ClassNotFoundException e) {
+      context =
+          (TaskAttemptContext) Class.forName("org.apache.hadoop.mapreduce.TaskAttemptContext")
+              .getDeclaredConstructor(Configuration.class, TaskAttemptID.class).newInstance(conf, new TaskAttemptID());
+    }
     EtlRequest request = new EtlRequest();
     request.setOffset(0);
     request.setLatestOffset(1);
@@ -36,8 +45,8 @@ public class KafkaReaderTest {
   }
 
   @Test
-  public void testFetchFailure() throws SecurityException, NoSuchFieldException,
-    IllegalArgumentException, IllegalAccessException, IOException {
+  public void testFetchFailure() throws SecurityException, NoSuchFieldException, IllegalArgumentException,
+      IllegalAccessException, IOException {
     SimpleConsumer consumer = EasyMock.createNiceMock(SimpleConsumer.class);
     EasyMock.expect(consumer.fetch((FetchRequest) EasyMock.anyObject())).andReturn(null);
     EasyMock.expectLastCall().times(2);

@@ -11,8 +11,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.SequenceFile.Writer;
 import org.apache.hadoop.mapreduce.Counter;
-import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.StatusReporter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
@@ -61,12 +61,13 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private Counter getTopicSkipOldCounter() {
     try {
       //In Hadoop 2, TaskAttemptContext.getCounter() is available
-      //In Hadoop 2, TaskAttemptContextImpl cannot be cast to Mapper.Context
       Method getCounterMethod = context.getClass().getMethod("getCounter", String.class, String.class);
       return ((Counter) getCounterMethod.invoke(context, "total", "skip-old"));
     } catch (NoSuchMethodException e) {
-      //In Hadoop 1, TaskAttemptContext.getCounter() is not available, has to cast context to Mapper.Context
-      return ((Mapper.Context)context).getCounter("total", "skip-old");
+      //In Hadoop 1, TaskAttemptContext.getCounter() is not available
+      //Have to cast context to TaskAttemptContext in the mapred package, then get a StatusReporter instance
+      org.apache.hadoop.mapred.TaskAttemptContext mapredContext = (org.apache.hadoop.mapred.TaskAttemptContext) context;
+      return ((StatusReporter) mapredContext.getProgressible()).getCounter("total", "skip-old");
     } catch (IllegalArgumentException e) {
       log.error("IllegalArgumentException while obtaining counter 'total:skip-old': " + e.getMessage());
       throw new RuntimeException(e);

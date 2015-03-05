@@ -307,7 +307,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             log.info(key.getTopic() + " begin read at " + time.toString());
             endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
           } else if (curTimeStamp > endTimeStamp) {
-            String maxMsg = "at " + new DateTime(curTimeStamp).toString();
+            String maxMsg = " at " + new DateTime(curTimeStamp).toString();
             log.info("Kafka Max history hours reached");
             mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached"
                 + maxMsg));

@@ -10,10 +10,10 @@ import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
 import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 
+import kafka.message.Message;
+
 import java.io.IOException;
 import java.util.HashSet;
-
-import kafka.message.Message;
 
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
@@ -21,7 +21,6 @@ import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
@@ -95,7 +94,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     this.context = context;
 
     if (context instanceof Mapper.Context) {
-      mapperContext = (Context) context;
+      mapperContext = (Mapper.Context) context;
     }
 
     this.skipSchemaErrors = EtlInputFormat.getEtlIgnoreSchemaErrors(context);

@@ -42,19 +42,15 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private void addCommitHooks(TaskAttemptContext context, Path outputPath) throws IOException {
     try {
       Path workPath = super.getWorkPath();
-      log.debug("Attaching offset writer hooks");
-      log.info("Adding offset writer hook: " + SequenceFileOffsetCommitter.class.getCanonicalName());
+      log.debug("Adding offset writer hook: " + SequenceFileOffsetCommitter.class.getCanonicalName());
       offsetWriterHooks.add(new SequenceFileOffsetCommitter(workPath, outputPath));
 
-      log.debug("Adding user-defined offset writer hooks");
       for (Class<?> klass : context.getConfiguration().getClasses(ETL_OFFSET_WRITER_HOOKS)) {
-        log.info("Adding offset writer hook: " + klass.getCanonicalName());
+        log.debug("Adding offset writer hook: " + klass.getCanonicalName());
         Constructor constructor = klass.getConstructor(Path.class, Path.class);
         OffsetWriterHook offsetWriterHook = (OffsetWriterHook) constructor.newInstance(workPath, outputPath);
         offsetWriterHooks.add(offsetWriterHook);
       }
-
-      log.debug("All offset writer hooks added");
     }
     catch (Exception e) {
       throw new IOException(e);

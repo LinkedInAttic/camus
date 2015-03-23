@@ -183,18 +183,18 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
             partitioner.encodePartition(job, key));
   }
 
-  public static void setDefaultPartitioner(JobContext job, Class<?> cls) {
+  public static void setDefaultPartitionerClass(JobContext job, Class<?> cls) {
     job.getConfiguration().setClass(ETL_DEFAULT_PARTITIONER_CLASS, cls, Partitioner.class);
   }
 
-  public static Class<? extends com.linkedin.camus.etl.Partitioner> getDefaultPartitioner(JobContext job) {
+  public static Class<? extends com.linkedin.camus.etl.Partitioner> getDefaultPartitionerClass(JobContext job) {
     return job.getConfiguration().getClass(ETL_DEFAULT_PARTITIONER_CLASS, DefaultPartitioner.class, Partitioner.class);
   }
 
   public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
     if (partitionersByTopic.get(topicName) == null) {
       String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
-      Class<? extends Partitioner> partitionerClass = getDefaultPartitioner(job);
+      Class<? extends Partitioner> partitionerClass = getDefaultPartitionerClass(job);
       partitionerClass = job.getConfiguration().getClass(customPartitionerProperty, partitionerClass, Partitioner.class);
 
       Partitioner p = ReflectionUtils.newInstance(partitionerClass, job.getConfiguration());

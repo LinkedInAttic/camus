@@ -170,17 +170,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
         throw new IOException(ex);
       }
     }
-    log.info("Completed commit hooks");
-
-    recordProcessedPartitions(context);
+    log.debug("Completed commit hooks");
 
     super.commitTask(context);
-  }
-
-  private void recordProcessedPartitions(TaskAttemptContext context) throws IOException {
-    for (Partitioner p : EtlMultiOutputFormat.getPartitioners().values()) {
-      p.recordProcessedPartitions(context, super.getWorkPath());
-    }
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {

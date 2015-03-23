@@ -2,7 +2,9 @@ package com.linkedin.camus.etl.kafka.mapred;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.JobContext;
@@ -201,8 +203,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     return partitionersByTopic.get(topicName);
   }
 
-  public static Map<String, Partitioner> getPartitioners() {
-    return partitionersByTopic;
+  public static Set<Partitioner> getPartitioners() {
+    return new HashSet<Partitioner>(partitionersByTopic.values());
   }
 
   public static void resetPartitioners() {

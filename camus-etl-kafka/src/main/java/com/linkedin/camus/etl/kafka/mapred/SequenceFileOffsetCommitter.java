@@ -6,18 +6,15 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
 
-import java.io.IOException;
 import java.util.Map;
 
-public class SequenceFileOffsetCommitter extends AbstractOffsetWriterHook {
-
-    public SequenceFileOffsetCommitter(final Path workPath, final Path outputPath) throws IOException {
-        super(workPath, outputPath);
-    }
+public class SequenceFileOffsetCommitter implements CommitHook {
+    static final Logger log = Logger.getLogger(SequenceFileOffsetCommitter.class);
 
     @Override
-    public void commit(final TaskAttemptContext context, final Map<String, EtlKey> offsets) throws IOException {
+    public void commit(final TaskAttemptContext context, final Map<String, EtlKey> offsets, Path workPath) throws Exception {
         final FileSystem fs = FileSystem.get(context.getConfiguration());
         Path p = new Path(workPath, EtlMultiOutputFormat.getUniqueFile(context, EtlMultiOutputFormat.OFFSET_PREFIX, ""));
         SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs,

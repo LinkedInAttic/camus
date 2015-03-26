@@ -425,6 +425,11 @@ public class CamusJob extends Configured implements Tool {
       EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka = false;
       throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
     }
+
+    if (EtlInputFormat.reportJobFailureDueToLeaderNotAvailable) {
+      EtlInputFormat.reportJobFailureDueToLeaderNotAvailable = false;
+      throw new RuntimeException("Some topic partitions skipped due to Kafka leader not available.");
+    }
   }
 
   private void checkIfTooManySkippedMsg(Counters counters) {

@@ -99,6 +99,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static boolean reportJobFailureDueToOffsetOutOfRange = false;
   public static boolean reportJobFailureUnableToGetOffsetFromKafka = false;
+  public static boolean reportJobFailureDueToLeaderNotAvailable = false;
 
   private static Logger log = null;
 
@@ -348,6 +349,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
                   + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
                   + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
+              reportJobFailureDueToLeaderNotAvailable = true; 
             } else {
               if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
                 log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "

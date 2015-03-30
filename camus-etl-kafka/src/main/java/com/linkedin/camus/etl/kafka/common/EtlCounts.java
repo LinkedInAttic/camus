@@ -277,7 +277,7 @@ public class EtlCounts {
         }
       }
     } catch (Exception e) {
-      throw new RuntimeException("failed to publish counts to kafka: " + e.getMessage());
+      throw new RuntimeException("failed to publish counts to kafka: " + e.getMessage(), e);
     } finally {
       if (producer != null) {
         producer.close();

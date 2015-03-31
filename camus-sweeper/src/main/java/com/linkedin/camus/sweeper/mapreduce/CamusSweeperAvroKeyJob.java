@@ -77,14 +77,11 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
 
       keySchema = duplicateRecord(keySchema, schema);
-      log.info("key schema:" + keySchema);
 
       if (!validateKeySchema(schema, keySchema)) {
         log.info("topic:" + topic + " key invalid, using map only job");
         job.setNumReduceTasks(0);
         keySchema = schema;
-      } else {
-        log.info("topic:" + topic + " key is valid, deduping");
       }
     }
 
@@ -121,8 +118,6 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
   }
 
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema) {
-    log.info("Input Schema set to " + schema.toString());
-    log.info("Key Schema set to " + keySchema.toString());
     AvroJob.setInputKeySchema(job, schema);
 
     AvroJob.setMapOutputKeySchema(job, keySchema);
@@ -132,7 +127,6 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
         RelaxedSchemaUtils.parseSchema(getConfValue(job, topic, "camus.output.schema", schema.toString()),
             job.getConfiguration());
     AvroJob.setOutputKeySchema(job, reducerSchema);
-    log.info("Output Schema set to " + reducerSchema.toString());
   }
 
   private Schema getNewestSchemaFromSource(Job job) throws IOException {

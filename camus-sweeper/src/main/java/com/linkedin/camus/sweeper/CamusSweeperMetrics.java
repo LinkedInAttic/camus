@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
 
@@ -24,11 +25,11 @@ public class CamusSweeperMetrics {
   long timeStart;
 
   CamusSweeperMetrics() {
-    this.dataSizeByTopic = new HashMap<String, Long>();
-    this.mrSubmitTimeByTopic = new HashMap<String, Long>();
-    this.mrFinishTimeByTopic = new HashMap<String, Long>();
-    this.runnerStartTimeByTopic = new HashMap<String, Long>();
-    this.mrStartRunningTimeByTopic = new HashMap<String, Long>();
+    this.dataSizeByTopic = new ConcurrentHashMap<String, Long>();
+    this.mrSubmitTimeByTopic = new ConcurrentHashMap<String, Long>();
+    this.mrFinishTimeByTopic = new ConcurrentHashMap<String, Long>();
+    this.runnerStartTimeByTopic = new ConcurrentHashMap<String, Long>();
+    this.mrStartRunningTimeByTopic = new ConcurrentHashMap<String, Long>();
     timeStart = 0;
     totalDataSize = 0;
   }

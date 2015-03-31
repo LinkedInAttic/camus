@@ -149,11 +149,14 @@ public class CamusSweeper extends Configured implements Tool {
     }
   }
 
+  protected void createExecutorService() {
+    int numThreads = Integer.parseInt(props.getProperty("num.threads", DEFAULT_NUM_THREADS));
+    executorService = new PriorityExecutor(numThreads);
+  }
+
   public void run() throws Exception {
     log.info("Starting kafka sweeper");
-    int numThreads = Integer.parseInt(props.getProperty("num.threads", DEFAULT_NUM_THREADS));
-
-    executorService = new PriorityExecutor(numThreads);
+    createExecutorService();
 
     String fromLocation = (String) props.getProperty("camus.sweeper.source.dir");
     String destLocation = (String) props.getProperty("camus.sweeper.dest.dir", "");

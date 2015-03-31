@@ -25,9 +25,6 @@ public class CamusHourlySweeper extends CamusSweeper {
 
   private static final Logger LOG = Logger.getLogger(CamusHourlySweeper.class);
 
-  private static final String REDUCE_COUNT_OVERRIDE = "reduce.count.override.";
-  private static final String CAMUS_SWEEPER_TMP_DIR = "camus.sweeper.tmp.dir";
-
   private static final String CAMUS_SWEEPER_IO_CONFIGURER_CLASS = "camus.sweeper.io.configurer.class";
   private static final String MAPRED_COMPRESS_MAP_OUTPUT = "mapred.compress.map.output";
   private static final boolean DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT = Boolean.TRUE;
@@ -66,7 +63,7 @@ public class CamusHourlySweeper extends CamusSweeper {
    */
   @Override
   public void run() throws Exception {
-    metrics.timeStart = System.currentTimeMillis();
+    metrics.setTimeStart(System.currentTimeMillis());
     super.run();
     reportMetrics();
     addOutliers();
@@ -78,9 +75,11 @@ public class CamusHourlySweeper extends CamusSweeper {
       String key = (String) pair.getKey();
       conf.set(key, (String) pair.getValue());
     }
+    createExecutorService();
     for (Properties jobProps : planner.getOutlierProperties()) {
       this.executorService.submit(new OutlierCollectorRunner(jobProps, FileSystem.get(conf)));
     }
+    this.executorService.shutdown();
   }
 
   private void reportMetrics() throws IllegalArgumentException, IOException {
@@ -101,23 +100,6 @@ public class CamusHourlySweeper extends CamusSweeper {
   }
 
   /**
-   * This method submits a collector of a topic to the thread pool.
-   * A topic may have multiple collectors, if this topic has multiple hourly folders that need to be deduped.
-   */
-  @Override
-  protected Future<?> runCollector(Properties props, String topic) {
-    String jobName = topic + "-" + UUID.randomUUID().toString();
-    props.put("tmp.path", props.getProperty(CAMUS_SWEEPER_TMP_DIR) + "/" + jobName + "_" + System.currentTimeMillis());
-
-    if (props.containsKey(REDUCE_COUNT_OVERRIDE + topic))
-      props.put("reducer.count", Integer.parseInt(props.getProperty(REDUCE_COUNT_OVERRIDE + topic)));
-
-    LOG.info("Processing " + props.get(INPUT_PATHS));
-
-    return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
-  }
-
-  /**
    * This method creates collectors of a topic.
    * A topic may have multiple collectors, if this topic has multiple hourly folders that need to be deduped.
    * After creating the collectors, it passes them to runCollector() to submit them to thread pool.
@@ -133,6 +115,24 @@ public class CamusHourlySweeper extends CamusSweeper {
     for (Properties jobProps : jobPropsList) {
       tasksToComplete.add(runCollector(jobProps, topic));
     }
+  }
+
+  /**
+   * This method runs a collector of a topic
+   * A topic may have multiple collectors, if this topic has multiple hourly folders that need to be deduped.
+   */
+  @Override
+  protected Future<?> runCollector(Properties props, String topic) {
+    String jobName = topic + "-" + UUID.randomUUID().toString();
+    props
+        .put("tmp.path", props.getProperty("camus.sweeper.tmp.dir") + "/" + jobName + "_" + System.currentTimeMillis());
+
+    if (props.containsKey("reduce.count.override." + topic))
+      props.put("reducer.count", Integer.parseInt(props.getProperty("reduce.count.override." + topic)));
+
+    LOG.info("Processing " + props.get("input.paths"));
+
+    return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
@@ -173,7 +173,7 @@ public class CamusHourlySweeper extends CamusSweeper {
      */
     @Override
     public void run() throws Exception {
-      CamusHourlySweeper.this.metrics.runnerStartTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
+      CamusHourlySweeper.this.metrics.recordRunnerStartTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       job.getConfiguration().setBoolean(MAPRED_COMPRESS_MAP_OUTPUT, DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT);
 
@@ -184,16 +184,16 @@ public class CamusHourlySweeper extends CamusSweeper {
       submitMrJob();
       moveTmpPathToOutputPath();
 
-      CamusHourlySweeper.this.metrics.mrFinishTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
+      CamusHourlySweeper.this.metrics.recordMrFinishTimeByTopic(this.topicAndHour, System.currentTimeMillis());
     }
 
     @Override
     protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
-      CamusHourlySweeper.this.metrics.mrSubmitTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
+      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, System.currentTimeMillis());
       job.submit();
       runningJobs.add(job);
 
-      CamusHourlySweeper.this.metrics.mrStartRunningTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
+      CamusHourlySweeper.this.metrics.recordMrStartRunningTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       LOG.info("job running for: " + job.getConfiguration().get(TOPIC_AND_HOUR) + ", url: " + job.getTrackingURL());
       job.waitForCompletion(false);
@@ -214,6 +214,9 @@ public class CamusHourlySweeper extends CamusSweeper {
       this.fs = fs;
     }
 
+    /**
+     * Collect outliers for an hourly folder, and put it in the outlier folder.
+     */
     @Override
     public void run() {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);

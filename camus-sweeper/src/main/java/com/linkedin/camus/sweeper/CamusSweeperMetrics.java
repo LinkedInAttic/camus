@@ -15,14 +15,14 @@ public class CamusSweeperMetrics {
 
   private static final Logger LOG = Logger.getLogger(CamusSweeperMetrics.class);
 
-  final Map<String, Long> dataSizeByTopic;
-  final Map<String, Long> runnerStartTimeByTopic;
-  final Map<String, Long> mrSubmitTimeByTopic;
-  final Map<String, Long> mrStartRunningTimeByTopic;
-  final Map<String, Long> mrFinishTimeByTopic;
+  private final Map<String, Long> dataSizeByTopic;
+  private final Map<String, Long> runnerStartTimeByTopic;
+  private final Map<String, Long> mrSubmitTimeByTopic;
+  private final Map<String, Long> mrStartRunningTimeByTopic;
+  private final Map<String, Long> mrFinishTimeByTopic;
 
-  long totalDataSize;
-  long timeStart;
+  private long totalDataSize;
+  private long timeStart;
 
   CamusSweeperMetrics() {
     this.dataSizeByTopic = new ConcurrentHashMap<String, Long>();
@@ -32,6 +32,42 @@ public class CamusSweeperMetrics {
     this.mrStartRunningTimeByTopic = new ConcurrentHashMap<String, Long>();
     timeStart = 0;
     totalDataSize = 0;
+  }
+
+  public long getTotalDataSize() {
+    return totalDataSize;
+  }
+
+  public void addToTotalDataSize(long size) {
+    this.totalDataSize += size;
+  }
+
+  public long getTimeStart() {
+    return timeStart;
+  }
+
+  public void setTimeStart(long timeStart) {
+    this.timeStart = timeStart;
+  }
+
+  public void recordDataSizeByTopic(String topic, long dataSize) {
+    this.dataSizeByTopic.put(topic, dataSize);
+  }
+
+  public void recordRunnerStartTimeByTopic(String topic, long time) {
+    this.runnerStartTimeByTopic.put(topic, time);
+  }
+
+  public void recordMrSubmitTimeByTopic(String topic, long time) {
+    this.mrSubmitTimeByTopic.put(topic, time);
+  }
+
+  public void recordMrStartRunningTimeByTopic(String topic, long time) {
+    this.mrStartRunningTimeByTopic.put(topic, time);
+  }
+
+  public void recordMrFinishTimeByTopic(String topic, long time) {
+    this.mrFinishTimeByTopic.put(topic, time);
   }
 
   public void reportTotalRunningTime() {

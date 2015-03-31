@@ -16,6 +16,7 @@ import com.linkedin.camus.sweeper.utils.DateUtils;
 
 
 public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
+  private static final String YYYY_MM_DD_HH = "YYYY/MM/dd/HH";
   private static final String CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "camus.hourly.sweeper.max.hours.ago";
   private static final String DEFAULT_CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "1";
   private static final String CAMUS_HOURLY_SWEEPER_MIN_HOURS_AGO = "camus.hourly.sweeper.min.hours.ago";
@@ -29,7 +30,7 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
   @Override
   public CamusSweeperPlanner setPropertiesLogger(Properties props, Logger log) {
     dUtils = new DateUtils(props);
-    hourFormatter = dUtils.getDateTimeFormatter("YYYY/MM/dd/HH");
+    hourFormatter = dUtils.getDateTimeFormatter(YYYY_MM_DD_HH);
     return super.setPropertiesLogger(props, log);
   }
 
@@ -46,6 +47,10 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
     return createSweeperJobProps(topic, inputDir, outputDir, fs, new CamusSweeperMetrics());
   }
 
+  /**
+   * Create hourly compaction properties for a topic.
+   * If a topic has multiple hourly folders that need to be deduped, there will be multiple jobs for this topic.
+   */
   @Override
   protected List<Properties> createSweeperJobProps(String topic, Path inputDir, Path outputDir, FileSystem fs,
       CamusSweeperMetrics metrics) throws IOException {
@@ -83,8 +88,8 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
     jobProps.put(CamusHourlySweeper.TOPIC_AND_HOUR, topicAndHour);
 
     long dataSize = fs.getContentSummary(folder).getLength();
-    metrics.dataSizeByTopic.put(topicAndHour, dataSize);
-    metrics.totalDataSize += dataSize;
+    metrics.recordDataSizeByTopic(topicAndHour, dataSize);
+    metrics.addToTotalDataSize(dataSize);
 
     List<Path> sourcePaths = new ArrayList<Path>();
     sourcePaths.add(folder);

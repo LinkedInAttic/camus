@@ -15,13 +15,10 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 
 import com.linkedin.camus.sweeper.mapreduce.CamusSweeperJob;
-import com.linkedin.camus.sweeper.utils.Utils;
 
 
 public class CamusHourlySweeper extends CamusSweeper {
@@ -30,20 +27,12 @@ public class CamusHourlySweeper extends CamusSweeper {
 
   private static final String REDUCE_COUNT_OVERRIDE = "reduce.count.override.";
   private static final String CAMUS_SWEEPER_TMP_DIR = "camus.sweeper.tmp.dir";
-  private static final String MAX_FILES = "max.files";
-  private static final int DEFAULT_MAX_FILES = 24;
-  private static final String TMP_PATH = "tmp.path";
+
   private static final String CAMUS_SWEEPER_IO_CONFIGURER_CLASS = "camus.sweeper.io.configurer.class";
   private static final String MAPRED_COMPRESS_MAP_OUTPUT = "mapred.compress.map.output";
   private static final boolean DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT = Boolean.TRUE;
-  private static final String REDUCER_COUNT = "reducer.count";
-  private static final int DEFAULT_REDUCER_COUNT = 45;
-  private static final String MAPRED_MIN_SPLIT_SIZE = "mapred.min.split.size";
-  private static final String MAPRED_MAX_SPLIT_SIZE = "mapred.max.split.size";
 
   static final String TOPIC_AND_HOUR = "topic.and.hour";
-  static final String INPUT_PATHS = "input.paths";
-  static final String DEST_PATH = "dest.path";
 
   private final CamusSweeperMetrics metrics;
 
@@ -70,6 +59,11 @@ public class CamusHourlySweeper extends CamusSweeper {
     return topics;
   }
 
+  /**
+   * Run the hourly compaction job. It largely reuses the daily compaction code by calling super.run().
+   * For each hourly folder that needs to be deduped, it will create a KafkaCollector, and submit it to the thread pool.
+   * After compaction, report job metrics, and add outliers to the outlier folder.
+   */
   @Override
   public void run() throws Exception {
     metrics.timeStart = System.currentTimeMillis();
@@ -106,6 +100,10 @@ public class CamusHourlySweeper extends CamusSweeper {
     ToolRunner.run(job, args);
   }
 
+  /**
+   * This method submits a collector of a topic to the thread pool.
+   * A topic may have multiple collectors, if this topic has multiple hourly folders that need to be deduped.
+   */
   @Override
   protected Future<?> runCollector(Properties props, String topic) {
     String jobName = topic + "-" + UUID.randomUUID().toString();
@@ -119,6 +117,11 @@ public class CamusHourlySweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
+  /**
+   * This method creates collectors of a topic.
+   * A topic may have multiple collectors, if this topic has multiple hourly folders that need to be deduped.
+   * After creating the collectors, it passes them to runCollector() to submit them to thread pool.
+   */
   @Override
   protected void runCollectorForTopicDir(FileSystem fs, String topic, Path topicSourceDir, Path topicDestDir)
       throws Exception {
@@ -158,29 +161,16 @@ public class CamusHourlySweeper extends CamusSweeper {
   private class KafkaCollector extends CamusSweeper.KafkaCollector {
 
     private final String topicAndHour;
-    private final Path[] inputPaths;
-    private final Path tmpPath;
-    private final Path outputPath;
-    private final FileSystem fs;
 
     public KafkaCollector(Properties props, String jobName, String topicName) throws IOException {
       super(props, jobName, topicName);
       this.topicAndHour = props.getProperty(TOPIC_AND_HOUR);
-      this.fs = FileSystem.get(job.getConfiguration());
-      this.inputPaths = getInputPaths();
-      this.tmpPath = new Path(job.getConfiguration().get(TMP_PATH));
-      this.outputPath = new Path(job.getConfiguration().get(DEST_PATH));
-      addInputAndOutputPathsToFileInputFormat();
+
     }
 
-    private Path[] getInputPaths() {
-      List<String> strPaths = Utils.getStringList(props, INPUT_PATHS);
-      Path[] inputPaths = new Path[strPaths.size()];
-      for (int i = 0; i < strPaths.size(); i++)
-        inputPaths[i] = new Path(strPaths.get(i));
-      return inputPaths;
-    }
-
+    /**
+     * Runs a collector of a topic. It launches an MR job to dedup an hourly folder of the topic.
+     */
     @Override
     public void run() throws Exception {
       CamusHourlySweeper.this.metrics.runnerStartTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
@@ -197,53 +187,8 @@ public class CamusHourlySweeper extends CamusSweeper {
       CamusHourlySweeper.this.metrics.mrFinishTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
     }
 
-    private void moveTmpPathToOutputPath() throws IOException {
-      Path oldPath = null;
-      if (fs.exists(outputPath)) {
-        oldPath = new Path("/tmp", "_old_" + job.getJobID());
-        moveExistingContentInOutputPathToOldPath(oldPath);
-      }
-
-      LOG.info("Moving " + tmpPath + " to " + outputPath);
-      mkdirs(fs, outputPath.getParent(), perm);
-
-      if (!fs.rename(tmpPath, outputPath)) {
-        fs.rename(oldPath, outputPath);
-        fs.delete(tmpPath, true);
-        throw new RuntimeException("Error: cannot rename " + tmpPath + " to " + outputPath);
-      }
-      deleteOldPath(oldPath);
-    }
-
-    private void deleteOldPath(Path oldPath) throws IOException {
-      if (oldPath != null && fs.exists(oldPath)) {
-        LOG.info("Deleting " + oldPath);
-        fs.delete(oldPath, true);
-      }
-    }
-
-    private void moveExistingContentInOutputPathToOldPath(Path oldPath) throws IOException {
-      LOG.info("Path " + outputPath + " exists. Overwriting.");
-      if (!fs.rename(outputPath, oldPath)) {
-        fs.delete(tmpPath, true);
-        throw new RuntimeException("Error: cannot rename " + outputPath + " to " + oldPath);
-      }
-    }
-
-    private void setNumOfReducersAndSplitSizes() throws IOException {
-      long inputSize = getInputSize();
-
-      int maxFiles = job.getConfiguration().getInt(MAX_FILES, DEFAULT_MAX_FILES);
-      int numTasks = Math.min((int) (inputSize / targetFileSize) + 1, maxFiles);
-
-      if (job.getNumReduceTasks() != 0) {
-        determineAndSetNumOfReducers(numTasks);
-      } else {
-        setSplitSizes(inputSize / numTasks);
-      }
-    }
-
-    private void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
+    @Override
+    protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
       CamusHourlySweeper.this.metrics.mrSubmitTimeByTopic.put(this.topicAndHour, System.currentTimeMillis());
       job.submit();
       runningJobs.add(job);
@@ -257,37 +202,6 @@ public class CamusHourlySweeper extends CamusSweeper {
       }
     }
 
-    private void setSplitSizes(long targetSplitSize) {
-      LOG.info("Setting target split size " + targetSplitSize);
-      job.getConfiguration().setLong(MAPRED_MAX_SPLIT_SIZE, targetSplitSize);
-      job.getConfiguration().setLong(MAPRED_MIN_SPLIT_SIZE, targetSplitSize);
-    }
-
-    private void determineAndSetNumOfReducers(int numTasks) {
-      int numReducers;
-      if (job.getConfiguration().get(REDUCER_COUNT) != null) {
-        numReducers = job.getConfiguration().getInt(REDUCER_COUNT, DEFAULT_REDUCER_COUNT);
-      } else {
-        numReducers = numTasks;
-      }
-      job.setNumReduceTasks(numReducers);
-    }
-
-    private long getInputSize() throws IOException {
-      long inputSize = 0;
-      for (Path p : inputPaths) {
-        LOG.info("inputPath: " + p.toString() + ", size=" + fs.getContentSummary(p).getLength());
-        inputSize += fs.getContentSummary(p).getLength();
-      }
-      return inputSize;
-    }
-
-    private void addInputAndOutputPathsToFileInputFormat() throws IOException {
-      for (Path path : inputPaths) {
-        FileInputFormat.addInputPath(job, path);
-        FileOutputFormat.setOutputPath(job, tmpPath);
-      }
-    }
   }
 
   private class OutlierCollectorRunner implements Runnable {

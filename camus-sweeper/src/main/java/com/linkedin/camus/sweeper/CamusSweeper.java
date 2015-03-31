@@ -49,6 +49,16 @@ import com.linkedin.camus.sweeper.utils.Utils;
 public class CamusSweeper extends Configured implements Tool {
   protected static final String DEFAULT_NUM_THREADS = "5";
   protected static final String CAMUS_SWEEPER_PRIORITY_LIST = "camus.sweeper.priority.list";
+  private static final String MAX_FILES = "max.files";
+  private static final int DEFAULT_MAX_FILES = 24;
+  private static final String REDUCER_COUNT = "reducer.count";
+  private static final int DEFAULT_REDUCER_COUNT = 45;
+  private static final String MAPRED_MIN_SPLIT_SIZE = "mapred.min.split.size";
+  private static final String MAPRED_MAX_SPLIT_SIZE = "mapred.max.split.size";
+  private static final String TMP_PATH = "tmp.path";
+  static final String INPUT_PATHS = "input.paths";
+  static final String DEST_PATH = "dest.path";
+
   protected List<SweeperError> errorMessages;
   protected List<Job> runningJobs;
 
@@ -289,6 +299,10 @@ public class CamusSweeper extends Configured implements Tool {
     protected final String jobName;
     protected final Properties props;
     protected final String topicName;
+    protected final Path[] inputPaths;
+    protected final Path tmpPath;
+    protected final Path outputPath;
+    protected final FileSystem fs;
 
     protected Job job;
 
@@ -308,75 +322,47 @@ public class CamusSweeper extends Configured implements Tool {
         String key = (String) pair.getKey();
         job.getConfiguration().set(key, (String) pair.getValue());
       }
+      this.fs = FileSystem.get(job.getConfiguration());
+      this.inputPaths = getInputPaths();
+      this.tmpPath = new Path(job.getConfiguration().get(TMP_PATH));
+      this.outputPath = new Path(job.getConfiguration().get(DEST_PATH));
+      addInputAndOutputPathsToFileInputFormat();
     }
 
-    public void run() throws Exception {
-      FileSystem fs = FileSystem.get(job.getConfiguration());
-      List<String> strPaths = Utils.getStringList(props, "input.paths");
-      Path[] inputPaths = new Path[strPaths.size()];
-
-      for (int i = 0; i < strPaths.size(); i++)
-        inputPaths[i] = new Path(strPaths.get(i));
-
+    private void addInputAndOutputPathsToFileInputFormat() throws IOException {
       for (Path path : inputPaths) {
         FileInputFormat.addInputPath(job, path);
       }
-
-      job.getConfiguration().set("mapred.compress.map.output", "true");
-
-      Path tmpPath = new Path(job.getConfiguration().get("tmp.path"));
-      Path outputPath = new Path(job.getConfiguration().get("dest.path"));
-
       FileOutputFormat.setOutputPath(job, tmpPath);
+    }
+
+    private Path[] getInputPaths() {
+      List<String> strPaths = Utils.getStringList(props, INPUT_PATHS);
+      Path[] inputPaths = new Path[strPaths.size()];
+      for (int i = 0; i < strPaths.size(); i++)
+        inputPaths[i] = new Path(strPaths.get(i));
+      return inputPaths;
+    }
+
+    public void run() throws Exception {
+      job.getConfiguration().set("mapred.compress.map.output", "true");
       ((CamusSweeperJob) Class.forName(props.getProperty("camus.sweeper.io.configurer.class")).newInstance())
           .setLogger(log).configureJob(topicName, job);
 
-      long dus = 0;
-      for (Path p : inputPaths)
-        dus += fs.getContentSummary(p).getLength();
+      setNumOfReducersAndSplitSizes();
+      submitMrJob();
 
-      int maxFiles = job.getConfiguration().getInt("max.files", 24);
-      int numTasks = Math.min((int) (dus / targetFileSize) + 1, maxFiles);
+      moveTmpPathToOutputPath();
+    }
 
-      if (job.getNumReduceTasks() != 0) {
-        int numReducers;
-        if (job.getConfiguration().get("reducer.count") != null) {
-          numReducers = job.getConfiguration().getInt("reducer.count", 45);
-        } else {
-          numReducers = numTasks;
-        }
-        log.info("Setting reducer " + numReducers);
-        job.setNumReduceTasks(numReducers);
-      } else {
-        long targetSplitSize = dus / numTasks;
-
-        log.info("Setting target split size " + targetSplitSize);
-
-        job.getConfiguration().setLong("mapred.max.split.size", targetSplitSize);
-        job.getConfiguration().setLong("mapred.min.split.size", targetSplitSize);
-      }
-
-      job.submit();
-      runningJobs.add(job);
-      log.info("job running: " + job.getTrackingURL() + " for: " + jobName);
-      job.waitForCompletion(false);
-
-      if (!job.isSuccessful()) {
-        System.err.println("hadoop job failed");
-        throw new RuntimeException("hadoop job failed.");
-      }
-
+    protected void moveTmpPathToOutputPath() throws IOException {
       Path oldPath = null;
       if (fs.exists(outputPath)) {
         oldPath = new Path("/tmp", "_old_" + job.getJobID());
-        log.info("Path " + outputPath + " exists. Overwriting.");
-        if (!fs.rename(outputPath, oldPath)) {
-          fs.delete(tmpPath, true);
-          throw new RuntimeException("Error: cannot rename " + outputPath + " to " + outputPath);
-        }
+        moveExistingContentInOutputPathToOldPath(oldPath);
       }
 
-      log.info("Swapping " + tmpPath + " to " + outputPath);
+      log.info("Moving " + tmpPath + " to " + outputPath);
       mkdirs(fs, outputPath.getParent(), perm);
 
       if (!fs.rename(tmpPath, outputPath)) {
@@ -384,10 +370,70 @@ public class CamusSweeper extends Configured implements Tool {
         fs.delete(tmpPath, true);
         throw new RuntimeException("Error: cannot rename " + tmpPath + " to " + outputPath);
       }
+      deleteOldPath(oldPath);
+    }
 
+    private void deleteOldPath(Path oldPath) throws IOException {
       if (oldPath != null && fs.exists(oldPath)) {
         log.info("Deleting " + oldPath);
         fs.delete(oldPath, true);
+      }
+    }
+
+    private void moveExistingContentInOutputPathToOldPath(Path oldPath) throws IOException {
+      log.info("Path " + outputPath + " exists. Overwriting.");
+      if (!fs.rename(outputPath, oldPath)) {
+        fs.delete(tmpPath, true);
+        throw new RuntimeException("Error: cannot rename " + outputPath + " to " + oldPath);
+      }
+    }
+
+    protected void setNumOfReducersAndSplitSizes() throws IOException {
+      long inputSize = getInputSize();
+
+      int maxFiles = job.getConfiguration().getInt(MAX_FILES, DEFAULT_MAX_FILES);
+      int numTasks = Math.min((int) (inputSize / targetFileSize) + 1, maxFiles);
+
+      if (job.getNumReduceTasks() != 0) {
+        determineAndSetNumOfReducers(numTasks);
+      } else {
+        setSplitSizes(inputSize / numTasks);
+      }
+    }
+
+    private void setSplitSizes(long targetSplitSize) {
+      log.info("Setting target split size " + targetSplitSize);
+      job.getConfiguration().setLong(MAPRED_MAX_SPLIT_SIZE, targetSplitSize);
+      job.getConfiguration().setLong(MAPRED_MIN_SPLIT_SIZE, targetSplitSize);
+    }
+
+    private void determineAndSetNumOfReducers(int numTasks) {
+      int numReducers;
+      if (job.getConfiguration().get(REDUCER_COUNT) != null) {
+        numReducers = job.getConfiguration().getInt(REDUCER_COUNT, DEFAULT_REDUCER_COUNT);
+      } else {
+        numReducers = numTasks;
+      }
+      job.setNumReduceTasks(numReducers);
+    }
+
+    private long getInputSize() throws IOException {
+      long inputSize = 0;
+      for (Path p : inputPaths) {
+        log.info("inputPath: " + p.toString() + ", size=" + fs.getContentSummary(p).getLength());
+        inputSize += fs.getContentSummary(p).getLength();
+      }
+      return inputSize;
+    }
+
+    protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
+      job.submit();
+      runningJobs.add(job);
+
+      log.info("job running for: " + job.getJobName() + ", url: " + job.getTrackingURL());
+      job.waitForCompletion(false);
+      if (!job.isSuccessful()) {
+        throw new RuntimeException("hadoop job failed.");
       }
     }
 

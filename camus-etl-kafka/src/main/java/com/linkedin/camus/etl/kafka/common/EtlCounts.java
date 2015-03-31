@@ -206,7 +206,7 @@ public class EtlCounts {
       encoder.init(props, "TrackingMonitoringEvent");
       monitoringDetails =
           (AbstractMonitoringEvent) Class.forName(getMonitoringEventClass(conf))
-          .getDeclaredConstructor(Configuration.class).newInstance(conf);
+              .getDeclaredConstructor(Configuration.class).newInstance(conf);
     } catch (Exception e1) {
       throw new RuntimeException(e1);
     }
@@ -250,9 +250,10 @@ public class EtlCounts {
     props.put("request.timeout.ms", "30000");
     log.debug("Broker list: " + brokerList);
 
-    Producer producer = createProducer(props);
+    Producer producer = null;
 
     try {
+      producer = createProducer(props);
       for (byte[] message : monitorSet) {
         for (int i = 0; i < NUM_TRIES_PUBLISH_COUNTS; i++) {
           try {
@@ -263,11 +264,11 @@ public class EtlCounts {
             log.error("Publishing count for topic " + topic + " to " + brokerList.toString() + " has failed " + (i + 1)
                 + " times. " + (NUM_TRIES_PUBLISH_COUNTS - i - 1) + " more attempts will be made.");
             if (i == NUM_TRIES_PUBLISH_COUNTS - 1) {
-              throw new RuntimeException(e.getMessage() + ": " + "Have retried maximum ("
-                  + NUM_TRIES_PUBLISH_COUNTS + ") times.");
+              throw new RuntimeException(e.getMessage() + ": " + "Have retried maximum (" + NUM_TRIES_PUBLISH_COUNTS
+                  + ") times.");
             }
             try {
-              Thread.sleep((long)(Math.random() * (i + 1) * 1000));
+              Thread.sleep((long) (Math.random() * (i + 1) * 1000));
             } catch (InterruptedException e1) {
               log.error("Caught interrupted exception between retries of publishing counts to Kafka. "
                   + e1.getMessage());
@@ -275,6 +276,8 @@ public class EtlCounts {
           }
         }
       }
+    } catch (Exception e) {
+      throw new RuntimeException("failed to publish counts to kafka: " + e.getMessage(), e);
     } finally {
       if (producer != null) {
         producer.close();

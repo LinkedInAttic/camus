@@ -70,14 +70,9 @@ public class CamusHourlySweeper extends CamusSweeper {
   }
 
   private void addOutliers() throws IOException {
-    Configuration conf = new Configuration();
-    for (Entry<Object, Object> pair : props.entrySet()) {
-      String key = (String) pair.getKey();
-      conf.set(key, (String) pair.getValue());
-    }
     createExecutorService();
     for (Properties jobProps : planner.getOutlierProperties()) {
-      this.executorService.submit(new OutlierCollectorRunner(jobProps, FileSystem.get(conf)));
+      this.executorService.submit(new OutlierCollectorRunner(jobProps, FileSystem.get(getConf())));
     }
     this.executorService.shutdown();
   }
@@ -150,7 +145,6 @@ public class CamusHourlySweeper extends CamusSweeper {
         LOG.info("Running " + name + " for input " + props.getProperty(INPUT_PATHS));
         collector.run();
       } catch (Throwable e) { // Sometimes the error is the Throwable, e.g. java.lang.NoClassDefFoundError
-        e.printStackTrace();
         LOG.error("Failed for " + name + " ,job: " + collector == null ? null : collector.getJob() + " failed for "
             + props.getProperty(INPUT_PATHS) + " Exception:" + e.getLocalizedMessage());
         errorQueue.add(new SweeperError(name, props.get(INPUT_PATHS).toString(), e));

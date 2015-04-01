@@ -187,8 +187,6 @@ public class CamusHourlySweeper extends CamusSweeper {
       setNumOfReducersAndSplitSizes();
       submitMrJob();
       moveTmpPathToOutputPath();
-
-      CamusHourlySweeper.this.metrics.recordMrFinishTimeByTopic(this.topicAndHour, System.currentTimeMillis());
     }
 
     @Override
@@ -199,8 +197,9 @@ public class CamusHourlySweeper extends CamusSweeper {
 
       CamusHourlySweeper.this.metrics.recordMrStartRunningTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
-      LOG.info("job running for: " + job.getConfiguration().get(TOPIC_AND_HOUR) + ", url: " + job.getTrackingURL());
+      LOG.info("job running for: " + props.getProperty(TOPIC_AND_HOUR) + ", url: " + job.getTrackingURL());
       job.waitForCompletion(false);
+      CamusHourlySweeper.this.metrics.recordMrFinishTimeByTopic(this.topicAndHour, System.currentTimeMillis());
       if (!job.isSuccessful()) {
         throw new RuntimeException("hadoop job failed.");
       }

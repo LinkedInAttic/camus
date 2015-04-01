@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Properties;
-import java.util.Map.Entry;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -71,10 +71,20 @@ public class CamusHourlySweeper extends CamusSweeper {
 
   private void addOutliers() throws IOException {
     createExecutorService();
+    List<Future<?>> futures = new ArrayList<Future<?>>();
     for (Properties jobProps : planner.getOutlierProperties()) {
-      this.executorService.submit(new OutlierCollectorRunner(jobProps, FileSystem.get(getConf())));
+      futures.add(this.executorService.submit(new OutlierCollectorRunner(jobProps, FileSystem.get(getConf()))));
     }
     this.executorService.shutdown();
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+      } catch (ExecutionException e) {
+        throw new RuntimeException(e);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   private void reportMetrics() throws IllegalArgumentException, IOException {
@@ -198,7 +208,7 @@ public class CamusHourlySweeper extends CamusSweeper {
 
   }
 
-  private class OutlierCollectorRunner implements Runnable {
+  private class OutlierCollectorRunner implements Callable<Void> {
 
     private final Properties props;
     private final FileSystem fs;
@@ -212,27 +222,23 @@ public class CamusHourlySweeper extends CamusSweeper {
      * Collect outliers for an hourly folder, and put it in the outlier folder.
      */
     @Override
-    public void run() {
+    public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
       Path outputPath = new Path(outputPathStr, "outlier");
+      fs.mkdirs(outputPath);
+      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
 
-      try {
-        fs.mkdirs(outputPath);
-        long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
-
-        for (String inputPathStr : inputPaths.split(",")) {
-          Path inputPath = new Path(inputPathStr);
-          for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
-            if (status.getModificationTime() > destinationModTime) {
-              LOG.info("moving " + status.getPath() + " to " + outputPath);
-              fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
-            }
+      for (String inputPathStr : inputPaths.split(",")) {
+        Path inputPath = new Path(inputPathStr);
+        for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
+          if (status.getModificationTime() > destinationModTime) {
+            LOG.info("moving " + status.getPath() + " to " + outputPath);
+            fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
           }
         }
-      } catch (IOException e) {
-        throw new RuntimeException(e);
       }
+      return null;
     }
   }
 }

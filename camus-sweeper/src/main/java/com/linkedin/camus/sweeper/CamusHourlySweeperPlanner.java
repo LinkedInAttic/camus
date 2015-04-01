@@ -16,6 +16,7 @@ import com.linkedin.camus.sweeper.utils.DateUtils;
 
 
 public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
+  private static final String HOURLY_FOLDER_STRUCTURE = "*/*/*/*";
   private static final String YYYY_MM_DD_HH = "YYYY/MM/dd/HH";
   private static final String CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "camus.hourly.sweeper.max.hours.ago";
   private static final String DEFAULT_CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "1";
@@ -62,7 +63,7 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
       return jobPropsList;
     }
 
-    for (FileStatus f : fs.globStatus(new Path(inputDir, "*/*/*/*"))) {
+    for (FileStatus f : fs.globStatus(new Path(inputDir, HOURLY_FOLDER_STRUCTURE))) {
 
       DateTime folderHour = getFolderHour(f.getPath(), inputDir);
       if (shouldProcessHour(folderHour)) {
@@ -79,7 +80,7 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
   private Properties createJobProps(String topic, Path folder, DateTime folderHour, Path outputDir, FileSystem fs,
       CamusSweeperMetrics metrics) throws IOException {
 
-    Properties jobProps = new Properties(props);
+    Properties jobProps = new Properties();
     jobProps.putAll(props);
 
     jobProps.put("topic", topic);

@@ -86,12 +86,13 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
 
     private ByteBuffer getByteBuffer(byte[] payload) {
       ByteBuffer buffer = ByteBuffer.wrap(payload);
-			if (buffer.get() != MAGIC_BYTE) {
-                String dump = "";
-                for(int i=0; i<10 && i<payload.length; i++)
-                    dump += String.format("%02X ", payload[i]);
-                throw new IllegalArgumentException("Unknown magic byte! " + dump);
-            }
+
+      if (buffer.get() != MAGIC_BYTE) {
+        String dump = "";
+        for (int i = 0; i < 10 && i < payload.length; i++)
+          dump += String.format("%02X ", payload[i]);
+        throw new IllegalArgumentException("Unknown magic byte! " + dump);
+      }
       return buffer;
     }
 
@@ -115,78 +116,105 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
     try {
       MessageDecoderHelper helper = new MessageDecoderHelper(registry, topicName, payload).invoke();
       DatumReader<Record> reader =
-          (helper.getTargetSchema() == null) ? new GenericDatumReader<Record>(helper.getSchema())
-              : new GenericDatumReader<Record>(helper.getSchema(), helper.getTargetSchema());
+              (helper.getTargetSchema() == null) ? new GenericDatumReader<Record>(helper.getSchema())
+                      : new GenericDatumReader<Record>(helper.getSchema(), helper.getTargetSchema());
 
       return new CamusAvroWrapper(reader.read(null,
-          decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)));
+              decoderFactory.binaryDecoder(helper.getBuffer().array(), helper.getStart(), helper.getLength(), null)));
 
-    } catch (IOException e) {
-      throw new MessageDecoderException(e);
-    }
+      } catch (IOException e) {
+          throw new MessageDecoderException(e);
+      }
   }
 
   public static class CamusAvroWrapper extends CamusWrapper<Record> {
-      public static final String CAMUS_REQUEST_TIMESTAMP_FIELD = "camus.request.timestamp.field";
-      public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
-      public static final String CAMUS_MESSAGE_TIMESTAMP_SUBFIELD = "camus.message.timestamp.subfield";
-      public static final String DEFAULT_HEADER_FIELD = "default.header.field";
-      public static final String DEFAULT_TIMESTAMP_FIELD = "default.timestamp.field";
-      public static final String CUSTOM_TIMESTAMP_FIELD = "custom.timestamp.field";
+    public static final String TIMESTAMP_NODE = "timestamp.node";
+    public static final String SERVER_NODE = "server.node";
+    public static final String SERVICE_NODE = "service.node";
 
-      private static String camusRequestTimeStamp = "RequestDateUtc";
-      private static String camusTimeStamp = "LogDate";
-      private static String camusTimeStampSubField =  "msSinceEpoch";
-      private static String defaultHeader = "header";
-      private static String defaultTimeStamp = "time";
-      private static String customTimeStampField = "timestamp";
+    private static String timestampNode = "header.timestamp";
+    private static String serverNode = "header.server";
+    private static String serviceNode = "header.service";
 
-      public static void SetProperties(Properties props){
-          camusRequestTimeStamp = props.getProperty(CAMUS_REQUEST_TIMESTAMP_FIELD, camusRequestTimeStamp);
-          camusTimeStamp = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, camusTimeStamp);
-          camusTimeStampSubField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_SUBFIELD, camusTimeStampSubField);
-          defaultHeader = props.getProperty(DEFAULT_HEADER_FIELD, defaultHeader);
-          defaultTimeStamp = props.getProperty(DEFAULT_TIMESTAMP_FIELD, defaultTimeStamp);
-          customTimeStampField = props.getProperty(CUSTOM_TIMESTAMP_FIELD, customTimeStampField);}
+    public static void SetProperties(Properties props) {
+      timestampNode = props.getProperty(TIMESTAMP_NODE, timestampNode);
+      serverNode = props.getProperty(SERVER_NODE, serverNode);
+      serviceNode = props.getProperty(SERVICE_NODE, serviceNode);
+    }
 
     public CamusAvroWrapper(Record record) {
       super(record);
-      Record header = (Record) super.getRecord().get("header");
-      if (header != null) {
-        if (header.get("server") != null) {
-          put(new Text("server"), new Text(header.get("server").toString()));
-        }
-        if (header.get("service") != null) {
-          put(new Text("service"), new Text(header.get("service").toString()));
-        }
+
+      Text serverValue = getTextFromNode(serverNode, null);
+      if(serverValue != null){
+        put(new Text("server"), serverValue);
+      }
+
+      Text serviceValue = getTextFromNode(serviceNode, null);
+      if(serviceValue != null){
+        put(new Text("service"), serviceValue);
       }
     }
 
     @Override
     public long getTimestamp() {
-        //*CAMUS_REQUEST_TIMESTAMP_FIELD*//
-        Record customLogDate = (Record) super.getRecord().get(camusRequestTimeStamp);
-        if (customLogDate != null && customLogDate.get(camusTimeStampSubField) != null) {
-            return Long.parseLong(customLogDate.get(camusTimeStampSubField).toString());
-        } else{
-            //*CAMUS_MESSAGE_TIMESTAMP_FIELD*//
-            Record logDate = (Record) super.getRecord().get(camusTimeStamp);
-            if (logDate != null && logDate.get(camusTimeStampSubField) != null) {
-                return Long.parseLong(logDate.get(camusTimeStampSubField).toString());
-            }
-            //*DEFAULT_HEADER_FIELD*//
-            Record header = (Record) super.getRecord().get(defaultHeader);
-            //*DEFAULT_TIMESTAMP_FIELD*//
-            if (header != null && header.get(defaultTimeStamp) != null) {
-                return (Long) header.get(defaultTimeStamp);
-            }
-            //*CUSTOM_TIMESTAMP_FIELD*//
-            else if (super.getRecord().get(customTimeStampField) != null) {
-                return (Long) super.getRecord().get(customTimeStampField);
-            } else {
-                return System.currentTimeMillis();
-            }
+      String[] nodes = timestampNode.split("\\s*,\\s*");  //split on comma, trim spaces
+      Long timeStamp = null;
+      int countNodes = 0;
+
+      while (timeStamp == null && countNodes < nodes.length)
+        if (nodes[countNodes].length() > 0) {
+          timeStamp = getLongFromNode(nodes[countNodes], null);
+          countNodes++;
         }
+      return timeStamp == null ? System.currentTimeMillis() : timeStamp;
+    }
+
+    //due to conversion issues with Text (a hadoop class) this was not wrapped into a generic method
+    private Text getTextFromNode(String nodes, Record newRecord) {
+      Text value = null;
+      int dotIndex = nodes.indexOf(".");
+
+      if (dotIndex != -1) {
+        Record tempRecord = null;
+        if(newRecord == null){
+          tempRecord = (Record) super.getRecord().get(nodes.split("\\.")[0]);
+        } else {
+          tempRecord = (Record) newRecord.get(nodes.split("\\.")[0]);
+        }
+        if (tempRecord != null) {
+          value = getTextFromNode(nodes.substring(dotIndex + 1), tempRecord);
+        }
+      }
+
+      if (newRecord != null && newRecord.get(nodes) != null) {
+        return value == null ? new Text(newRecord.get(nodes).toString()) : value;
+      } else {
+        return value;
+      }
+    }
+
+    private Long getLongFromNode(String nodes, Record newRecord) {
+      Long value = null;
+
+      int dotIndex = nodes.indexOf(".");
+      if (dotIndex != -1) {
+        Record tempRecord = null;
+        if(newRecord == null){
+          tempRecord = (Record) super.getRecord().get(nodes.split("\\.")[0]);
+        } else {
+          tempRecord = (Record) newRecord.get(nodes.split("\\.")[0]);
+        }
+        if (tempRecord != null) {
+          value = getLongFromNode(nodes.substring(dotIndex + 1), tempRecord);
+        }
+      }
+
+      if (newRecord != null && newRecord.get(nodes) != null) {
+        return (value == null) ? (Long) newRecord.get(nodes) : value;
+      } else{
+        return value;
+      }
     }
   }
 }

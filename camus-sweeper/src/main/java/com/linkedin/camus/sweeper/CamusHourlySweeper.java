@@ -204,7 +204,6 @@ public class CamusHourlySweeper extends CamusSweeper {
         throw new RuntimeException("hadoop job failed.");
       }
     }
-
   }
 
   private class OutlierCollectorRunner implements Callable<Void> {

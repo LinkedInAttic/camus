@@ -1,16 +1,5 @@
 package com.linkedin.camus.etl.kafka;
 
-import com.linkedin.camus.etl.kafka.common.DateUtils;
-import com.linkedin.camus.etl.kafka.common.EtlCounts;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.Source;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
-import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
-import com.linkedin.camus.etl.kafka.reporter.TimeReporter;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -18,23 +7,16 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.lang.ClassNotFoundException;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.Comparator;
-import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import org.apache.commons.cli.CommandLine;
@@ -55,7 +37,6 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskReport;
@@ -80,6 +61,16 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EtlCounts;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.Source;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
+import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
 
 public class CamusJob extends Configured implements Tool {
 
@@ -119,7 +110,6 @@ public class CamusJob extends Configured implements Tool {
   private Job hadoopJob = null;
 
   private final Properties props;
-
   private DateTimeFormatter dateFmt = DateUtils.getDateTimeFormatter("YYYY-MM-dd-HH-mm-ss", DateTimeZone.UTC);
 
   public CamusJob() throws IOException {
@@ -132,7 +122,7 @@ public class CamusJob extends Configured implements Tool {
 
   public CamusJob(Properties props, Logger log) throws IOException {
     this.props = props;
-    this.log = log;
+    CamusJob.log = log;
   }
 
   private static HashMap<String, Long> timingMap = new HashMap<String, Long>();
@@ -203,7 +193,6 @@ public class CamusJob extends Configured implements Tool {
                 break;
               }
             }
-
             if (!filterMatch)
               DistributedCache.addFileToClassPath(status[i].getPath(), conf, fs);
           }
@@ -424,11 +413,6 @@ public class CamusJob extends Configured implements Tool {
     if (EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka) {
       EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka = false;
       throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
-    }
-
-    if (EtlInputFormat.reportJobFailureDueToLeaderNotAvailable) {
-      EtlInputFormat.reportJobFailureDueToLeaderNotAvailable = false;
-      throw new RuntimeException("Some topic partitions skipped due to Kafka leader not available.");
     }
   }
 

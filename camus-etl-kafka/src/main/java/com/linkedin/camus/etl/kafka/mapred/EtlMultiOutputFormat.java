@@ -48,6 +48,9 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String ETL_OUTPUT_CODEC = "etl.output.codec";
   public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
   public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
+  public static final String ETL_RECORD_WRITER_TWO_STEPS_COPY_TO_TEMP_AND_RENAME = "etl.output.two.steps.commit.copyToTemp.and.rename";
+  public static final String ETL_FINAL_DESTINATION_FILE_OVERWRITE = "etl.final.file.overwrite";
+
 
   public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils.getDateTimeFormatter("YYYYMMddHH");
   public static final String OFFSET_PREFIX = "offsets";
@@ -60,12 +63,31 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
   private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
+
   @Override
-  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context) throws IOException,
-      InterruptedException {
-    if (committer == null)
-      committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
-    return new EtlMultiOutputRecordWriter(context, committer);
+  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context)
+          throws IOException, InterruptedException {
+  	
+  	/**
+  	 * This is double locking check but have to be done so we do not have two Committer may cause this error.
+  	 *  http://en.wikipedia.org/wiki/Double-checked_locking but this should be fine
+  	 *  
+  	 *  http://www.javamex.com/tutorials/double_checked_locking_fixing.shtml
+  	 *  Please refer see section "3. Use DCL plus volatile"
+  	 *  
+  	 *  I can not use the lazy or early load since I need "context" to instantiate object... 
+  	 *  
+  	 *  We want to ensure that there is only one and only object for this ETL JOB...
+  	 *  
+  	 */
+      if (committer == null){
+      	synchronized (EtlMultiOutputFormat.class) {
+				if(committer == null){
+		            committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+				}
+			}
+      }
+      return new EtlMultiOutputRecordWriter(context, committer);
   }
 
   @Override
@@ -178,7 +200,14 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static void setRunTrackingPost(JobContext job, boolean value) {
     job.getConfiguration().setBoolean(ETL_RUN_TRACKING_POST, value);
   }
-
+  public static boolean isCopyAndRenameFinalDestination(JobContext job){
+      return job.getConfiguration().getBoolean(ETL_RECORD_WRITER_TWO_STEPS_COPY_TO_TEMP_AND_RENAME, false);
+  }
+  
+  public static boolean isFinalDestinationFileOverwriteOn(JobContext job){ 
+      return job.getConfiguration().getBoolean(ETL_FINAL_DESTINATION_FILE_OVERWRITE, false);
+  }
+  
   public static String getWorkingFileName(JobContext context, EtlKey key) throws IOException {
     Partitioner partitioner = getPartitioner(context, key.getTopic());
     return partitioner.getWorkingFileName(context, key.getTopic(), key.getLeaderId(), key.getPartition(),

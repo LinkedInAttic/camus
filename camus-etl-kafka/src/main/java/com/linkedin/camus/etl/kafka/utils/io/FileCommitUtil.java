@@ -20,11 +20,11 @@ import com.linkedin.camus.etl.kafka.utils.RetryExhausted;
 import com.linkedin.camus.etl.kafka.utils.RetryLogic;
 
 /**
- * Custom code to commit the file across volumes as suggested by the Peter Newcomb...
+ * 
  *  We also wanted to preserve the so we need attempted task id as well... hence this will be only called when task that is needs to be committed.
  *  mapred.map.tasks.speculative.execution	true	If true, then multiple instances of some map tasks may be executed in parallel for safe reason add "taskid to temp"
  * 
- *  user volume/tmp  (volume 1)  to /raw/logmon (volume 2) and then rename file to final target location (/raw/logmon/...)
+ *  user volume/tmp  (volume 1)  to /raw/log (volume 2) and then rename file to final target location (/raw/log/...)
  *  can not remove /_temporary as other camus job may write to it so delete it till taskid.
  *  
  *  This is very inefficient solution (Kakfa ->copy to temp user volume-> copy to temp day volume ->rename to final destination.

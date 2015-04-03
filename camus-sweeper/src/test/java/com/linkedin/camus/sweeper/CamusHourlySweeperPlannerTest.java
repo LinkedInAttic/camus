@@ -10,7 +10,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 import org.easymock.EasyMock;
 import org.easymock.EasyMockSupport;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormatter;
 import org.junit.Test;
+
+import com.linkedin.camus.sweeper.utils.DateUtils;
 
 import static org.junit.Assert.*;
 
@@ -21,7 +25,10 @@ public class CamusHourlySweeperPlannerTest extends EasyMockSupport {
     FileSystem mockedFs = createMock(FileSystem.class);
     Path inputDir = new Path("inputDir");
     Path outputDir = new Path("outputDir");
-    String hour = "2015/04/01/12";
+    DateUtils dUtils = new DateUtils(new Properties());
+    DateTime currentHour = dUtils.getCurrentHour();
+    DateTimeFormatter hourFormatter = dUtils.getDateTimeFormatter("YYYY/MM/dd/HH");
+    String hour = currentHour.minusHours(1).toString(hourFormatter);
     Path inputDirWithHour = new Path(inputDir, hour);
     Path outputDirWithHour = new Path(outputDir, hour);
 

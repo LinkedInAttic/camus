@@ -1,7 +1,7 @@
 package com.linkedin.camus.etl.kafka.coders;
 
-import kafka.message.Message;
 
+import com.linkedin.camus.coders.Message;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
@@ -13,7 +13,7 @@ import com.linkedin.camus.coders.CamusWrapper;
 public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder {
 
   @Override
-  public CamusWrapper<Record> decode(byte[] payload) {
+  public CamusWrapper<Record> decode(Message message) {
     try {
       GenericDatumReader<Record> reader = new GenericDatumReader<Record>();
 
@@ -21,9 +21,9 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 
       reader.setSchema(schema);
 
-      return new CamusWrapper<Record>(reader.read(null, decoderFactory.jsonDecoder(schema, new String(payload,
+      return new CamusWrapper<Record>(reader.read(null, decoderFactory.jsonDecoder(schema, new String(message.getPayload(),
       //Message.payloadOffset(message.magic()),
-          Message.MagicOffset(), payload.length - Message.MagicOffset()))));
+          kafka.message.Message.MagicOffset(), message.getPayload().length - kafka.message.Message.MagicOffset()))));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

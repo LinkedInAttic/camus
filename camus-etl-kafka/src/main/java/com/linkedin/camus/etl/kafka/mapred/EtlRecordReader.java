@@ -1,6 +1,7 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
 import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.Message;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
@@ -12,8 +13,6 @@ import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 
 import java.io.IOException;
 import java.util.HashSet;
-
-import kafka.message.Message;
 
 import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
@@ -95,7 +94,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     this.context = context;
 
     if (context instanceof Mapper.Context) {
-      mapperContext = (Context) context;
+      mapperContext = (Mapper.Context) context;
     }
 
     this.skipSchemaErrors = EtlInputFormat.getEtlIgnoreSchemaErrors(context);
@@ -128,10 +127,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     }
   }
 
-  private CamusWrapper getWrappedRecord(String topicName, byte[] payload) throws IOException {
+  private CamusWrapper getWrappedRecord(Message message) throws IOException {
     CamusWrapper r = null;
     try {
-      r = decoder.decode(payload);
+      r = decoder.decode(message);
       mapperContext.getCounter(KAFKA_MSG.DECODE_SUCCESSFUL).increment(1);
     } catch (SchemaNotFoundException e) {
       mapperContext.getCounter(KAFKA_MSG.SKIPPED_SCHEMA_NOT_FOUND).increment(1);
@@ -215,8 +214,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
       return false;
     }
 
-    Message message = null;
-
     while (true) {
       try {
         if (reader == null || !reader.hasNext()) {
@@ -249,30 +246,20 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           decoder = createDecoder(request.getTopic());
         }
         int count = 0;
-        while (reader.getNext(key, msgValue, msgKey)) {
+        Message message;
+        while ((message = reader.getNext(key)) != null) {
           readBytes += key.getMessageSize();
           count++;
           context.progress();
-          mapperContext.getCounter("total", "data-read").increment(msgValue.getLength());
+          mapperContext.getCounter("total", "data-read").increment(message.getPayload().length);
           mapperContext.getCounter("total", "event-count").increment(1);
-          byte[] bytes = getBytes(msgValue);
-          byte[] keyBytes = getBytes(msgKey);
-          // check the checksum of message.
-          // If message has partition key, need to construct it with Key for
-          // checkSum to match
-          Message messageWithKey = new Message(bytes, keyBytes);
-          Message messageWithoutKey = new Message(bytes);
-          long checksum = key.getChecksum();
-          if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
-            throw new ChecksumException("Invalid message checksum : MessageWithKey : " + messageWithKey.checksum()
-                + " MessageWithoutKey checksum : " + messageWithoutKey.checksum() + ". Expected " + key.getChecksum(),
-                key.getOffset());
-          }
+
+          message.validate();
 
           long tempTime = System.currentTimeMillis();
           CamusWrapper wrapper;
           try {
-            wrapper = getWrappedRecord(key.getTopic(), bytes);
+            wrapper = getWrappedRecord(message);
           } catch (Exception e) {
             if (exceptionCount < getMaximumDecoderExceptionsToPrint(context)) {
               mapperContext.write(key, new ExceptionWritable(e));

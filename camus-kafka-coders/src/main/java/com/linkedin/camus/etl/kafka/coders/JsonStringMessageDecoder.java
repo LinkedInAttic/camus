@@ -3,6 +3,7 @@ package com.linkedin.camus.etl.kafka.coders;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.Message;
 import com.linkedin.camus.coders.MessageDecoder;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
@@ -32,7 +33,7 @@ import java.util.Properties;
  * This MessageDecoder returns a CamusWrapper that works with Strings payloads,
  * since JSON data is always a String.
  */
-public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
+public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
   private static final org.apache.log4j.Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
 
   // Property for format of timestamp in JSON timestamp field.
@@ -59,16 +60,16 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
   }
 
   @Override
-  public CamusWrapper<String> decode(byte[] payload) {
+  public CamusWrapper<String> decode(Message message) {
     long timestamp = 0;
     String payloadString;
     JsonObject jsonObject;
 
     try {
-      payloadString = new String(payload, "UTF-8");
+      payloadString = new String(message.getPayload(), "UTF-8");
     } catch (UnsupportedEncodingException e) {
       log.error("Unable to load UTF-8 encoding, falling back to system default", e);
-      payloadString = new String(payload);
+      payloadString = new String(message.getPayload());
     }
 
     // Parse the payload into a JsonObject.

@@ -18,6 +18,14 @@ logger = lg.getLogger('azkaban_submit_job')
 logger.setLevel(lg.INFO)
 logger.addHandler(ch)
 
+def start_session(url, username, password):
+    session = Session(url)
+    session.user = username
+    session.password = password
+    session.id = None
+
+    return session
+
 
 def run_shell_command(cmd, description, cwd=None, shell=False):
     if not cwd:
@@ -59,9 +67,7 @@ def main():
     logger.info('Building zip file')
     project.build('camus.zip', True)
     logger.info('Connecting to Azkaban site')
-    session = Session(azkaban_auth['server'])
-    session.user = azkaban_auth['user']
-    session._refresh(azkaban_auth['password'])
+    session = start_session(azkaban_auth['server'], azkaban_auth['user'], azkaban_auth['password'])
 
     logger.info('Uploading zip file')
     session.upload_project('Camus', 'camus.zip')

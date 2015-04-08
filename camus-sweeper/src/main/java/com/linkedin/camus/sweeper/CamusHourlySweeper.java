@@ -11,8 +11,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.util.ToolRunner;
@@ -192,6 +194,7 @@ public class CamusHourlySweeper extends CamusSweeper {
     @Override
     protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
       CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, System.currentTimeMillis());
+
       job.submit();
       runningJobs.add(job);
 
@@ -223,15 +226,16 @@ public class CamusHourlySweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
+      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
-      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
 
       for (String inputPathStr : inputPaths.split(",")) {
         Path inputPath = new Path(inputPathStr);
         for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
           if (status.getModificationTime() > destinationModTime) {
-            LOG.info("moving " + status.getPath() + " to " + outputPath);
+            LOG.info("copying outlier file " + status.getPath() + " to " + outputPath);
+            FileUtil.copy(fs, status.getPath(), fs, outputPath, false, true, new Configuration());
             fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
           }
         }

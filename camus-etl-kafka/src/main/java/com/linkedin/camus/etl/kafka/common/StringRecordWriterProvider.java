@@ -1,28 +1,27 @@
 package com.linkedin.camus.etl.kafka.common;
 
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.etl.IEtlKey;
-import com.linkedin.camus.etl.RecordWriterProvider;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.apache.avro.file.CodecFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.io.compress.SnappyCodec;
-import org.apache.hadoop.io.compress.DefaultCodec;
-import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
+
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.etl.IEtlKey;
+import com.linkedin.camus.etl.RecordWriterProvider;
+import com.linkedin.camus.etl.RecordWriterWithCloseStatus;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 
 /**
@@ -32,6 +31,7 @@ import org.apache.log4j.Logger;
 public class StringRecordWriterProvider implements RecordWriterProvider {
   public static final String ETL_OUTPUT_RECORD_DELIMITER = "etl.output.record.delimiter";
   public static final String DEFAULT_RECORD_DELIMITER = "\n";
+  private static Logger log = Logger.getLogger(StringRecordWriterProvider.class);
 
   protected String recordDelimiter = null;
 
@@ -71,7 +71,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
-  public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
+  public RecordWriterWithCloseStatus<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
       CamusWrapper camusWrapper, FileOutputCommitter committer) throws IOException, InterruptedException {
 
     // If recordDelimiter hasn't been initialized, do so now
@@ -112,28 +112,48 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
     };
     */
   }
+  @SuppressWarnings("rawtypes")
+  protected static class ByteRecordWriter extends  RecordWriterWithCloseStatus<IEtlKey, CamusWrapper> {
+  	
+      private volatile boolean close;
+      private DataOutputStream out;
+      private String recordDelimiter;
 
-  protected static class ByteRecordWriter extends RecordWriter<IEtlKey, CamusWrapper> {
-    private DataOutputStream out;
-    private String recordDelimiter;
-
-    public ByteRecordWriter(DataOutputStream out, String recordDelimiter) {
-      this.out = out;
-      this.recordDelimiter = recordDelimiter;
-    }
-
-    @Override
-    public void write(IEtlKey ignore, CamusWrapper value) throws IOException {
-      boolean nullValue = value == null;
-      if (!nullValue) {
-        String record = (String) value.getRecord() + recordDelimiter;
-        out.write(record.getBytes());
+      public ByteRecordWriter(DataOutputStream out, String recordDelimiter) {
+          this.out = out;
+          this.recordDelimiter = recordDelimiter;
       }
-    }
 
-    @Override
-    public void close(TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
-      out.close();
-    }
+      @Override
+      public void write(IEtlKey ignore, CamusWrapper value) throws IOException {
+          boolean nullValue = value == null;
+          if (!nullValue) {
+          	String record = (String)value.getRecord() + recordDelimiter;
+              out.write(record.getBytes());
+          }
+      }
+
+      @Override
+      public void close(TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+          out.close();
+          close = true;
+      }
+      
+      protected void finalize() throws Throwable {           	
+          if(!this.close){
+      		log.error("This file was not closed so try to close during the JVM finalize..");
+      		try{
+      			out.close();
+      		}catch(Throwable th){
+      			log.error("File Close erorr during finalize()");
+      		}
+      	}
+      	super.finalize();
+      }       
+      
+      @Override
+      public boolean isClose() {
+			return close;
+		}      
   }
 }

@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,9 +25,15 @@ import org.codehaus.jackson.map.ObjectMapper;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.utils.RetryExhausted;
+import com.linkedin.camus.etl.kafka.utils.RetryLogic;
+import com.linkedin.camus.etl.kafka.utils.io.FileCommitUtil;
+import com.linkedin.camus.etl.kafka.utils.io.FileExistsTask;
+import com.linkedin.camus.etl.kafka.utils.io.FileRenameTask;
 
 
 public class EtlMultiOutputCommitter extends FileOutputCommitter {
+	
   private Pattern workingFileMetadataPattern;
 
   private HashMap<String, EtlCounts> counts = new HashMap<String, EtlCounts>();
@@ -37,11 +44,20 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
   
+  ///TODO make this configurable..
+  private static final int MAX_RETRY = 3 ;
+  private static final int MAX_WAIT_IN_SEC =1 ;
+  
   private void mkdirs(FileSystem fs, Path path) throws IOException {
-    if (! fs.exists(path.getParent())) {
-      mkdirs(fs, path.getParent());
+    if (!fs.exists(path)) {
+    	// removed the recursive call here and upon failure throw IOException (Count retry exists and mkdirs with retry..)
+	    boolean result = fs.mkdirs(path);
+	    if(!result){
+	    	String msg = "Unable to create directory: " + path.toString();
+	    	log.error(msg);
+	    	throw new IOException(msg);
+	    }
     }
-    fs.mkdirs(path);
   }
 
   public void addCounts(EtlKey key) throws IOException {
@@ -107,7 +123,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
               getPartitionedPath(context, file, count.getEventCount(), count.getLastKey().getOffset());
 
           Path dest = new Path(baseOutDir, partitionedFile);
-
+          
+          // TODO Fix up the here as well why Re-cursive calls...
           if (!fs.exists(dest.getParent())) {
             mkdirs(fs, dest.getParent());
           }
@@ -148,9 +165,66 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     super.commitTask(context);
   }
 
-  protected void commitFile(JobContext job, Path source, Path target) throws IOException {
-    FileSystem.get(job.getConfiguration()).rename(source, target);
-  }
+	protected void commitFile(final JobContext job, final Path source, final Path target) throws IOException{
+		
+		// This is new approch...
+		if(EtlMultiOutputFormat.isCopyAndRenameFinalDestination(job)){
+			FileCommitUtil.commitWithCopyAndRenameFile(job, source, target, log);
+		}else {
+			// This is default behavior out of box adding more 
+			// should we retry if rename fails here and remove the data...
+			
+			/**
+			 * Ideally, this should check if target file is there or not if it is there than we should move or not based on 
+			 * configuration otherwise we have major problem data overridden by this command.
+			 */
+			final FileSystem fs = FileSystem.get(job.getConfiguration());
+			final RetryLogic<Boolean> retryWithTrue = new RetryLogic<Boolean>( MAX_RETRY, MAX_WAIT_IN_SEC,TimeUnit.SECONDS, Boolean.TRUE);
+			final FileRenameTask renameTask = new FileRenameTask(fs, source, target);
+			try{
+				// check if file can be overridden if the destination path is there or not..
+				if(!EtlMultiOutputFormat.isFinalDestinationFileOverwriteOn(job)){
+					final FileExistsTask fileExists = new FileExistsTask(fs, target);
+					final RetryLogic<Boolean> retryWithFalse = new RetryLogic<Boolean>( MAX_RETRY, MAX_WAIT_IN_SEC,TimeUnit.SECONDS, Boolean.FALSE);
+					try {
+						boolean isFileFound  = retryWithFalse.getResultWithRetry(fileExists);
+						if(isFileFound){
+							throw new IOException("Target File="+target.toString() +" already exists and " + EtlMultiOutputFormat.ETL_FINAL_DESTINATION_FILE_OVERWRITE +" is OFF. Hence, the erorr message thrown to prevent data loss and overwrite.");
+						}
+					} catch (RetryExhausted e) {
+						String msg = "Target File="+target.toString() +" exists could failed and " + EtlMultiOutputFormat.ETL_FINAL_DESTINATION_FILE_OVERWRITE +" is OFF. "
+									+ "Hence, the erorr message thrown to prevent data loss and overwrite.";
+						throw new IOException(msg,e);
+					}
+				}
+				
+				boolean result = retryWithTrue.getResultWithRetry(renameTask);
+				
+				if(!result){
+				    /*
+				     * We do not want silent failure...:  should we do the Md5 or CRC checksum ..?
+				     *  Based on feedback please refer to https://github.com/linkedin/camus/issues/189
+				     *  We do not throw exception data will be lost..
+				     */					
+					String msg = "Could not rename a File during Commit Phase due to underlying File System reutrn false result: soruce=" + source.toString() +" to target=" + target.toString();
+					log.error(msg);
+					throw new IOException(msg);
+				}
+			}catch(RetryExhausted e){
+				String msg = "File Rename Failed from= " + source.getName() +" to=" + target.getName() + " because it failed " +MAX_RETRY+" times";
+				log.error(msg, e);
+				throw new IOException(msg,e);
+			}
+			catch(Throwable e){
+				log.error("File Rename Failed from= " + source.getName() +" to=" + target.getName() , e);
+				if(e instanceof IOException){
+					throw (IOException)e;
+				}else {
+					throw new RuntimeException("Default Behavior file commit failed due to fatal problem",e);
+				}
+			}
+		}
+    }
 
   public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {
     Matcher m = workingFileMetadataPattern.matcher(file);

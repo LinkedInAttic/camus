@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -20,10 +22,11 @@ import org.joda.time.DateTime;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
+import com.linkedin.camus.etl.RecordWriterWithCloseStatus;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 
-
+@SuppressWarnings("rawtypes")
 public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private TaskAttemptContext context;
   private Writer errorWriter = null;
@@ -32,8 +35,9 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
   private final Counter topicSkipOldCounter;
 
-  private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
-      new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
+
+  private HashMap<String, RecordWriterWithCloseStatus<IEtlKey, CamusWrapper>> dataWriters =
+      new HashMap<String, RecordWriterWithCloseStatus<IEtlKey, CamusWrapper>>();
 
   private EtlMultiOutputCommitter committer;
 
@@ -82,10 +86,57 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
 
   @Override
   public void close(TaskAttemptContext context) throws IOException, InterruptedException {
-    for (String w : dataWriters.keySet()) {
-      dataWriters.get(w).close(context);
-    }
-    errorWriter.close();
+		// this is another soruce of unclosed files
+		ListOfIOException listExp = new ListOfIOException(
+				"List Of IOException while closing output file...");
+		for (String w : dataWriters.keySet()) {
+			try {
+				RecordWriterWithCloseStatus writter = dataWriters.get(w);
+				writter.close(context);
+				if(!writter.isClose()){
+					log.error("Atteptem to close the file name "+ w +" but it did not close.");
+				}
+			} catch (IOException exp) {
+				log.error("Error closing writer..", exp);
+				listExp.addIOException(exp);
+			}
+		}
+
+		try {
+			errorWriter.close();
+		} catch (IOException e) {
+			listExp.addIOException(e);
+		}
+		
+		if(listExp.isThereException()){
+			throw listExp;
+		}
+		
+  }
+  
+  static final class ListOfIOException extends IOException {
+	
+	private static final long serialVersionUID = 1L;
+	private List<IOException> exceptionList = new ArrayList<IOException>();
+	
+	ListOfIOException(String message) {
+		super(message);
+	}
+	
+	public void addIOException(IOException exp){
+		exceptionList.add(exp);
+	}
+	
+	public boolean isThereException(){
+		return !exceptionList.isEmpty();
+	}
+	
+	@Override
+	public String toString() {
+		// TODO should we print all the IOEceptions....
+		return super.toString() + " There were about "+  exceptionList.size() + " IOException. please check the logs for this task";
+	}
+	
   }
 
   @Override
@@ -99,13 +150,30 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {
-          for (RecordWriter<IEtlKey, CamusWrapper> writer : dataWriters.values()) {
-            writer.close(context);
-          }
+    	
+           // this is another soruce of unclosed files
+           ListOfIOException listExp = new ListOfIOException(
+    				"List Of IOException while closing output file...");
+          
+   		for (String w : dataWriters.keySet()) {
+			try {
+				RecordWriterWithCloseStatus writter = dataWriters.get(w);
+				writter.close(context);
+				if(!writter.isClose()){
+					log.error("Atteptem to close the file name "+ w +" but it did not close.");
+					throw new IOException("Unclosed File Detected ! File Name ="+w + " File_Writer"+ writter.toString());
+				}
+			} catch (IOException exp) {
+				log.error("Error closing writer..", exp);
+				listExp.addIOException(exp);
+			}
+		}
           dataWriters.clear();
           currentTopic = key.getTopic();
+          if(listExp.isThereException()){
+        	  throw listExp;
+          }
         }
-
         committer.addCounts(key);
         CamusWrapper value = (CamusWrapper) val;
         String workingFileName = EtlMultiOutputFormat.getWorkingFileName(context, key);
@@ -124,21 +192,25 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
     }
   }
 
-  private RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
-      CamusWrapper value) throws IOException, InterruptedException {
-    RecordWriterProvider recordWriterProvider = null;
-    try {
-      //recordWriterProvider = EtlMultiOutputFormat.getRecordWriterProviderClass(context).newInstance();
-      Class<RecordWriterProvider> rwp = EtlMultiOutputFormat.getRecordWriterProviderClass(context);
-      Constructor<RecordWriterProvider> crwp = rwp.getConstructor(TaskAttemptContext.class);
-      recordWriterProvider = crwp.newInstance(context);
-    } catch (InstantiationException e) {
-      throw new IllegalStateException(e);
-    } catch (IllegalAccessException e) {
-      throw new IllegalStateException(e);
-    } catch (Exception e) {
-      throw new IllegalStateException(e);
-    }
-    return recordWriterProvider.getDataRecordWriter(context, fileName, value, committer);
-  }
+  private RecordWriterWithCloseStatus<IEtlKey, CamusWrapper> getDataRecordWriter(
+			TaskAttemptContext context, String fileName, CamusWrapper value)
+			throws IOException, InterruptedException {
+		RecordWriterProvider recordWriterProvider = null;
+		try {
+			Class<RecordWriterProvider> rwp = EtlMultiOutputFormat
+					.getRecordWriterProviderClass(context);
+			Constructor<RecordWriterProvider> crwp = rwp
+					.getConstructor(TaskAttemptContext.class);
+			recordWriterProvider = crwp.newInstance(context);
+		} catch (InstantiationException e) {
+			throw new IllegalStateException(e);
+		} catch (IllegalAccessException e) {
+			throw new IllegalStateException(e);
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
+		return recordWriterProvider.getDataRecordWriter(context, fileName,
+				value, committer);
+	}
+
 }

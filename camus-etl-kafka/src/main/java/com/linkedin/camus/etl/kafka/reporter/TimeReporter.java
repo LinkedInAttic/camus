@@ -1,20 +1,21 @@
 package com.linkedin.camus.etl.kafka.reporter;
 
-import java.util.Map;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.hadoop.mapreduce.CounterGroup;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.TaskReport;
-
-import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
+import org.apache.hadoop.mapreduce.Counter;
+import org.apache.hadoop.mapreduce.CounterGroup;
+import org.apache.hadoop.mapreduce.Job;
 
 
 public class TimeReporter extends BaseReporter {
@@ -100,6 +101,7 @@ public class TimeReporter extends BaseReporter {
     long request = totalGrp.findCounter("request-time(ms)").getValue();
     long map = totalGrp.findCounter("mapper-time(ms)").getValue();
     long mb = totalGrp.findCounter("data-read").getValue();
+ 
 
     long other = totalTaskTime - map - request - decode;
 
@@ -114,7 +116,15 @@ public class TimeReporter extends BaseReporter {
         NumberFormat.getPercentInstance().format(other / (double) totalTaskTime)));
 
     sb.append(String.format("\n%16s %s\n", "Total MB read:", mb / 1024 / 1024));
-
+    
+    // other counters ...
+    Iterator<Counter> iterator  = totalGrp.iterator();
+    while(iterator.hasNext()){
+    	Counter  couter = iterator.next();
+    	if("copy-rename-commit".equals(couter.getName())){
+    		sb.append(String.format("\n%18s %s\n", "Total copy-rename-commit time(s):", TimeUnit.MILLISECONDS.toSeconds(couter.getValue())));
+    	}
+    }
     log.info(sb.toString());
   }
 }

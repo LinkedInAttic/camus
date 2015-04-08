@@ -112,7 +112,7 @@ public class CamusCleaner extends Configured implements Tool {
 
     WhiteBlackListPathFilter filter = new WhiteBlackListPathFilter(whitelist, blacklist, sourcePath);
 
-    Map<FileStatus, String> topics = CamusSweeper.findAllTopics(sourcePath, filter, sourceSubDir, fs);
+    Map<FileStatus, String> topics = new CamusSweeper().findAllTopics(sourcePath, filter, sourceSubDir, fs);
 
     for (FileStatus status : topics.keySet()) {
       String name = status.getPath().getName();

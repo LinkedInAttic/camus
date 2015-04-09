@@ -187,13 +187,20 @@ public class CamusHourlySweeper extends CamusSweeper {
           LOG).configureJob(topicName, job);
 
       setNumOfReducersAndSplitSizes();
+
+      long jobSubmitTime = System.currentTimeMillis();
+      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
+      createTimeStampFileInOutputPath(jobSubmitTime);
+    }
+
+    private void createTimeStampFileInOutputPath(long jobSubmitTime) throws IOException {
+      this.fs.createNewFile(new Path(this.outputPath, "_" + jobSubmitTime));
     }
 
     @Override
     protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
-      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       job.submit();
       runningJobs.add(job);
@@ -226,7 +233,7 @@ public class CamusHourlySweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
-      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
+      long destinationModTime = getDestinationModTime(outputPathStr);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
@@ -241,6 +248,25 @@ public class CamusHourlySweeper extends CamusSweeper {
         }
       }
       return null;
+    }
+
+    /**
+     * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
+     * to create that folder. The timestamp is stored in a _{timestamp} file.
+     *
+     * If such a file doesn't exist, return the timestamp of the folder.
+     * @throws IOException 
+     */
+    private long getDestinationModTime(String outputPathStr) throws IOException {
+      for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
+        if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
+          LOG.info("Found timestamp file: " + status.getPath());
+          return Long.valueOf(status.getPath().getName().substring(1));
+        }
+      }
+
+      //return the timestamp of the folder
+      return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
     }
   }
 }

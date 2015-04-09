@@ -76,13 +76,13 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
     } else {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
 
-      keySchema = duplicateRecord(keySchema, schema);
+      //keySchema = duplicateRecord(keySchema, schema);
 
-      if (!validateKeySchema(schema, keySchema)) {
-        log.info("topic:" + topic + " key invalid, using map only job");
-        job.setNumReduceTasks(0);
-        keySchema = schema;
-      }
+//      if (!validateKeySchema(schema, keySchema)) {
+//        log.info("topic:" + topic + " key invalid, using map only job");
+//        job.setNumReduceTasks(0);
+//        keySchema = schema;
+//      }
     }
 
     setupSchemas(topic, job, schema, keySchema);

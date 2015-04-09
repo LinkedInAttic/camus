@@ -15,23 +15,31 @@ import org.joda.time.format.DateTimeFormatter;
 import com.linkedin.camus.sweeper.utils.DateUtils;
 
 
-public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
-  private static final String HOURLY_FOLDER_STRUCTURE = "*/*/*/*";
-  private static final String YYYY_MM_DD_HH = "YYYY/MM/dd/HH";
-  private static final String CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "camus.hourly.sweeper.max.hours.ago";
-  private static final String DEFAULT_CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO = "1";
-  private static final String CAMUS_HOURLY_SWEEPER_MIN_HOURS_AGO = "camus.hourly.sweeper.min.hours.ago";
-  private static final String DEFAULT_CAMUS_HOURLY_SWEEPER_MIN_HOURS_AGO = "1";
+public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
 
-  private static final Logger LOG = Logger.getLogger(CamusHourlySweeperPlanner.class);
+  private static final String CAMUS_SINGLE_FOLDER_SWEEPER_TIMEBASED = "camus.single.folder.sweeper.timebased";
+  private static final String DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_TIMEBASED = Boolean.TRUE.toString();
+  private static final String CAMUS_SINGLE_FOLDER_SWEEPER_FOLDER_STRUCTURE =
+      "camus.single.folder.sweeper.folder.structure";
+  private static final String DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_DEFAULT_FOLDER_STRUCTURE = "*/*/*/*";
+  private static final String CAMUS_SINGLE_FOLDER_SWEEPER_TIME_FORMAT = "camus.single.folder.sweeper.time.format";
+  private static final String DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_TIME_FORMAT = "YYYY/MM/dd/HH";
+  private static final String CAMUS_SINGLE_FOLDER_SWEEPER_MAX_HOURS_AGO = "camus.single.folder.sweeper.max.hours.ago";
+  private static final String DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_MAX_HOURS_AGO = "1";
+  private static final String CAMUS_SINGLE_FOLDER_SWEEPER_MIN_HOURS_AGO = "camus.single.folder.sweeper.min.hours.ago";
+  private static final String DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_MIN_HOURS_AGO = "1";
 
-  private DateTimeFormatter hourFormatter;
+  private static final Logger LOG = Logger.getLogger(CamusSingleFolderSweeperPlanner.class);
+
+  private DateTimeFormatter timeFormatter;
   private DateUtils dUtils;
 
   @Override
   public CamusSweeperPlanner setPropertiesLogger(Properties props, Logger log) {
     dUtils = new DateUtils(props);
-    hourFormatter = dUtils.getDateTimeFormatter(YYYY_MM_DD_HH);
+    timeFormatter =
+        dUtils.getDateTimeFormatter(props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_TIME_FORMAT,
+            DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_TIME_FORMAT));
     return super.setPropertiesLogger(props, log);
   }
 
@@ -39,7 +47,7 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
     String datePathStr = datePath.toString();
     String inputDirStr = inputDir.toString();
     String dateStr = datePathStr.substring(datePathStr.indexOf(inputDirStr) + inputDirStr.length());
-    return hourFormatter.parseDateTime(dateStr.replaceAll("^/", ""));
+    return timeFormatter.parseDateTime(dateStr.replaceAll("^/", ""));
   }
 
   @Override
@@ -63,14 +71,33 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
       return jobPropsList;
     }
 
-    for (FileStatus f : fs.globStatus(new Path(inputDir, HOURLY_FOLDER_STRUCTURE))) {
+    if (Boolean.valueOf(this.props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_TIMEBASED,
+        DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_TIMEBASED))) {
 
-      DateTime folderHour = getFolderHour(f.getPath(), inputDir);
-      if (shouldProcessHour(folderHour)) {
-        Properties jobProps = createJobProps(topic, f.getPath(), folderHour, outputDir, fs, metrics);
-        if (jobProps != null) {
-          jobPropsList.add(jobProps);
+      // Timebased sweeper. Each input folder is inputDir + folderStructure
+      LOG.info("Time-based sweeper");
+      String folderStructure =
+          props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_FOLDER_STRUCTURE,
+              DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_DEFAULT_FOLDER_STRUCTURE);
+      LOG.info("Sweeper folder structure: " + folderStructure);
+
+      for (FileStatus f : fs.globStatus(new Path(inputDir, folderStructure))) {
+
+        DateTime folderHour = getFolderHour(f.getPath(), inputDir);
+        if (shouldProcessHour(folderHour)) {
+          Properties jobProps = createJobProps(topic, f.getPath(), folderHour, outputDir, fs, metrics);
+          if (jobProps != null) {
+            jobPropsList.add(jobProps);
+          }
         }
+      }
+    } else {
+
+      // Non-timebased sweeper. Each input folder is simply inputDir
+      LOG.info("Non-time-based sweeper");
+      Properties jobProps = createJobProps(topic, inputDir, null, outputDir, fs, metrics);
+      if (jobProps != null) {
+        jobPropsList.add(jobProps);
       }
     }
 
@@ -85,8 +112,8 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
 
     jobProps.put("topic", topic);
 
-    String topicAndHour = topic + ":" + folderHour.toString(hourFormatter);
-    jobProps.put(CamusHourlySweeper.TOPIC_AND_HOUR, topicAndHour);
+    String topicAndHour = topic + ":" + (folderHour != null ? folderHour.toString(timeFormatter) : "");
+    jobProps.put(CamusSingleFolderSweeper.TOPIC_AND_HOUR, topicAndHour);
 
     long dataSize = fs.getContentSummary(folder).getLength();
     metrics.recordDataSizeByTopic(topicAndHour, dataSize);
@@ -95,10 +122,10 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
     List<Path> sourcePaths = new ArrayList<Path>();
     sourcePaths.add(folder);
 
-    Path destPath = new Path(outputDir, folderHour.toString(hourFormatter));
+    Path destPath = (folderHour != null ? new Path(outputDir, folderHour.toString(timeFormatter)) : outputDir);
 
-    jobProps.put(CamusHourlySweeper.INPUT_PATHS, pathListToCommaSeperated(sourcePaths));
-    jobProps.put(CamusHourlySweeper.DEST_PATH, destPath.toString());
+    jobProps.put(CamusSingleFolderSweeper.INPUT_PATHS, pathListToCommaSeperated(sourcePaths));
+    jobProps.put(CamusSingleFolderSweeper.DEST_PATH, destPath.toString());
 
     if (!fs.exists(destPath)) {
       LOG.info(topic + " dest dir " + destPath.toString() + " doesn't exist. Processing.");
@@ -128,11 +155,11 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
   private boolean shouldProcessHour(DateTime folderHour) {
     DateTime currentHour = dUtils.getCurrentHour();
     DateTime maxHoursAgo =
-        currentHour.minusHours(Integer.parseInt(props.getProperty(CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO,
-            DEFAULT_CAMUS_HOURLY_SWEEPER_MAX_HOURS_AGO)));
+        currentHour.minusHours(Integer.parseInt(props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_MAX_HOURS_AGO,
+            DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_MAX_HOURS_AGO)));
     DateTime minHoursAgo =
-        currentHour.minusHours(Integer.parseInt(props.getProperty(CAMUS_HOURLY_SWEEPER_MIN_HOURS_AGO,
-            DEFAULT_CAMUS_HOURLY_SWEEPER_MIN_HOURS_AGO)));
+        currentHour.minusHours(Integer.parseInt(props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_MIN_HOURS_AGO,
+            DEFAULT_CAMUS_SINGLE_FOLDER_SWEEPER_MIN_HOURS_AGO)));
     return (folderHour.isAfter(maxHoursAgo) || folderHour.isEqual(maxHoursAgo))
         && (folderHour.isBefore(minHoursAgo) || folderHour.isEqual(minHoursAgo));
   }

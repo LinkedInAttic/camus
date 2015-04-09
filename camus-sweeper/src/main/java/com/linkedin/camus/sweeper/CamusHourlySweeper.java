@@ -142,6 +142,10 @@ public class CamusHourlySweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
+  private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
+    fs.createNewFile(new Path(folder, "_" + timeStamp));
+  }
+
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
 
     public KafkaCollectorRunner(String name, Properties props, List<SweeperError> errorQueue, String topic) {
@@ -192,11 +196,7 @@ public class CamusHourlySweeper extends CamusSweeper {
       CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
-      createTimeStampFileInOutputPath(jobSubmitTime);
-    }
-
-    private void createTimeStampFileInOutputPath(long jobSubmitTime) throws IOException {
-      this.fs.createNewFile(new Path(this.outputPath, "_" + jobSubmitTime));
+      CamusHourlySweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
@@ -239,14 +239,24 @@ public class CamusHourlySweeper extends CamusSweeper {
 
       for (String inputPathStr : inputPaths.split(",")) {
         Path inputPath = new Path(inputPathStr);
+        long outlierMaxTimestamp = Long.MIN_VALUE;
         for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
           if (status.getModificationTime() > destinationModTime) {
+            if (outlierMaxTimestamp < status.getModificationTime()) {
+              outlierMaxTimestamp = status.getModificationTime();
+            }
             LOG.info("copying outlier file " + status.getPath() + " to " + outputPath);
             FileUtil.copy(fs, status.getPath(), fs, outputPath, false, true, new Configuration());
             fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
           }
         }
+
+        // Create new timestamp file
+        if (outlierMaxTimestamp != Long.MIN_VALUE) {
+          CamusHourlySweeper.createTimeStampFileInFolder(fs, inputPath, outlierMaxTimestamp);
+        }
       }
+
       return null;
     }
 
@@ -261,7 +271,9 @@ public class CamusHourlySweeper extends CamusSweeper {
       for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
         if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
           LOG.info("Found timestamp file: " + status.getPath());
-          return Long.valueOf(status.getPath().getName().substring(1));
+          long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
+          fs.delete(status.getPath(), false);
+          return timeStamp;
         }
       }
 

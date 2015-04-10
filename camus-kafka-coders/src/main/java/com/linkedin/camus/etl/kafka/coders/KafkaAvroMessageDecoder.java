@@ -4,8 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Properties;
 
-import kafka.message.Message;
-
+import com.linkedin.camus.coders.Message;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
@@ -20,7 +19,7 @@ import com.linkedin.camus.schemaregistry.SchemaRegistry;
 import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
-public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
+public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
   private static final Logger log = Logger.getLogger(KafkaAvroMessageDecoder.class);
       
   protected DecoderFactory decoderFactory;
@@ -110,9 +109,9 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<byte[], Record> {
     }
   }
 
-  public CamusWrapper<Record> decode(byte[] payload) {
+  public CamusWrapper<Record> decode(Message message) {
     try {
-      MessageDecoderHelper helper = new MessageDecoderHelper(registry, topicName, payload).invoke();
+      MessageDecoderHelper helper = new MessageDecoderHelper(registry, topicName, message.getPayload()).invoke();
       DatumReader<Record> reader =
           (helper.getTargetSchema() == null) ? new GenericDatumReader<Record>(helper.getSchema())
               : new GenericDatumReader<Record>(helper.getSchema(), helper.getTargetSchema());

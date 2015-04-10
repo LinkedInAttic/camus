@@ -23,9 +23,9 @@ import org.apache.log4j.Logger;
 import com.linkedin.camus.sweeper.mapreduce.CamusSweeperJob;
 
 
-public class CamusHourlySweeper extends CamusSweeper {
+public class CamusSingleFolderSweeper extends CamusSweeper {
 
-  private static final Logger LOG = Logger.getLogger(CamusHourlySweeper.class);
+  private static final Logger LOG = Logger.getLogger(CamusSingleFolderSweeper.class);
 
   private static final String CAMUS_SWEEPER_IO_CONFIGURER_CLASS = "camus.sweeper.io.configurer.class";
   private static final String MAPRED_COMPRESS_MAP_OUTPUT = "mapred.compress.map.output";
@@ -35,12 +35,12 @@ public class CamusHourlySweeper extends CamusSweeper {
 
   private final CamusSweeperMetrics metrics;
 
-  public CamusHourlySweeper() {
+  public CamusSingleFolderSweeper() {
     super();
     metrics = new CamusSweeperMetrics();
   }
 
-  public CamusHourlySweeper(Properties props) {
+  public CamusSingleFolderSweeper(Properties props) {
     super(props);
     metrics = new CamusSweeperMetrics();
   }
@@ -59,8 +59,9 @@ public class CamusHourlySweeper extends CamusSweeper {
   }
 
   /**
-   * Run the hourly compaction job. It largely reuses the daily compaction code by calling super.run().
-   * For each hourly folder that needs to be deduped, it will create a KafkaCollector, and submit it to the thread pool.
+   * Run the single folder compaction job. It largely reuses the daily compaction code by calling super.run().
+   * For each folder that needs to be deduped (which is configurable), it will create a KafkaCollector,
+   * and submit it to the thread pool.
    * After compaction, report job metrics, and add outliers to the outlier folder.
    */
   @Override
@@ -101,8 +102,33 @@ public class CamusHourlySweeper extends CamusSweeper {
     LOG.info("finished reporting metrics");
   }
 
+  /**
+   * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
+   * to create that folder. The timestamp is stored in a _{timestamp} file.
+   *
+   * If such a file doesn't exist, return the timestamp of the folder.
+   * @throws IOException 
+   */
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
+      throws IOException {
+    for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
+      if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
+        LOG.info("Found timestamp file: " + status.getPath());
+        long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
+
+        if (deleteTimestamp) {
+          fs.delete(status.getPath(), false);
+        }
+        return timeStamp;
+      }
+    }
+
+    //return the timestamp of the folder
+    return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
+  }
+
   public static void main(String args[]) throws Exception {
-    CamusSweeper job = new CamusHourlySweeper();
+    CamusSweeper job = new CamusSingleFolderSweeper();
     ToolRunner.run(job, args);
   }
 
@@ -142,6 +168,10 @@ public class CamusHourlySweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
+  private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
+    fs.createNewFile(new Path(folder, "_" + timeStamp));
+  }
+
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
 
     public KafkaCollectorRunner(String name, Properties props, List<SweeperError> errorQueue, String topic) {
@@ -179,7 +209,7 @@ public class CamusHourlySweeper extends CamusSweeper {
      */
     @Override
     public void run() throws Exception {
-      CamusHourlySweeper.this.metrics.recordRunnerStartTimeByTopic(this.topicAndHour, System.currentTimeMillis());
+      CamusSingleFolderSweeper.this.metrics.recordRunnerStartTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       job.getConfiguration().setBoolean(MAPRED_COMPRESS_MAP_OUTPUT, DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT);
 
@@ -187,22 +217,28 @@ public class CamusHourlySweeper extends CamusSweeper {
           LOG).configureJob(topicName, job);
 
       setNumOfReducersAndSplitSizes();
+
+      long jobSubmitTime = System.currentTimeMillis();
+      CamusSingleFolderSweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
+
+      // Creating timestamp file is temporarily disabled.
+      // CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
     protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
-      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       job.submit();
       runningJobs.add(job);
 
-      CamusHourlySweeper.this.metrics.recordMrStartRunningTimeByTopic(this.topicAndHour, System.currentTimeMillis());
+      CamusSingleFolderSweeper.this.metrics.recordMrStartRunningTimeByTopic(this.topicAndHour,
+          System.currentTimeMillis());
 
       LOG.info("job running for: " + props.getProperty(TOPIC_AND_HOUR) + ", url: " + job.getTrackingURL());
       job.waitForCompletion(false);
-      CamusHourlySweeper.this.metrics.recordMrFinishTimeByTopic(this.topicAndHour, System.currentTimeMillis());
+      CamusSingleFolderSweeper.this.metrics.recordMrFinishTimeByTopic(this.topicAndHour, System.currentTimeMillis());
       if (!job.isSuccessful()) {
         throw new RuntimeException("hadoop job failed.");
       }
@@ -224,22 +260,32 @@ public class CamusHourlySweeper extends CamusSweeper {
      */
     @Override
     public Void call() throws IOException {
-      String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
-      String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
-      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
+      String inputPaths = this.props.getProperty(CamusSingleFolderSweeper.INPUT_PATHS);
+      String outputPathStr = this.props.getProperty(CamusSingleFolderSweeper.DEST_PATH);
+      long destinationModTime = getDestinationModTime(this.fs, outputPathStr, true);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
       for (String inputPathStr : inputPaths.split(",")) {
         Path inputPath = new Path(inputPathStr);
+        long outlierMaxTimestamp = Long.MIN_VALUE;
         for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
           if (status.getModificationTime() > destinationModTime) {
+            if (outlierMaxTimestamp < status.getModificationTime()) {
+              outlierMaxTimestamp = status.getModificationTime();
+            }
             LOG.info("copying outlier file " + status.getPath() + " to " + outputPath);
             FileUtil.copy(fs, status.getPath(), fs, outputPath, false, true, new Configuration());
             fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
           }
         }
+
+        // Create new timestamp file
+        if (outlierMaxTimestamp != Long.MIN_VALUE) {
+          CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
+        }
       }
+
       return null;
     }
   }

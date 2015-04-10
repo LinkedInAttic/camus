@@ -19,7 +19,7 @@ import com.linkedin.camus.sweeper.utils.DateUtils;
 import static org.junit.Assert.*;
 
 
-public class CamusHourlySweeperPlannerTest extends EasyMockSupport {
+public class CamusSingleFolderSweeperPlannerTest extends EasyMockSupport {
   @Test
   public void testCreateSweeperJobProps() throws Exception {
     FileSystem mockedFs = createMock(FileSystem.class);
@@ -52,7 +52,7 @@ public class CamusHourlySweeperPlannerTest extends EasyMockSupport {
     String topic = "testTopic";
 
     List<Properties> jobPropsList =
-        new CamusHourlySweeperPlanner().setPropertiesLogger(new Properties(), Logger.getLogger("testLogger"))
+        new CamusSingleFolderSweeperPlanner().setPropertiesLogger(new Properties(), Logger.getLogger("testLogger"))
             .createSweeperJobProps(topic, inputDir, outputDir, mockedFs);
 
     assertEquals(1, jobPropsList.size());
@@ -61,8 +61,8 @@ public class CamusHourlySweeperPlannerTest extends EasyMockSupport {
     String topicAndHour = topic + ":" + hour;
 
     assertEquals(topic, jobProps.getProperty("topic"));
-    assertEquals(topicAndHour, jobProps.getProperty(CamusHourlySweeper.TOPIC_AND_HOUR));
-    assertEquals(inputDirWithHour.toString(), jobProps.getProperty(CamusHourlySweeper.INPUT_PATHS));
-    assertEquals(outputDirWithHour.toString(), jobProps.getProperty(CamusHourlySweeper.DEST_PATH));
+    assertEquals(topicAndHour, jobProps.getProperty(CamusSingleFolderSweeper.TOPIC_AND_HOUR));
+    assertEquals(inputDirWithHour.toString(), jobProps.getProperty(CamusSingleFolderSweeper.INPUT_PATHS));
+    assertEquals(outputDirWithHour.toString(), jobProps.getProperty(CamusSingleFolderSweeper.DEST_PATH));
   }
 }

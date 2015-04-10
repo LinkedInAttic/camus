@@ -384,7 +384,7 @@ public class CamusSweeper extends Configured implements Tool {
     }
 
     private void moveExistingContentInOutputPathToOldPath(Path oldPath) throws IOException {
-      log.info("Path " + outputPath + " exists. Overwriting.");
+      log.info("Path " + outputPath + " exists. Overwriting. Existing content will be moved to " + oldPath);
       if (!fs.rename(outputPath, oldPath)) {
         fs.delete(tmpPath, true);
         throw new RuntimeException("Error: cannot rename " + outputPath + " to " + oldPath);

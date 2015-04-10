@@ -1,10 +1,19 @@
 package com.linkedin.camus.etl.kafka;
 
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+
+import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
+import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+
+import kafka.javaapi.producer.Producer;
+import kafka.producer.KeyedMessage;
+import kafka.producer.ProducerConfig;
+import kafka.serializer.StringEncoder;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -15,13 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
-
-import com.linkedin.camus.etl.kafka.coders.FailDecoder;
-
-import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
-import kafka.producer.ProducerConfig;
-import kafka.serializer.StringEncoder;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -34,16 +36,10 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.google.gson.Gson;
-import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
-import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
 
 
 public class CamusJobTest {
@@ -158,6 +154,7 @@ public class CamusJobTest {
   public void runJobWithErrorsAndFailOnErrors() throws Exception {
     props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
     props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_OTHER, "100.0");
     job = new CamusJob(props);
     job.run();
   }

@@ -484,26 +484,29 @@ public class CamusJob extends Configured implements Tool {
       EtlKey key = new EtlKey();
       ExceptionWritable value = new ExceptionWritable();
 
-      while (reader.next(key, value) && errorCounter < maxErrorsFromFile) {
+      final List<Pair<EtlKey, ExceptionWritable>> errorsFromFile = Lists.<Pair<EtlKey, ExceptionWritable>>newArrayList();
+
+      while (reader.next(key, value)) {
         errorCounter++;
 
-        final List<Pair<EtlKey, ExceptionWritable>> errorsFromFile =
-            errors.containsKey(filePath.toString()) ?
-            errors.get(filePath.toString()) :
-            Lists.<Pair<EtlKey, ExceptionWritable>>newArrayList();
-
-        if (errorCounter >= maxErrorsFromFile) {
-          errorsFromFile.add(
-              new Pair<EtlKey, ExceptionWritable>(new EtlKey(key),
-                                                  new ExceptionWritable("... Too many errors to show. Skipping...")));
-        } else {
+        if (errorCounter <= maxErrorsFromFile) {
           errorsFromFile.add(
               new Pair<EtlKey, ExceptionWritable>(new EtlKey(key),
                                                   new ExceptionWritable(value.toString())));
         }
+      }
 
+      if (errorCounter > 0) {
+        if (errorCounter > maxErrorsFromFile) {
+          errorsFromFile.add(
+              new Pair<EtlKey, ExceptionWritable>(
+                  new EtlKey(key),
+                  new ExceptionWritable("... Too many errors to show. " +
+                                        "Skipped " + (errorCounter - maxErrorsFromFile) + " ...")));
+        }
         errors.put(filePath.toString(), errorsFromFile);
       }
+
       reader.close();
     }
 

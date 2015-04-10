@@ -26,7 +26,7 @@ public class TestJsonStringMessageDecoder {
     String payload = "{\"timestamp\":  " + expectedTimestamp + ", \"myData\": \"myValue\"}";
     byte[] bytePayload = payload.getBytes();
 
-    CamusWrapper actualResult = testDecoder.decode(bytePayload);
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
     long actualTimestamp = actualResult.getTimestamp();
     assertEquals(expectedTimestamp, actualTimestamp);
   }
@@ -47,7 +47,7 @@ public class TestJsonStringMessageDecoder {
     testDecoder.init(testProperties, "testTopic");
     String payload = "{\"timestamp\":  " + testTimestamp + ", \"myData\": \"myValue\"}";
     byte[] bytePayload = payload.getBytes();
-    CamusWrapper actualResult = testDecoder.decode(bytePayload);
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
     long actualTimestamp = actualResult.getTimestamp();
 
     assertEquals(expectedTimestamp, actualTimestamp);
@@ -70,7 +70,7 @@ public class TestJsonStringMessageDecoder {
     testDecoder.init(testProperties, "testTopic");
     String payload = "{\"timestamp\":  \"" + testTimestamp + "\", \"myData\": \"myValue\"}";
     byte[] bytePayload = payload.getBytes();
-    CamusWrapper actualResult = testDecoder.decode(bytePayload);
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
     long actualTimestamp = actualResult.getTimestamp();
 
     assertEquals(expectedTimestamp, actualTimestamp);
@@ -94,14 +94,14 @@ public class TestJsonStringMessageDecoder {
     testDecoder.init(testProperties, "testTopic");
     String payload = "{\"timestamp\":  \"" + testTimestamp1 + "\", \"myData\": \"myValue\"}";
     byte[] bytePayload = payload.getBytes();
-    CamusWrapper actualResult = testDecoder.decode(bytePayload);
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
     long actualTimestamp = actualResult.getTimestamp();
 
     assertEquals(expectedTimestamp, actualTimestamp);
 
     payload = "{\"timestamp\":  \"" + testTimestamp2 + "\", \"myData\": \"myValue\"}";
     bytePayload = payload.getBytes();
-    actualResult = testDecoder.decode(bytePayload);
+    actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
     actualTimestamp = actualResult.getTimestamp();
 
     assertEquals(expectedTimestamp, actualTimestamp);
@@ -112,7 +112,7 @@ public class TestJsonStringMessageDecoder {
     byte[] bytePayload = "{\"key: value}".getBytes();
 
     JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
-    testDecoder.decode(bytePayload);
+    testDecoder.decode(new TestMessage().setPayload(bytePayload));
   }
 
 }

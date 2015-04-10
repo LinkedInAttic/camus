@@ -14,13 +14,11 @@ import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 import java.io.IOException;
 import java.util.HashSet;
 
-import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
@@ -193,7 +191,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   public boolean nextKeyValue() throws IOException, InterruptedException {
 
     if (System.currentTimeMillis() > maxPullTime) {
-      String maxMsg = "at " + new DateTime(curTimeStamp).toString();
+      String maxMsg = " at " + new DateTime(curTimeStamp).toString();
       log.info("Kafka pull time limit reached");
       statusMsg += " max read " + maxMsg;
       context.setStatus(statusMsg);

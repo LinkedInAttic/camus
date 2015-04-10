@@ -98,49 +98,50 @@ public class KafkaReader {
    * Fetches the next Kafka message and stuffs the results into the key and
    * value
    *
-   * @param key
-   * @param payload
-   * @param pKey
+   * @param etlKey
    * @return true if there exists more events
    * @throws IOException
    */
-  public boolean getNext(EtlKey key, BytesWritable payload, BytesWritable pKey) throws IOException {
+  public KafkaMessage getNext(EtlKey etlKey) throws IOException {
     if (hasNext()) {
 
       MessageAndOffset msgAndOffset = messageIter.next();
       Message message = msgAndOffset.message();
 
-      ByteBuffer buf = message.payload();
-      int origSize = buf.remaining();
-      byte[] bytes = new byte[origSize];
-      buf.get(bytes, buf.position(), origSize);
-      payload.set(bytes, 0, origSize);
+      byte[] payload = getBytes(message.payload());
+      byte[] key = getBytes(message.key());
 
-      buf = message.key();
-      if (buf != null) {
-        origSize = buf.remaining();
-        bytes = new byte[origSize];
-        buf.get(bytes, buf.position(), origSize);
-        pKey.set(bytes, 0, origSize);
-      } else {
-        log.warn("Received message with null message.key(): " + msgAndOffset);
-        pKey.setSize(0);
+      if (payload == null) {
+        log.warn("Received message with null message.payload(): " + msgAndOffset);
       }
-
-      key.clear();
-      key.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(), kafkaRequest.getPartition(), currentOffset,
+      if (key == null) {
+        log.warn("Received message with null message.key(): " + msgAndOffset);
+      }
+      etlKey.clear();
+      etlKey.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(), kafkaRequest.getPartition(), currentOffset,
           msgAndOffset.offset() + 1, message.checksum());
 
-      key.setMessageSize(msgAndOffset.message().size());
+      etlKey.setMessageSize(msgAndOffset.message().size());
 
       currentOffset = msgAndOffset.offset() + 1; // increase offset
       currentCount++; // increase count
 
-      return true;
+      return new KafkaMessage(payload, key, kafkaRequest.getTopic(), kafkaRequest.getPartition(), kafkaRequest.getOffset(), message.checksum());
     } else {
-      return false;
+      return null;
     }
   }
+
+  private byte[] getBytes(ByteBuffer buf) {
+    byte[] bytes = null;
+    if (buf != null) {
+      int size = buf.remaining();
+      bytes = new byte[size];
+      buf.get(bytes, buf.position(), size);
+    }
+    return bytes;
+  }
+
 
   /**
    * Creates a fetch request.

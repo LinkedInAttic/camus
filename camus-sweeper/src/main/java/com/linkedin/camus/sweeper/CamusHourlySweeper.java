@@ -142,6 +142,10 @@ public class CamusHourlySweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
+  private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
+    fs.createNewFile(new Path(folder, "_" + timeStamp));
+  }
+
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
 
     public KafkaCollectorRunner(String name, Properties props, List<SweeperError> errorQueue, String topic) {
@@ -187,13 +191,16 @@ public class CamusHourlySweeper extends CamusSweeper {
           LOG).configureJob(topicName, job);
 
       setNumOfReducersAndSplitSizes();
+
+      long jobSubmitTime = System.currentTimeMillis();
+      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
+      CamusHourlySweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
     protected void submitMrJob() throws IOException, InterruptedException, ClassNotFoundException {
-      CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, System.currentTimeMillis());
 
       job.submit();
       runningJobs.add(job);
@@ -226,21 +233,57 @@ public class CamusHourlySweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
-      long destinationModTime = fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
+      long destinationModTime = getDestinationModTime(this.fs, outputPathStr, true);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
       for (String inputPathStr : inputPaths.split(",")) {
         Path inputPath = new Path(inputPathStr);
+        long outlierMaxTimestamp = Long.MIN_VALUE;
         for (FileStatus status : fs.globStatus(new Path(inputPath, "*"), new HiddenFilter())) {
           if (status.getModificationTime() > destinationModTime) {
+            if (outlierMaxTimestamp < status.getModificationTime()) {
+              outlierMaxTimestamp = status.getModificationTime();
+            }
             LOG.info("copying outlier file " + status.getPath() + " to " + outputPath);
             FileUtil.copy(fs, status.getPath(), fs, outputPath, false, true, new Configuration());
             fs.rename(status.getPath(), new Path(outputPath, status.getPath().getName()));
           }
         }
+
+        // Create new timestamp file
+        if (outlierMaxTimestamp != Long.MIN_VALUE) {
+          CamusHourlySweeper.createTimeStampFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
+        }
       }
+
       return null;
     }
+
+  }
+
+  /**
+   * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
+   * to create that folder. The timestamp is stored in a _{timestamp} file.
+   *
+   * If such a file doesn't exist, return the timestamp of the folder.
+   * @throws IOException 
+   */
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
+      throws IOException {
+    for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
+      if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
+        LOG.info("Found timestamp file: " + status.getPath());
+        long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
+
+        if (deleteTimestamp) {
+          fs.delete(status.getPath(), false);
+        }
+        return timeStamp;
+      }
+    }
+
+    //return the timestamp of the folder
+    return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
   }
 }

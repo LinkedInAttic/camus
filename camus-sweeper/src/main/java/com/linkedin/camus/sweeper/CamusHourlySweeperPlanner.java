@@ -114,7 +114,7 @@ public class CamusHourlySweeperPlanner extends CamusSweeperPlanner {
   }
 
   private boolean sourceDirHasOutliers(FileSystem fs, List<Path> sourcePaths, Path destPath) throws IOException {
-    long destinationModTime = fs.getFileStatus(destPath).getModificationTime();
+    long destinationModTime = CamusHourlySweeper.getDestinationModTime(fs, destPath.toString(), false);
     for (Path source : sourcePaths) {
       for (FileStatus status : fs.globStatus(new Path(source, "*"), new HiddenFilter())) {
         if (status.getModificationTime() > destinationModTime) {

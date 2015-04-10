@@ -71,16 +71,15 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) throws IOException,
+      InterruptedException {
     this.inputFormat = inputFormat;
     initialize(split, context);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
-  public void initialize(InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
     // For class path debugging
     log.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = EtlRecordReader.class.getClassLoader();
@@ -292,7 +291,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             log.info(key.getTopic() + " begin read at " + time.toString());
             endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
           } else if (curTimeStamp > endTimeStamp) {
-            String maxMsg = "at " + new DateTime(curTimeStamp).toString();
+            String maxMsg = " at " + new DateTime(curTimeStamp).toString();
             log.info("Kafka Max history hours reached");
             mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max partition hours reached"
                 + maxMsg));

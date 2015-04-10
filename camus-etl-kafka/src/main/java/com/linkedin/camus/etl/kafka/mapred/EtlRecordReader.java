@@ -1,5 +1,18 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import java.io.IOException;
+import java.util.HashSet;
+
+import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.log4j.Logger;
+import org.joda.time.DateTime;
+
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.Message;
 import com.linkedin.camus.coders.MessageDecoder;
@@ -10,22 +23,6 @@ import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
 import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
-
-import kafka.message.Message;
-
-import java.io.IOException;
-import java.util.HashSet;
-
-import org.apache.hadoop.fs.ChecksumException;
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.mapreduce.InputSplit;
-import org.apache.hadoop.mapreduce.JobContext;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.RecordReader;
-import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.log4j.Logger;
-import org.joda.time.DateTime;
 
 
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
@@ -74,16 +71,15 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) throws IOException,
+      InterruptedException {
     this.inputFormat = inputFormat;
     initialize(split, context);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
-  public void initialize(InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
     // For class path debugging
     log.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = EtlRecordReader.class.getClassLoader();

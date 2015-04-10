@@ -126,7 +126,7 @@ public class KafkaReader {
       currentOffset = msgAndOffset.offset() + 1; // increase offset
       currentCount++; // increase count
 
-      return new KafkaMessage(payload, key, kafkaRequest.getTopic(), kafkaRequest.getPartition(), kafkaRequest.getOffset(), message.checksum());
+      return new KafkaMessage(payload, key, kafkaRequest.getTopic(), kafkaRequest.getPartition(), msgAndOffset.offset(), message.checksum());
     } else {
       return null;
     }

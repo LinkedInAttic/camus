@@ -253,7 +253,7 @@ public class CamusHourlySweeper extends CamusSweeper {
 
         // Create new timestamp file
         if (outlierMaxTimestamp != Long.MIN_VALUE) {
-          CamusHourlySweeper.createTimeStampFileInFolder(fs, inputPath, outlierMaxTimestamp);
+          CamusHourlySweeper.createTimeStampFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
         }
       }
 

@@ -70,7 +70,11 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
     String keySchemaStr = getConfValue(job, topic, "camus.sweeper.avro.key.schema");
 
     Schema keySchema;
-    if (keySchemaStr == null || keySchemaStr.isEmpty() || job.getConfiguration().getBoolean("second.stage", false)) {
+    if (job.getConfiguration().getBoolean("camus.sweeper.use.all.attributes", false)) {
+      log.info("Using all attributes in the schema (except Map fields) for deduping");
+      keySchema = getAllFieldsExceptMap(schema);
+    } else if (keySchemaStr == null || keySchemaStr.isEmpty()
+        || job.getConfiguration().getBoolean("second.stage", false)) {
       job.setNumReduceTasks(0);
       keySchema = schema;
     } else {
@@ -90,6 +94,19 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
     // setting the compression level. Only used if compression is enabled. default is 6
     job.getConfiguration().setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY,
         job.getConfiguration().getInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, 6));
+  }
+
+  private Schema getAllFieldsExceptMap(Schema schema) {
+    List<Field> fields = new ArrayList<Schema.Field>();
+    for (Field f : schema.getFields()) {
+      if (f.schema().getType() != Schema.Type.MAP) {
+        fields.add(new Field(f.name(), f.schema(), f.doc(), f.defaultValue(), f.order()));
+      }
+    }
+
+    Schema newSchema = Schema.createRecord(schema.getName(), schema.getDoc(), schema.getName(), false);
+    newSchema.setFields(fields);
+    return newSchema;
   }
 
   private boolean validateKeySchema(Schema schema, Schema keySchema) {

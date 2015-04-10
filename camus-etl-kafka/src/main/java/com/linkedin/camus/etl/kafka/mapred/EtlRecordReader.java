@@ -11,12 +11,9 @@ import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import com.linkedin.camus.etl.kafka.common.KafkaReader;
 import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 
-import kafka.message.Message;
-
 import java.io.IOException;
 import java.util.HashSet;
 
-import org.apache.hadoop.fs.ChecksumException;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -74,16 +71,15 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) throws IOException,
+      InterruptedException {
     this.inputFormat = inputFormat;
     initialize(split, context);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
   @Override
-  public void initialize(InputSplit split, TaskAttemptContext context) 
-      throws IOException, InterruptedException {
+  public void initialize(InputSplit split, TaskAttemptContext context) throws IOException, InterruptedException {
     // For class path debugging
     log.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = EtlRecordReader.class.getClassLoader();
@@ -194,7 +190,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   public boolean nextKeyValue() throws IOException, InterruptedException {
 
     if (System.currentTimeMillis() > maxPullTime) {
-      String maxMsg = "at " + new DateTime(curTimeStamp).toString();
+      String maxMsg = " at " + new DateTime(curTimeStamp).toString();
       log.info("Kafka pull time limit reached");
       statusMsg += " max read " + maxMsg;
       context.setStatus(statusMsg);

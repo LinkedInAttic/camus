@@ -102,6 +102,31 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
     LOG.info("finished reporting metrics");
   }
 
+  /**
+   * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
+   * to create that folder. The timestamp is stored in a _{timestamp} file.
+   *
+   * If such a file doesn't exist, return the timestamp of the folder.
+   * @throws IOException 
+   */
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
+      throws IOException {
+    for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
+      if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
+        LOG.info("Found timestamp file: " + status.getPath());
+        long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
+
+        if (deleteTimestamp) {
+          fs.delete(status.getPath(), false);
+        }
+        return timeStamp;
+      }
+    }
+
+    //return the timestamp of the folder
+    return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
+  }
+
   public static void main(String args[]) throws Exception {
     CamusSweeper job = new CamusSingleFolderSweeper();
     ToolRunner.run(job, args);
@@ -197,7 +222,9 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
       CamusSingleFolderSweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
-      CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
+
+      // Creating timestamp file is temporarily disabled.
+      // CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
@@ -235,7 +262,7 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusSingleFolderSweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusSingleFolderSweeper.DEST_PATH);
-      long destinationModTime = getDestinationModTime(outputPathStr);
+      long destinationModTime = getDestinationModTime(this.fs, outputPathStr, true);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
@@ -260,26 +287,6 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
       }
 
       return null;
-    }
-
-    /**
-     * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
-     * to create that folder. The timestamp is stored in a _{timestamp} file.
-     *
-     * If such a file doesn't exist, return the timestamp of the folder.
-     */
-    private long getDestinationModTime(String outputPathStr) throws IOException {
-      for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
-        if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
-          LOG.info("Found timestamp file: " + status.getPath());
-          long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
-          fs.delete(status.getPath(), false);
-          return timeStamp;
-        }
-      }
-
-      //return the timestamp of the folder
-      return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
     }
   }
 }

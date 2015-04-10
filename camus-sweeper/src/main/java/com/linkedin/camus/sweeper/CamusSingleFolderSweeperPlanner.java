@@ -130,6 +130,9 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
     if (!fs.exists(destPath)) {
       LOG.info(topic + " dest dir " + destPath.toString() + " doesn't exist. Processing.");
       return jobProps;
+    } else if (forceReprocess()) {
+      LOG.info(topic + " dest dir " + destPath.toString() + " exists, but force reprocess set to true. Reprocessing.");
+      return jobProps;
     } else if (sourceDirHasOutliers(fs, sourcePaths, destPath)) {
       LOG.info("found outliers for topic " + topic + ". Will add outliers to " + destPath.toString());
       this.outlierProperties.add(jobProps);
@@ -140,8 +143,12 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
     }
   }
 
+  private boolean forceReprocess() {
+    return Boolean.valueOf(this.props.getProperty("camus.sweeper.always.reprocess", Boolean.FALSE.toString()));
+  }
+
   private boolean sourceDirHasOutliers(FileSystem fs, List<Path> sourcePaths, Path destPath) throws IOException {
-    long destinationModTime = fs.getFileStatus(destPath).getModificationTime();
+    long destinationModTime = CamusSingleFolderSweeper.getDestinationModTime(fs, destPath.toString(), false);
     for (Path source : sourcePaths) {
       for (FileStatus status : fs.globStatus(new Path(source, "*"), new HiddenFilter())) {
         if (status.getModificationTime() > destinationModTime) {

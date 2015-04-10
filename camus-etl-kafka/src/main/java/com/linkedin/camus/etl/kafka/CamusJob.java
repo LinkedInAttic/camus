@@ -363,15 +363,8 @@ public class CamusJob extends Configured implements Tool {
       }
     }
 
-    checkIfTooManySkippedMsg(counters);
-
     stopTiming("hadoop");
     startTiming("commit");
-
-    // Send Tracking counts to Kafka
-    String etlCountsClassName = props.getProperty(ETL_COUNTS_CLASS, ETL_COUNTS_CLASS_DEFAULT);
-    Class<? extends EtlCounts> etlCountsClass = (Class<? extends EtlCounts>) Class.forName(etlCountsClassName);
-    sendTrackingCounts(job, fs, newExecutionOutput, etlCountsClass);
 
     Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
 
@@ -383,6 +376,13 @@ public class CamusJob extends Configured implements Tool {
       log.error(entry.getKey().toString());
       log.error(entry.getValue().toString());
     }
+
+    checkIfTooManySkippedMsg(counters);
+
+    // Send Tracking counts to Kafka
+    String etlCountsClassName = props.getProperty(ETL_COUNTS_CLASS, ETL_COUNTS_CLASS_DEFAULT);
+    Class<? extends EtlCounts> etlCountsClass = (Class<? extends EtlCounts>) Class.forName(etlCountsClassName);
+    sendTrackingCounts(job, fs, newExecutionOutput, etlCountsClass);
 
     Path newHistory = new Path(execHistory, executionDate);
     log.info("Moving execution to history : " + newHistory);

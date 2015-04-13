@@ -147,7 +147,7 @@ public class CamusHourlySweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
-  private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
+  private static void createStateFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
     // delete existing state file
     for (FileStatus status : fs.listStatus(folder)) {
       if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
@@ -219,7 +219,7 @@ public class CamusHourlySweeper extends CamusSweeper {
       CamusHourlySweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
-      CamusHourlySweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
+      CamusHourlySweeper.createStateFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
@@ -276,7 +276,7 @@ public class CamusHourlySweeper extends CamusSweeper {
 
         // Create new timestamp file
         if (outlierMaxTimestamp != Long.MIN_VALUE) {
-          CamusHourlySweeper.createTimeStampFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
+          CamusHourlySweeper.createStateFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
         }
       }
 

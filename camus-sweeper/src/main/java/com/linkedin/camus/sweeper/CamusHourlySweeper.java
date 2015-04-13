@@ -294,8 +294,7 @@ public class CamusHourlySweeper extends CamusSweeper {
    * If such a file doesn't exist, return the timestamp of the folder.
    * @throws IOException 
    */
-  public static long getDestinationModTime(FileSystem fs, String outputPathStr)
-      throws IOException {
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr) throws IOException {
     for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
       if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
         LOG.info("Found state file: " + status.getPath());
@@ -304,10 +303,9 @@ public class CamusHourlySweeper extends CamusSweeper {
           fin = fs.open(status.getPath());
           Properties properties = new Properties();
           properties.load(fin);
-
-          long timeStamp = Long.valueOf(properties.getProperty(MAPREDUCE_SUBMIT_TIME));
-
-          return timeStamp;
+          if (properties.containsKey(MAPREDUCE_SUBMIT_TIME)) {
+            return Long.valueOf(properties.getProperty(MAPREDUCE_SUBMIT_TIME));
+          }
         } finally {
           if (fin != null) {
             fin.close();

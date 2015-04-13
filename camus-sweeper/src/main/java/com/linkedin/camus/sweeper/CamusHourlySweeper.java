@@ -151,7 +151,9 @@ public class CamusHourlySweeper extends CamusSweeper {
     // delete existing state file
     for (FileStatus status : fs.listStatus(folder)) {
       if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
-        fs.delete(status.getPath(), false);
+        if (!fs.delete(status.getPath(), false)) {
+          throw new IOException("Failed to delete state file " + status.getPath());
+        }
       }
     }
 

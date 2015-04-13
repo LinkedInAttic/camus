@@ -258,7 +258,7 @@ public class CamusHourlySweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusHourlySweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusHourlySweeper.DEST_PATH);
-      long destinationModTime = getDestinationModTime(this.fs, outputPathStr, true);
+      long destinationModTime = getDestinationModTime(this.fs, outputPathStr);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
@@ -294,7 +294,7 @@ public class CamusHourlySweeper extends CamusSweeper {
    * If such a file doesn't exist, return the timestamp of the folder.
    * @throws IOException 
    */
-  public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr)
       throws IOException {
     for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
       if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
@@ -306,10 +306,6 @@ public class CamusHourlySweeper extends CamusSweeper {
           properties.load(fin);
 
           long timeStamp = Long.valueOf(properties.getProperty(MAPREDUCE_SUBMIT_TIME));
-
-          if (deleteTimestamp) {
-            fs.delete(status.getPath(), false);
-          }
 
           return timeStamp;
         } finally {

@@ -5,6 +5,7 @@ import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EmailLogger;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
@@ -349,7 +350,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
                   + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
                   + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
-              reportJobFailureDueToLeaderNotAvailable = true; 
+              reportJobFailureDueToLeaderNotAvailable = true;
             } else {
               if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
                 log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "
@@ -416,8 +417,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       if (request.getEarliestOffset() > request.getOffset() || request.getOffset() > request.getLastOffset()) {
         if (request.getEarliestOffset() > request.getOffset()) {
           log.error("The earliest offset was found to be more than the current offset: " + request);
+          EmailLogger.log("The earliest offset was found to be more than the current offset: " + request);
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
+          EmailLogger.log("The current offset was found to be more than the latest offset: " + request);
         }
 
         boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
@@ -440,6 +443,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
                     " to start processing from earliest kafka metadata offset.");
           reportJobFailureDueToOffsetOutOfRange = true;
         }
+      } else if (3 * (request.getOffset() - request.getEarliestOffset())
+          < request.getLastOffset() - request.getOffset()) {
+        EmailLogger.log(
+            "The current offset is too close to the earliest offset, Camus might be falling behind: " + request);
       }
       log.info(request);
     }

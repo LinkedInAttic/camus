@@ -11,7 +11,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
@@ -32,6 +35,8 @@ public class CamusHourlySweeper extends CamusSweeper {
   private static final boolean DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT = Boolean.TRUE;
 
   static final String TOPIC_AND_HOUR = "topic.and.hour";
+  static final String STATE_FILE_NAME = "_state";
+  static final String MAPREDUCE_SUBMIT_TIME = "mapreduce.submit.time";
 
   private final CamusSweeperMetrics metrics;
 
@@ -143,7 +148,25 @@ public class CamusHourlySweeper extends CamusSweeper {
   }
 
   private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
-    fs.createNewFile(new Path(folder, "_" + timeStamp));
+    // delete existing state file
+    for (FileStatus status : fs.listStatus(folder)) {
+      if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
+        fs.delete(status.getPath(), false);
+      }
+    }
+
+    // write new state file
+    FSDataOutputStream fout = null;
+    try {
+      fout = fs.create(new Path(folder, STATE_FILE_NAME));
+      Properties properties = new Properties();
+      properties.setProperty(MAPREDUCE_SUBMIT_TIME, String.valueOf(timeStamp));
+      properties.store(fout, StringUtils.EMPTY);
+    } finally {
+      if (fout != null) {
+        fout.close();
+      }
+    }
   }
 
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
@@ -272,18 +295,30 @@ public class CamusHourlySweeper extends CamusSweeper {
   public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
       throws IOException {
     for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
-      if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
-        LOG.info("Found timestamp file: " + status.getPath());
-        long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
+      if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
+        LOG.info("Found state file: " + status.getPath());
+        FSDataInputStream fin = null;
+        try {
+          fin = fs.open(status.getPath());
+          Properties properties = new Properties();
+          properties.load(fin);
 
-        if (deleteTimestamp) {
-          fs.delete(status.getPath(), false);
+          long timeStamp = Long.valueOf(properties.getProperty(MAPREDUCE_SUBMIT_TIME));
+
+          if (deleteTimestamp) {
+            fs.delete(status.getPath(), false);
+          }
+
+          return timeStamp;
+        } finally {
+          if (fin != null) {
+            fin.close();
+          }
         }
-        return timeStamp;
       }
     }
 
-    //return the timestamp of the folder
+    //return the timestamp of the folder, if the state file doesn't exist, or cannot get timestamp from state file.
     return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
   }
 }

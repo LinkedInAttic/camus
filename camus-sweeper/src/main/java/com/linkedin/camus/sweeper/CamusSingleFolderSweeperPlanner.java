@@ -148,7 +148,7 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
   }
 
   private boolean sourceDirHasOutliers(FileSystem fs, List<Path> sourcePaths, Path destPath) throws IOException {
-    long destinationModTime = CamusSingleFolderSweeper.getDestinationModTime(fs, destPath.toString(), false);
+    long destinationModTime = CamusSingleFolderSweeper.getDestinationModTime(fs, destPath.toString());
     for (Path source : sourcePaths) {
       for (FileStatus status : fs.globStatus(new Path(source, "*"), new HiddenFilter())) {
         if (status.getModificationTime() > destinationModTime) {

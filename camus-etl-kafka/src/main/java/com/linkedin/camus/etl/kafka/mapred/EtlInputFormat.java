@@ -1,5 +1,6 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
+import com.google.common.base.Strings;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
@@ -380,6 +381,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     writeRequests(finalRequests, context);
     Map<CamusRequest, EtlKey> offsetKeys = getPreviousOffsets(FileInputFormat.getInputPaths(context), context);
     Set<String> moveLatest = getMoveToLatestTopicsSet(context);
+    String camusRequestEmailMessage = "";
     for (CamusRequest request : finalRequests) {
       if (moveLatest.contains(request.getTopic()) || moveLatest.contains("all")) {
         log.info("Moving to latest for topic: " + request.getTopic());
@@ -405,10 +407,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       if (request.getEarliestOffset() > request.getOffset() || request.getOffset() > request.getLastOffset()) {
         if (request.getEarliestOffset() > request.getOffset()) {
           log.error("The earliest offset was found to be more than the current offset: " + request);
-          EmailClient.sendEmail("The earliest offset was found to be more than the current offset: " + request);
         } else {
           log.error("The current offset was found to be more than the latest offset: " + request);
-          EmailClient.sendEmail("The current offset was found to be more than the latest offset: " + request);
         }
 
         boolean move_to_earliest_offset = context.getConfiguration().getBoolean(KAFKA_MOVE_TO_EARLIEST_OFFSET, false);
@@ -433,11 +433,14 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         }
       } else if (3 * (request.getOffset() - request.getEarliestOffset())
           < request.getLastOffset() - request.getOffset()) {
-        EmailClient
-            .sendEmail(
-                "The current offset is too close to the earliest offset, Camus might be falling behind: " + request);
+        camusRequestEmailMessage +=
+                "The current offset is too close to the earliest offset, Camus might be falling behind: "
+                    + request + "\n";
       }
       log.info(request);
+    }
+    if(!Strings.isNullOrEmpty(camusRequestEmailMessage)) {
+      EmailClient.sendEmail(camusRequestEmailMessage);
     }
 
     writePrevious(offsetKeys.values(), context);

@@ -71,8 +71,9 @@ public class EmailClient {
       MimeMessage message = new MimeMessage(session);
       message.setFrom(new InternetAddress(senderEmail));
 
-      for (String to : emailList)
+      for (String to : emailList) {
         message.addRecipient(Message.RecipientType.TO, new InternetAddress(to, false));
+      }
       message.setSubject(subjectLine);
 
       message.setContent(content, "text/html");

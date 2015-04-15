@@ -1,6 +1,7 @@
 package com.linkedin.camus.etl.kafka;
 
 import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EmailClient;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
@@ -233,12 +234,15 @@ public class CamusJob extends Configured implements Tool {
   public void run() throws Exception {
     run(EtlInputFormat.class, EtlMultiOutputFormat.class);
   }
-  
+
   public void run(Class<? extends InputFormat> inputFormatClass,
                   Class<? extends OutputFormat> outputFormatClass) throws Exception {
 
     startTiming("pre-setup");
     startTiming("total");
+
+    EmailClient.setup(props);
+
     Job job = createJob(props);
     if (getLog4jConfigure(job)) {
       DOMConfigurator.configure("log4j.xml");
@@ -371,7 +375,7 @@ public class CamusJob extends Configured implements Tool {
     String etlCountsClassName = props.getProperty(ETL_COUNTS_CLASS, ETL_COUNTS_CLASS_DEFAULT);
     Class<? extends EtlCounts> etlCountsClass = (Class<? extends EtlCounts>) Class.forName(etlCountsClassName);
     sendTrackingCounts(job, fs, newExecutionOutput, etlCountsClass);
-    
+
     Path newHistory = new Path(execHistory, executionDate);
     log.info("Moving execution to history : " + newHistory);
     fs.rename(newExecutionOutput, newHistory);
@@ -428,7 +432,7 @@ public class CamusJob extends Configured implements Tool {
 
     long actualSkippedSchemaNotFound = 0;
     long actualSkippedOther = 0;
-    long actualDecodeSuccessful = 0; 
+    long actualDecodeSuccessful = 0;
     for (String groupName : counters.getGroupNames()) {
       if (groupName.equals(EtlRecordReader.KAFKA_MSG.class.getName())) {
         CounterGroup group = counters.getGroup(groupName);
@@ -610,7 +614,7 @@ public class CamusJob extends Configured implements Tool {
    * Creates a diagnostic report based on provided logger
    * defaults to TimeLogger which focusses on timing breakdowns. Useful
    * for determining where to optimize.
-   * 
+   *
    * @param job
    * @param timingMap
    * @throws IOException

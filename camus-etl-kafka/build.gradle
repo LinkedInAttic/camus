@@ -1,5 +1,5 @@
 apply plugin: 'li-java'
- 
+
 dependencies {
 
 	compile(project(":camus-external:camus-api"))
@@ -22,7 +22,9 @@ dependencies {
 	compile spec.external.snappyJava
 	compile spec.external.dogstatsd
   compile spec.external.easymock
-	compile fileTree(dir: '../lib', includes: ['*.jar'])
+  compile spec.external.javaMail
+  compile spec.external.dumbster
+  compile fileTree(dir: '../lib', includes: ['*.jar'])
 }
- 
+
 classification="library"

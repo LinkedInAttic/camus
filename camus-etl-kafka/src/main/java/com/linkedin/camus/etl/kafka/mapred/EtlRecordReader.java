@@ -297,7 +297,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               exceptionCount++;
             } else if (exceptionCount == getMaximumDecoderExceptionsToPrint(context)) {
               log.info("The same exception has occured for more than " + getMaximumDecoderExceptionsToPrint(context)
-                  + " records. This partition will be skipped.");
+                  + " records. All further exceptions will not be printed");
+            }
+            if (System.currentTimeMillis() > maxPullTime) {
               exceptionCount = 0;
               break;
             }

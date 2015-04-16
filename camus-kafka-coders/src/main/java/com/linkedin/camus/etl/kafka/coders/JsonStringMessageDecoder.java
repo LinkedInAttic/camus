@@ -4,7 +4,6 @@ import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
 
-import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
 
@@ -49,52 +48,41 @@ public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
 	public CamusWrapper<String> decode(byte[] payload) {
 		long       timestamp = 0;
 		String     payloadString;
+                JSONObject jobj;
     // Need to specify Charset because the default might not be UTF-8.
     // Bug fix for https://jira.airbnb.com:8443/browse/PRODUCT-5551.
 		payloadString =  new String(payload, Charset.forName("UTF-8"));
 
 		// Parse the payload into a JsonObject.
 		try {
-      Object obj = JSONValue.parse(payloadString);
-      if (obj instanceof JSONObject) {
-        timestamp = getTimestamp((JSONObject) obj);
-      } else if (obj instanceof JSONArray) {
-        for (Object elem : (JSONArray) obj) {
-          timestamp = getTimestamp((JSONObject) elem);
-          if (timestamp != 0L) {
-            break;
-          }
-        }
-      }
+                        jobj = (JSONObject) JSONValue.parse(payloadString);
 		} catch (RuntimeException e) {
 			log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
 			throw new RuntimeException(e);
 		}
 
+		// Attempt to read and parse the timestamp element into a long.
+		if (jobj.get(timestampField) != null) {
+			Object ts = jobj.get(timestampField);
+			if (ts instanceof String) {
+				try {
+					timestamp = new SimpleDateFormat(timestampFormat).parse((String)ts).getTime();
+				} catch (Exception e) {
+					log.error("Could not parse timestamp '" + ts + "' while decoding JSON message.");
+				}
+			} else if (ts instanceof Long) {
+				timestamp = (Long)ts;
+			}
+		}
+
 		// If timestamp wasn't set in the above block,
 		// then set it to current time.
+		final long now = System.currentTimeMillis();
 		if (timestamp == 0) {
 			log.warn("Couldn't find or parse timestamp field '" + timestampField + "' in JSON message, defaulting to current time.");
-			timestamp = System.currentTimeMillis();;
+			timestamp = now;
 		}
 
 		return new CamusWrapper<String>(payloadString, timestamp);
 	}
-
-  private long getTimestamp(JSONObject jsonObject) {
-    // Attempt to read and parse the timestamp element into a long.
-    if (jsonObject.get(timestampField) != null) {
-      Object ts = jsonObject.get(timestampField);
-      if (ts instanceof String) {
-        try {
-          return new SimpleDateFormat(timestampFormat).parse((String)ts).getTime();
-        } catch (Exception e) {
-          log.error("Could not parse timestamp '" + ts + "' while decoding JSON message.");
-        }
-      } else if (ts instanceof Long) {
-        return (Long)ts;
-      }
-    }
-    return 0L;
-  }
 }

@@ -387,7 +387,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     });
 
-    log.info("The requests from kafka metadata are: \n" + finalRequests);
     writeRequests(finalRequests, context);
     Map<CamusRequest, EtlKey> offsetKeys = getPreviousOffsets(FileInputFormat.getInputPaths(context), context);
     Set<String> moveLatest = getMoveToLatestTopicsSet(context);

@@ -36,9 +36,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
-  
+
   private void mkdirs(FileSystem fs, Path path) throws IOException {
-    if (! fs.exists(path.getParent())) {
+    if (!fs.exists(path.getParent())) {
       mkdirs(fs, path.getParent());
     }
     fs.mkdirs(path);
@@ -58,9 +58,10 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     EtlKey offsetKey = new EtlKey(key);
 
     if (offsets.containsKey(topicPart)) {
-      long avgSize = offsets.get(topicPart).getMessageSize() * eventCounts.get(topicPart) + key.getMessageSize();
-      avgSize /= eventCounts.get(topicPart) + 1;
+      long totalSize = offsets.get(topicPart).getTotalMessageSize() + key.getMessageSize();
+      long avgSize = totalSize / (eventCounts.get(topicPart) + 1);
       offsetKey.setMessageSize(avgSize);
+      offsetKey.setTotalMessageSize(totalSize);
     } else {
       eventCounts.put(topicPart, 0l);
     }
@@ -142,6 +143,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
             new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
                 EtlMultiOutputFormat.OFFSET_PREFIX, "")), EtlKey.class, NullWritable.class);
     for (String s : offsets.keySet()) {
+      log.info("Avg record size for " + offsets.get(s).getTopic() + ":" + offsets.get(s).getPartition() + " = "
+          + offsets.get(s).getMessageSize());
       offsetWriter.append(offsets.get(s), NullWritable.get());
     }
     offsetWriter.close();

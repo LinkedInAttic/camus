@@ -1,9 +1,12 @@
 package com.linkedin.camus.etl;
 
 
-
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+import java.io.IOException;
 
 /**
  * Partitions incoming events, and generates directories and file names in which to
@@ -72,5 +75,4 @@ public abstract class Partitioner extends Configured {
     public abstract String getWorkingFileName(JobContext context, String topic, String brokerId, 
         int partitionId, String encodedPartition);
 
-       
 }

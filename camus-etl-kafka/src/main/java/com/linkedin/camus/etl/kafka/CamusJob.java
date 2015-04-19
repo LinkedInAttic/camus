@@ -391,6 +391,7 @@ public class CamusJob extends Configured implements Tool {
       TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
 
       for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+        log.info(String.format("TaskId: %s exited with status %s", task.getTaskID().toString(),task.getCurrentStatus()));
         if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
           for (String s : task.getDiagnostics()) {
             System.err.println("task error: " + s);
@@ -687,8 +688,14 @@ public class CamusJob extends Configured implements Tool {
 
     props.putAll(cmd.getOptionProperties("D"));
 
-    run();
-    return 0;
+    try {
+      run();
+      log.info("Exiting successful Camus run.");
+      return 0;
+    } catch(Exception ex) {
+      log.error("Camus run failed with unexpected exception:", ex);
+      return 1;
+    }
   }
 
   // Temporarily adding all Kafka parameters here

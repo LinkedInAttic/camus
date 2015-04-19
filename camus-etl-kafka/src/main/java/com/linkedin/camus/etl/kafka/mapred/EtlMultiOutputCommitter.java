@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,8 +14,6 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.NullWritable;
-import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
@@ -27,6 +26,8 @@ import com.linkedin.camus.etl.kafka.common.EtlKey;
 
 
 public class EtlMultiOutputCommitter extends FileOutputCommitter {
+  public static final String ETL_COMMIT_HOOKS = "etl.commit.hooks";
+  private final List<CommitHook> commitHooks = new ArrayList<CommitHook>();
   private Pattern workingFileMetadataPattern;
 
   private HashMap<String, EtlCounts> counts = new HashMap<String, EtlCounts>();
@@ -36,12 +37,35 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
-  
+
+  private void addCommitHooks(TaskAttemptContext context, Path outputPath) throws IOException {
+    try {
+      Path workPath = super.getWorkPath();
+      log.debug("Adding offset writer hook: " + SequenceFileOffsetCommitter.class.getCanonicalName());
+      commitHooks.add(new SequenceFileOffsetCommitter());
+
+      for (Class<?> klass : context.getConfiguration().getClasses(ETL_COMMIT_HOOKS)) {
+        log.debug("Adding offset writer hook: " + klass.getCanonicalName());
+        Constructor constructor = klass.getConstructor();
+        CommitHook commitHook = (CommitHook) constructor.newInstance();
+        commitHooks.add(commitHook);
+      }
+    }
+    catch (Exception e) {
+      throw new IOException(e);
+    }
+  }
+
   private void mkdirs(FileSystem fs, Path path) throws IOException {
     if (! fs.exists(path.getParent())) {
       mkdirs(fs, path.getParent());
     }
     fs.mkdirs(path);
+  }
+
+  @Override
+  public void setupTask(org.apache.hadoop.mapreduce.TaskAttemptContext context) throws java.io.IOException {
+    this.context = context;
   }
 
   public void addCounts(EtlKey key) throws IOException {
@@ -68,7 +92,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     offsets.put(topicPart, offsetKey);
   }
 
-  public EtlMultiOutputCommitter(Path outputPath, TaskAttemptContext context, Logger log) throws IOException {
+  public EtlMultiOutputCommitter(Path outputPath, TaskAttemptContext context, Logger log)
+          throws IOException {
     super(outputPath, context);
     this.context = context;
     try {
@@ -80,9 +105,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       throw new IllegalStateException(e);
     }
     workingFileMetadataPattern =
-        Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
-            + recordWriterProvider.getFilenameExtension());
+            Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
+                    + recordWriterProvider.getFilenameExtension());
     this.log = log;
+
+    addCommitHooks(context, outputPath);
   }
 
   @Override
@@ -90,9 +117,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
     ArrayList<Map<String, Object>> allCountObject = new ArrayList<Map<String, Object>>();
     FileSystem fs = FileSystem.get(context.getConfiguration());
+    Path workPath = super.getWorkPath();
+    log.info("work path: " + workPath);
     if (EtlMultiOutputFormat.isRunMoveData(context)) {
-      Path workPath = super.getWorkPath();
-      log.info("work path: " + workPath);
       Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
       log.info("Destination base path: " + baseOutDir);
       for (FileStatus f : fs.listStatus(workPath)) {
@@ -135,16 +162,16 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       log.info("Not moving run data.");
     }
 
-    SequenceFile.Writer offsetWriter =
-        SequenceFile.createWriter(
-            fs,
-            context.getConfiguration(),
-            new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
-                EtlMultiOutputFormat.OFFSET_PREFIX, "")), EtlKey.class, NullWritable.class);
-    for (String s : offsets.keySet()) {
-      offsetWriter.append(offsets.get(s), NullWritable.get());
+    for (CommitHook commitHook : commitHooks) {
+      try {
+        commitHook.commit(context, offsets, workPath);
+      } catch (Exception ex) {
+        log.error("Failed to execute commit hook: " + commitHook.getClass().getCanonicalName(), ex);
+        throw new IOException(ex);
+      }
     }
-    offsetWriter.close();
+    log.debug("Completed commit hooks");
+
     super.commitTask(context);
   }
 

@@ -47,7 +47,7 @@ public class EmailClient {
 
   public static void setup(Properties properties) {
     mailHost = properties.getProperty("alert.email.host", "localhost");
-    mailPort = properties.getProperty("alert.mail.port", "25");
+    mailPort = properties.getProperty("alert.email.port", "25");
     emailList = Lists.newArrayList(properties.getProperty("alert.email.addresses", "").split(","));
     subjectLine = properties.getProperty("alert.email.subject", "Camus topic falling behind alert");
     senderEmail = properties.getProperty("alert.email.sender", "camus@linkedin.com");

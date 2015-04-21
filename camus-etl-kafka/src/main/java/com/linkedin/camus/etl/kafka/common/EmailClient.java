@@ -46,12 +46,12 @@ public class EmailClient {
   private static boolean shouldSendEmail = false;
 
   public static void setup(Properties properties) {
-    mailHost = properties.getProperty("mail.host", "localhost");
-    mailPort = properties.getProperty("mail.port", "25");
-    emailList = Lists.newArrayList(properties.getProperty("email.addresses", "").split(","));
-    subjectLine = properties.getProperty("email.subject");
-    senderEmail = properties.getProperty("email.sender.address");
-    shouldSendEmail = properties.getProperty("email.send", "false").equalsIgnoreCase("true");
+    mailHost = properties.getProperty("alert.email.host", "localhost");
+    mailPort = properties.getProperty("alert.mail.port", "25");
+    emailList = Lists.newArrayList(properties.getProperty("alert.email.addresses", "").split(","));
+    subjectLine = properties.getProperty("alert.email.subject", "Camus topic falling behind alert");
+    senderEmail = properties.getProperty("alert.email.sender", "camus@linkedin.com");
+    shouldSendEmail = properties.getProperty("alert.on.topic.falling.behind", "true").equalsIgnoreCase("true");
   }
 
   public static void sendEmail(String content) {

@@ -35,12 +35,12 @@ public class EmailClientTest {
     SimpleSmtpServer server = SimpleSmtpServer.start(PORT);
 
     Properties properties = new Properties();
-    properties.put("mail.host", "localhost");
-    properties.put("mail.port", Integer.toString(PORT));
-    properties.put("email.addresses", to);
-    properties.put("email.subject", subject);
-    properties.put("email.sender.address", from);
-    properties.put("email.send", "true");
+    properties.put("alert.mail.host", "localhost");
+    properties.put("alert.mail.port", Integer.toString(PORT));
+    properties.put("alert.email.addresses", to);
+    properties.put("alert.email.subject", subject);
+    properties.put("alert.email.sender", from);
+    properties.put("alert.on.topic.falling.behind", "true");
 
     EmailClient.setup(properties);
     EmailClient.sendEmail(content);

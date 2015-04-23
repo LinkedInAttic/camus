@@ -84,7 +84,7 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
       for (FileStatus f : fs.globStatus(new Path(inputDir, folderStructure))) {
 
         DateTime folderHour = getFolderHour(f.getPath(), inputDir);
-        if (shouldProcessHour(folderHour)) {
+        if (shouldProcessHour(folderHour, topic)) {
           Properties jobProps = createJobProps(topic, f.getPath(), folderHour, outputDir, fs, metrics);
           if (jobProps != null) {
             jobPropsList.add(jobProps);
@@ -159,7 +159,7 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
     return false;
   }
 
-  private boolean shouldProcessHour(DateTime folderHour) {
+  protected boolean shouldProcessHour(DateTime folderHour, String topic) {
     DateTime currentHour = dUtils.getCurrentHour();
     DateTime maxHoursAgo =
         currentHour.minusHours(Integer.parseInt(props.getProperty(CAMUS_SINGLE_FOLDER_SWEEPER_MAX_HOURS_AGO,

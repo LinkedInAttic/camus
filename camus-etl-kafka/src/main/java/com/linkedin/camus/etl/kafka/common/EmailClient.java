@@ -48,7 +48,10 @@ public class EmailClient {
   public static void setup(Properties properties) {
     mailHost = properties.getProperty("alert.email.host", "localhost");
     mailPort = properties.getProperty("alert.email.port", "25");
-    emailList = Lists.newArrayList(properties.getProperty("alert.email.addresses", "").split(","));
+    String emails = properties.getProperty("alert.email.addresses", "");
+    if (!emails.isEmpty()) {
+      emailList = Lists.newArrayList(emails.split(","));
+    }
     subjectLine = properties.getProperty("alert.email.subject", "Camus topic falling behind alert");
     senderEmail = properties.getProperty("alert.email.sender", "camus@linkedin.com");
     shouldSendEmail = properties.getProperty("alert.on.topic.falling.behind", "true").equalsIgnoreCase("true");
@@ -60,6 +63,13 @@ public class EmailClient {
           "Will not send email. Message: " + content);
       return;
     }
+
+    if (emailList == null) {
+      LOGGER.warn("Email list is empty. " +
+              "Will not send email. Message: " + content);
+      return;
+    }
+
     try {
       Properties props = System.getProperties();
 

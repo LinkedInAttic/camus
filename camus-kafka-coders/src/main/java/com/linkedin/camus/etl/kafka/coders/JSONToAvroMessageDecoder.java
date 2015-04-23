@@ -8,8 +8,11 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
 
+import com.linkedin.camus.coders.Message;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -31,7 +34,7 @@ import com.linkedin.camus.coders.MessageDecoderException;
 import com.linkedin.camus.schemaregistry.CachedSchemaRegistry;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 
-public class JSONToAvroMessageDecoder extends MessageDecoder<byte[], GenericData.Record> {
+public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericData.Record> {
   private static final Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
   public static final String CAMUS_SCHEMA_ID_FIELD = "camus.message.schema.id.field";
   public static final String DEFAULT_SCHEMA_ID_FIELD = "schemaID";
@@ -128,6 +131,41 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<byte[], GenericData
         throw new IllegalStateException("Unknown schema id: " + id);
       this.targetSchema = JSONToAvroMessageDecoder.this.latestSchema;
       return this;
+    }
+  }
+
+  @Override
+  public CamusWrapper<Record> decode(Message message) {
+    String payloadString = new String(message.getPayload());
+    try {
+      JsonObject jsonObject = this.jsonParser.parse(payloadString.trim()).getAsJsonObject();
+      String templateID = jsonObject.get(schemaIDField).getAsString();
+      
+      MessageDecoderHelper helper = new MessageDecoderHelper(this.registry, this.topicName).invoke(templateID);
+      GenericRecord datum = null;
+      DatumReader<GenericRecord> reader = helper.getTargetSchema() == null ? new GenericDatumReader<GenericRecord>(
+          helper.getSchema()) : new GenericDatumReader<GenericRecord>(helper.getSchema(), helper.getTargetSchema());
+      InputStream inStream = new ByteArrayInputStream(message.getPayload());
+      JsonDecoder jsonDecoder = DecoderFactory.get().jsonDecoder(helper.getSchema(), inStream);
+      datum = (GenericRecord) reader.read(datum, jsonDecoder);
+      ByteArrayOutputStream output = new ByteArrayOutputStream();
+      GenericDatumWriter<GenericRecord> writer = helper.getTargetSchema() == null ? new GenericDatumWriter<GenericRecord>(
+          helper.getSchema()) : new GenericDatumWriter<GenericRecord>(helper.getTargetSchema());
+      Encoder encoder = EncoderFactory.get().binaryEncoder(output, null);
+      
+      writer.write(datum, encoder);
+      encoder.flush();
+      output.close();
+      
+      DatumReader<GenericRecord> avroReader = helper.getTargetSchema() == null ? new GenericDatumReader<GenericRecord>(
+          helper.getSchema()) : new GenericDatumReader<GenericRecord>(helper.getTargetSchema());
+      return new KafkaAvroMessageDecoder.CamusAvroWrapper((GenericData.Record) avroReader.read(null,
+          this.decoderFactory.binaryDecoder(output.toByteArray(), 0, output.toByteArray().length, null)));
+    } catch (RuntimeException e) {
+      log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
+      throw new RuntimeException(e);
+    } catch (IOException e) {
+      throw new MessageDecoderException(e);
     }
   }
 }

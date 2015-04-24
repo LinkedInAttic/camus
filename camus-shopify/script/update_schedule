@@ -25,6 +25,18 @@ def start_session(url, username, password):
     session.id = None
     return session
 
+def run_shell_command(cmd, description, cwd=None, shell=False):
+    if not cwd:
+        cwd = os.getcwd()
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, shell=shell)
+    stdout, stderr = p.communicate()
+    logger.info('%s: %s' % (description, stdout))
+    if stderr:
+        logger.error(stderr)
+        exit(-1)
+    else:
+        return stdout.strip()
+
 def get_camus_version(path):
     path = os.path.join(path, 'camus-shopify')
     logger.info('Retrieving Camus version from %s' % path)
@@ -36,15 +48,14 @@ def main():
     camus_jar = get_camus_version(repo_root)
     azkaban_auth = json.load(open(os.path.join(repo_root, 'camus-shopify', 'azkaban.json')))
 
-    command =  'sudo -E -u deploy '
-    command += 'bash -c "java -Xms1G -Xmx1G -DHADOOP_USER_NAME=deploy '
+    command = 'bash -c "java -Xms1G -Xmx1G -DHADOOP_USER_NAME=deploy '
     command += '-Dlog4j.configuration=file:/u/apps/camus/shared/log4j.xml '
     command += '-cp $(hadoop classpath):/u/apps/camus/current/camus-shopify-0.1.0-shopify1.jar:/etc/camus:/etc/hadoop/conf '
     command += 'com.linkedin.camus.etl.kafka.CamusJob -P /u/apps/camus/shared/camus.properties"'
 
     project = Project('Camus')
     project.add_job('Camus', Job({'failure.emails': 'camus@shopify.pagerduty.com',
-                                  'type': 'command'
+                                  'type': 'command',
                                   'command': command
     }))
 

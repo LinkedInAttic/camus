@@ -4,12 +4,12 @@ from fabric.api import env
 from fabric.operations import run, put
 
 env.forward_agent = True
-env.hosts = ['spark-etl1.chi.shopify.com']
+env.host_string = 'spark-etl1.chi.shopify.com'
 env.user = 'deploy'
 app_name = 'camus'
 code_dir = '/u/apps/camus/current'
-path = os.path.join(path, 'camus-shopify', 'target', 'camus-shopify-0.1.0-shopify1.jar')
+path = os.path.join(os.getcwd(), 'camus-shopify', 'target', 'camus-shopify-0.1.0-shopify1.jar')
 
 run('mkdir -p %s' % code_dir)
 put(path, code_dir)
-
+print('Completed')

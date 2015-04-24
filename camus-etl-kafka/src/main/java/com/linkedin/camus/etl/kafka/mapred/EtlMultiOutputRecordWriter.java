@@ -41,12 +41,12 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
       InterruptedException {
     this.context = context;
     this.committer = committer;
+    Path errorPath = new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
+            EtlMultiOutputFormat.ERRORS_PREFIX, ""));
     errorWriter =
         SequenceFile.createWriter(
-            FileSystem.get(context.getConfiguration()),
-            context.getConfiguration(),
-            new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
-                EtlMultiOutputFormat.ERRORS_PREFIX, "")), EtlKey.class, ExceptionWritable.class);
+            FileSystem.get(errorPath.toUri(), context.getConfiguration()),
+            context.getConfiguration(), errorPath, EtlKey.class, ExceptionWritable.class);
 
     if (EtlInputFormat.getKafkaMaxHistoricalDays(context) != -1) {
       int maxDays = EtlInputFormat.getKafkaMaxHistoricalDays(context);

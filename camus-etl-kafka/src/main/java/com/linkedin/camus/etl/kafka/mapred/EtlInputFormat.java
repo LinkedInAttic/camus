@@ -483,8 +483,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   private void writePrevious(Collection<EtlKey> missedKeys, JobContext context) throws IOException {
-    FileSystem fs = FileSystem.get(context.getConfiguration());
     Path output = FileOutputFormat.getOutputPath(context);
+    FileSystem fs = FileSystem.get(output.toUri(), context.getConfiguration());
 
     if (fs.exists(output)) {
       fs.mkdirs(output);
@@ -502,8 +502,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   protected void writeRequests(List<CamusRequest> requests, JobContext context) throws IOException {
-    FileSystem fs = FileSystem.get(context.getConfiguration());
     Path output = FileOutputFormat.getOutputPath(context);
+    FileSystem fs = FileSystem.get(output.toUri(), context.getConfiguration());
 
     if (fs.exists(output)) {
       fs.mkdirs(output);

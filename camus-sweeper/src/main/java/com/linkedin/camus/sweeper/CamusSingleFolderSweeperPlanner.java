@@ -111,6 +111,9 @@ public class CamusSingleFolderSweeperPlanner extends CamusSweeperPlanner {
     jobProps.putAll(props);
 
     jobProps.put("topic", topic);
+    if (folderHour != null) {
+      jobProps.setProperty(CamusSingleFolderSweeper.FOLDER_HOUR, Long.toString(folderHour.getMillis()));
+    }
 
     String topicAndHour = topic + ":" + (folderHour != null ? folderHour.toString(timeFormatter) : "");
     jobProps.put(CamusSingleFolderSweeper.TOPIC_AND_HOUR, topicAndHour);

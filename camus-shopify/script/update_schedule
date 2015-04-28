@@ -48,7 +48,7 @@ def main():
     camus_jar = get_camus_version(repo_root)
     azkaban_auth = json.load(open(os.path.join(repo_root, 'camus-shopify', 'azkaban.json')))
 
-    command = 'bash -c "java -Xms1G -Xmx1G -DHADOOP_USER_NAME=deploy '
+    command = 'bash -c "java -Xms1G -Xmx2G -DHADOOP_USER_NAME=deploy '
     command += '-Dlog4j.configuration=file:/u/apps/camus/shared/log4j.xml '
     command += '-cp $(hadoop classpath):/u/apps/camus/current/camus-shopify-0.1.0-shopify1.jar:/etc/camus:/etc/hadoop/conf '
     command += 'com.linkedin.camus.etl.kafka.CamusJob -P /u/apps/camus/shared/camus.properties"'

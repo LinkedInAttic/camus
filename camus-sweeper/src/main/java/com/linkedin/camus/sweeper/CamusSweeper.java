@@ -460,7 +460,15 @@ public class CamusSweeper extends Configured implements Tool {
   protected void mkdirs(FileSystem fs, Path path, FsPermission perm) throws IOException {
     if (!fs.exists(path.getParent()))
       mkdirs(fs, path.getParent(), perm);
-    fs.mkdirs(path, perm);
+    String msg = "Creating " + path + " with permissions " + perm;
+    if (! fs.exists(path)) {
+       log.info(msg);
+    }
+    if (! fs.mkdirs(path, perm)) {
+      msg=msg + " failed";
+      log.error(msg);
+      throw new IOException(msg);
+    }
   }
 
   public static class WhiteBlackListPathFilter implements PathFilter {

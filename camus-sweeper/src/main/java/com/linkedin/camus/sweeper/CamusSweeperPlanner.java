@@ -86,4 +86,14 @@ public abstract class CamusSweeperPlanner {
   public Set<Properties> getOutlierProperties() {
     return this.outlierProperties;
   }
+
+  /**
+   * Blocks processing of a job until the input is ready.
+   * By default, will return immediately and proceed with the job.
+   * @param jobProps Job properties.
+   * @return true to proceed with the job, false to cancel the job.
+   */
+  protected boolean waitUntilReadyToProcess(Properties jobProps) {
+    return true;
+  }
 }

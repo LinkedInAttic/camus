@@ -68,7 +68,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
         //TODO: fix this logging message, should be logged once as a total count of old records skipped for each topic
         // for now, commenting this out
         //log.warn("Key's time: " + key + " is less than beginTime: " + beginTimeStamp);
-        ((Mapper.Context)context).getCounter("total", "skip-old").increment(1);
+        context.getCounter("total", "skip-old").increment(1);
         committer.addOffset(key);
       } else {
         if (!key.getTopic().equals(currentTopic)) {

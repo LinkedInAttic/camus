@@ -37,7 +37,8 @@ public class EtlCounts {
   private static final String LAST_TIMESTAMP = "lastTimestamp";
   private static final String ERROR_COUNT = "errorCount";
   private static final String MONITORING_EVENT_CLASS = "monitoring.event.class";
-
+  private static final String KAFKA_AUDIT_MESSAGE_SCHEMA = "kafka.audit.message.schema";
+  private String kafkaAuditMessageSchema;
   private String topic;
   private long startTime;
   private long granularity;
@@ -49,7 +50,6 @@ public class EtlCounts {
 
   private transient EtlKey lastKey;
   private transient int eventCount = 0;
-  private transient static final Random RANDOM = new Random();
 
   public EtlCounts() {
   }
@@ -150,10 +150,10 @@ public class EtlCounts {
     Source source = new Source(key.getServer(), key.getService(), monitorPartition);
     if (counts.containsKey(source.toString())) {
       Source countSource = counts.get(source.toString());
-      countSource.setCount(countSource.getCount() + 1);
+      countSource.setCount(countSource.getCount() + 1L);
       counts.put(countSource.toString(), countSource);
     } else {
-      source.setCount(1);
+      source.setCount(1L);
       counts.put(source.toString(), source);
     }
 
@@ -184,21 +184,23 @@ public class EtlCounts {
   }
 
   public void postTrackingCountToKafka(Configuration conf, String tier, String brokerList) {
-    MessageEncoder<IndexedRecord, byte[]> encoder;
+    Properties props = new Properties();
+    for (Entry<String, String> entry : conf) {
+      props.put(entry.getKey(), entry.getValue());
+    }
+
+    kafkaAuditMessageSchema = props.getProperty(KAFKA_AUDIT_MESSAGE_SCHEMA);
+    MessageEncoder encoder;
     AbstractMonitoringEvent monitoringDetails;
+
     try {
       encoder =
-          (MessageEncoder<IndexedRecord, byte[]>) Class.forName(conf.get(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS))
+          (MessageEncoder) Class.forName(props.getProperty(CamusJob.CAMUS_MESSAGE_ENCODER_CLASS))
               .newInstance();
 
-      Properties props = new Properties();
-      for (Entry<String, String> entry : conf) {
-        props.put(entry.getKey(), entry.getValue());
-      }
-
-      encoder.init(props, "TrackingMonitoringEvent");
+      encoder.init(props, kafkaAuditMessageSchema);
       monitoringDetails =
-          (AbstractMonitoringEvent) Class.forName(conf.get(MONITORING_EVENT_CLASS))
+          (AbstractMonitoringEvent) Class.forName(props.getProperty(MONITORING_EVENT_CLASS))
               .getDeclaredConstructor(Configuration.class).newInstance(conf);
     } catch (Exception e1) {
       throw new RuntimeException(e1);
@@ -231,17 +233,16 @@ public class EtlCounts {
 
   private void produceCount(String brokerList, ArrayList<byte[]> monitorSet) {
     // Shuffle the broker
-
     Properties props = new Properties();
     props.put("metadata.broker.list", brokerList);
     props.put("producer.type", "async");
     props.put("request.required.acks", "1");
-    props.put("request.timeout.ms", "30000");
+    props.put("request.timeout.ms", "60000");
     log.debug("Broker list: " + brokerList);
     Producer producer = new Producer(new ProducerConfig(props));
     try {
       for (byte[] message : monitorSet) {
-        KeyedMessage keyedMessage = new KeyedMessage("TrackingMonitoringEvent", message);
+        KeyedMessage keyedMessage = new KeyedMessage(kafkaAuditMessageSchema, message);
         producer.send(keyedMessage);
       }
     } catch (Exception e) {
@@ -252,7 +253,5 @@ public class EtlCounts {
         producer.close();
       }
     }
-
   }
-
 }

@@ -376,14 +376,20 @@ public class CamusJob extends Configured implements Tool {
 
       TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
 
-      for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
-        if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
+      try {
+        TaskCompletionEvent completionEvent = tasks[0];
+        for (TaskReport task : client.getMapTaskReports(completionEvent.getTaskAttemptId().getJobID())) {
+          if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
           for (String s : task.getDiagnostics()) {
             System.err.println("task error: " + s);
           }
         }
       }
       throw new RuntimeException("hadoop job failed");
+
+    } catch(IndexOutOfBoundsException ie){
+        log.warn("Job was not successful, but there are no TaskCompletionEvents available for further information");
+       }
     }
 
     if (!errors.isEmpty()

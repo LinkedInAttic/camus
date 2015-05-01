@@ -281,7 +281,7 @@ public class CamusSweeper extends Configured implements Tool {
 
         log.info("Waiting until input for job " + name +
             " is ready. Input directories:  " + props.getProperty("input.paths"));
-        if (!planner.waitUntilReadyToProcess(props)) {
+        if (!planner.waitUntilReadyToProcess(props, fileSystem)) {
           throw new JobCancelledException("Job has been cancelled by planner while waiting for input to be ready.");
         }
 

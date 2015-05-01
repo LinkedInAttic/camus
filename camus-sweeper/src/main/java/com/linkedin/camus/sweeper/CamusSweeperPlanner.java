@@ -93,7 +93,7 @@ public abstract class CamusSweeperPlanner {
    * @param jobProps Job properties.
    * @return true to proceed with the job, false to cancel the job.
    */
-  protected boolean waitUntilReadyToProcess(Properties jobProps) {
+  protected boolean waitUntilReadyToProcess(Properties jobProps, FileSystem fs) {
     return true;
   }
 }

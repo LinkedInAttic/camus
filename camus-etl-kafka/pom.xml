@@ -86,7 +86,7 @@
 		</dependency>
 		<dependency>
 			<groupId>Vsw.AvroDto</groupId>
-			<artifactId>Vsw.AvroDto</artifactId>
+			<artifactId>AvroDto</artifactId>
 	</dependency>
 	</dependencies>
 

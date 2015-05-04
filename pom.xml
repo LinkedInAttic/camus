@@ -154,8 +154,8 @@
 			</dependency>
 			<dependency>
 				<groupId>Vsw.AvroDto</groupId>
-				<artifactId>Vsw.AvroDto</artifactId>
-				<version>1</version>
+				<artifactId>AvroDto</artifactId>
+				<version>${vsw.avrodto.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

@@ -37,6 +37,7 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
   static final String TOPIC_AND_HOUR = "topic.and.hour";
   static final String STATE_FILE_NAME = "_state";
   static final String MAPREDUCE_SUBMIT_TIME = "mapreduce.submit.time";
+  public static final String FOLDER_HOUR = "camus.sweeper.folder.hour";
 
   private final CamusSweeperMetrics metrics;
 

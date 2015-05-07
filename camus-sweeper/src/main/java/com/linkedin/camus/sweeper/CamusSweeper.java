@@ -278,6 +278,13 @@ public class CamusSweeper extends Configured implements Tool {
       try {
         log.info("Starting runner for " + name);
         collector = new KafkaCollector(props, name, topic);
+
+        log.info("Waiting until input for job " + name +
+            " is ready. Input directories:  " + props.getProperty("input.paths"));
+        if (!planner.waitUntilReadyToProcess(props, fileSystem)) {
+          throw new JobCancelledException("Job has been cancelled by planner while waiting for input to be ready.");
+        }
+
         log.info("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       } catch (Throwable e) // Sometimes the error is the Throwable, e.g. java.lang.NoClassDefFoundError
@@ -460,7 +467,15 @@ public class CamusSweeper extends Configured implements Tool {
   protected void mkdirs(FileSystem fs, Path path, FsPermission perm) throws IOException {
     if (!fs.exists(path.getParent()))
       mkdirs(fs, path.getParent(), perm);
-    fs.mkdirs(path, perm);
+    String msg = "Creating " + path + " with permissions " + perm;
+    if (! fs.exists(path)) {
+       log.info(msg);
+    }
+    if (! fs.mkdirs(path, perm)) {
+      msg=msg + " failed";
+      log.error(msg);
+      throw new IOException(msg);
+    }
   }
 
   public static class WhiteBlackListPathFilter implements PathFilter {

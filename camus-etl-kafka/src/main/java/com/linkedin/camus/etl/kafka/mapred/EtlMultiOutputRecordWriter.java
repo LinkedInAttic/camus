@@ -1,11 +1,11 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.HashMap;
-
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.etl.IEtlKey;
+import com.linkedin.camus.etl.RecordWriterProvider;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
@@ -17,14 +17,17 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
 
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.etl.IEtlKey;
-import com.linkedin.camus.etl.RecordWriterProvider;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 
 public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
+  public static final int DEFAULT_OPENED_FILE_LIMIT = 1000;
   private TaskAttemptContext context;
   private Writer errorWriter = null;
   private String currentTopic = "";
@@ -32,8 +35,33 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
   private static Logger log = Logger.getLogger(EtlMultiOutputRecordWriter.class);
   private final Counter topicSkipOldCounter;
 
-  private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters =
-      new HashMap<String, RecordWriter<IEtlKey, CamusWrapper>>();
+  private int openedFileLimit;
+
+  private HashMap<String, RecordWriter<IEtlKey, CamusWrapper>> dataWriters = new LinkedHashMap<String, RecordWriter<IEtlKey, CamusWrapper>>(){
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<String, RecordWriter<IEtlKey, CamusWrapper>> eldest) {
+        if(this.size() > openedFileLimit) {
+            log.debug("Closing file " + eldest.getKey());
+            try {
+                eldest.getValue().close(context);
+            } catch (IOException e) {
+                log.warn("Failed to close file " + eldest.getKey(), e);
+            } catch (InterruptedException e) {
+                log.warn("Failed to close file " + eldest.getKey(), e);
+            }
+          try {
+            committer.commitSingleFile(filePaths.get(eldest.getKey()));
+          } catch (IOException e) {
+            log.error("Failed to commit file " + eldest.getKey(), e);
+          }
+          return true;
+        } else {
+            return false;
+        }
+    }
+  };
+
+  private Map<String, Path> filePaths = new HashMap<String, Path>();
 
   private EtlMultiOutputCommitter committer;
 
@@ -56,6 +84,8 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
     }
     log.info("beginTimeStamp set to: " + beginTimeStamp);
     topicSkipOldCounter = getTopicSkipOldCounter();
+    openedFileLimit = context.getConfiguration().getInt(CamusJob.OPENED_FILE_LIMIT, DEFAULT_OPENED_FILE_LIMIT);
+      log.info("Opened file limit set to " + openedFileLimit);
   }
 
   private Counter getTopicSkipOldCounter() {
@@ -139,6 +169,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }
+    filePaths.put(fileName, recordWriterProvider.getFilePath(fileName, committer, context));
     return recordWriterProvider.getDataRecordWriter(context, fileName, value, committer);
   }
 }

@@ -1,15 +1,8 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import java.io.BufferedOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import com.linkedin.camus.etl.RecordWriterProvider;
+import com.linkedin.camus.etl.kafka.common.EtlCounts;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -21,9 +14,15 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import com.linkedin.camus.etl.RecordWriterProvider;
-import com.linkedin.camus.etl.kafka.common.EtlCounts;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.reflect.Constructor;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class EtlMultiOutputCommitter extends FileOutputCommitter {
@@ -36,6 +35,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
+
+  private ArrayList<Map<String, Object>> allCountObject = new ArrayList<Map<String, Object>>();
 
   private void mkdirs(FileSystem fs, Path path) throws IOException {
     if (!fs.exists(path.getParent())) {
@@ -89,7 +90,6 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   @Override
   public void commitTask(TaskAttemptContext context) throws IOException {
 
-    ArrayList<Map<String, Object>> allCountObject = new ArrayList<Map<String, Object>>();
     FileSystem fs = FileSystem.get(context.getConfiguration());
     if (EtlMultiOutputFormat.isRunMoveData(context)) {
       Path workPath = super.getWorkPath();
@@ -97,30 +97,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
       log.info("Destination base path: " + baseOutDir);
       for (FileStatus f : fs.listStatus(workPath)) {
-        String file = f.getPath().getName();
-        log.info("work file: " + file);
-        if (file.startsWith("data")) {
-          String workingFileName = file.substring(0, file.lastIndexOf("-m"));
-          EtlCounts count = counts.get(workingFileName);
-          count.setEndTime(System.currentTimeMillis());
-
-          String partitionedFile =
-              getPartitionedPath(context, file, count.getEventCount(), count.getLastKey().getOffset());
-
-          Path dest = new Path(baseOutDir, partitionedFile);
-
-          if (!fs.exists(dest.getParent())) {
-            mkdirs(fs, dest.getParent());
-          }
-
-          commitFile(context, f.getPath(), dest);
-          log.info("Moved file from: " + f.getPath() + " to: " + dest);
-
-          if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-            count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
-                + dest.getName().replace(recordWriterProvider.getFilenameExtension(), "")));
-          }
-        }
+        commitSingleFile(f.getPath(), fs, workPath, baseOutDir);
       }
 
       if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
@@ -148,7 +125,55 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       offsetWriter.append(offsets.get(s), NullWritable.get());
     }
     offsetWriter.close();
+    allCountObject = new ArrayList<Map<String, Object>>();
     super.commitTask(context);
+  }
+
+  public void commitSingleFile(String fileName) throws IOException {
+
+  }
+
+  public void commitSingleFile(Path filePath) throws IOException {
+
+    FileSystem fs = FileSystem.get(context.getConfiguration());
+    if (EtlMultiOutputFormat.isRunMoveData(context)) {
+      Path workPath = super.getWorkPath();
+      log.info("work path: " + workPath);
+      Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
+      log.info("Destination base path: " + baseOutDir);
+      commitSingleFile(filePath, fs, workPath, baseOutDir);
+    } else {
+      log.info("Not moving run data.");
+    }
+  }
+
+  public void commitSingleFile(Path filePath, FileSystem fs, Path workPath, Path baseOutDir) throws IOException {
+
+    String file = filePath.getName();
+    log.info("work file: " + file);
+    if (file.startsWith("data")) {
+      String workingFileName = file.substring(0, file.lastIndexOf("-m"));
+      EtlCounts count = counts.get(workingFileName);
+      count.setEndTime(System.currentTimeMillis());
+
+      String partitionedFile =
+              getPartitionedPath(context, file, count.getEventCount() - count.getCommited(), count.getLastKey().getOffset());
+
+      Path dest = new Path(baseOutDir, partitionedFile);
+
+      if (!fs.exists(dest.getParent())) {
+        mkdirs(fs, dest.getParent());
+      }
+
+      commitFile(context, filePath, dest);
+      log.info("Moved file from: " + filePath + " to: " + dest);
+
+      if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
+        count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
+                + dest.getName().replace(recordWriterProvider.getFilenameExtension(), "")));
+      }
+      count.setCommited(count.getCommited() + count.getEventCount());
+    }
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {

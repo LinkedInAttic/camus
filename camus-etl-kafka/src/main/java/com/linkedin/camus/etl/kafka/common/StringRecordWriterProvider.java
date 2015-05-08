@@ -4,25 +4,21 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-
-import java.io.DataOutputStream;
-import java.io.IOException;
-
-import org.apache.avro.file.CodecFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
 import org.apache.hadoop.io.compress.SnappyCodec;
-import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
-import org.apache.log4j.Logger;
+
+import java.io.DataOutputStream;
+import java.io.IOException;
 
 
 /**
@@ -71,6 +67,11 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
+  public Path getFilePath(String fileName, FileOutputCommitter committer, TaskAttemptContext context) throws IOException {
+    return new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
+  }
+
+  @Override
   public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
       CamusWrapper camusWrapper, FileOutputCommitter committer) throws IOException, InterruptedException {
 
@@ -80,17 +81,14 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
     }
 
     // Get the filename for this RecordWriter.
-    Path path =
-        new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
+    Path path = getFilePath(fileName, committer, context);
 
     FileSystem fs = path.getFileSystem(context.getConfiguration());
-    if (!isCompressed) {
-      FSDataOutputStream fileOut = fs.create(path, false);
-      return new ByteRecordWriter(fileOut, recordDelimiter);
-    } else {
-      FSDataOutputStream fileOut = fs.create(path, false);
-      return new ByteRecordWriter(new DataOutputStream(codec.createOutputStream(fileOut)), recordDelimiter);
+    DataOutputStream fileOut = fs.create(path, false);
+    if (isCompressed) {
+      fileOut = new DataOutputStream(codec.createOutputStream(fileOut));
     }
+    return new ByteRecordWriter(fileOut, recordDelimiter);
 
     /*
     // Create a FSDataOutputStream stream that will write to path.

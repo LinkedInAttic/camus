@@ -25,6 +25,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
+import com.linkedin.camus.etl.kafka.reporter.StatsdReporter;
 
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
@@ -102,7 +103,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         } else {
             this.maxPullTime = Long.MAX_VALUE;
         }
-        
+
         ignoreServerServiceList = new HashSet<String>();
         for(String ignoreServerServiceTopic : EtlInputFormat.getEtlAuditIgnoreServiceTopicList(context))
         {
@@ -123,6 +124,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         CamusWrapper r = null;
         try {
             r = decoder.decode(payload);
+            StatsdReporter.logEventDelay(this.context, topicName, r);
         } catch (Exception e) {
             if (!skipSchemaErrors) {
                 throw new IOException(e);
@@ -176,7 +178,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
 
     @Override
     public boolean nextKeyValue() throws IOException, InterruptedException {
-      
+
       if (System.currentTimeMillis() > maxPullTime) {
         String maxMsg =  "at " + new DateTime(curTimeStamp).toString();
         log.info("Kafka pull time limit reached");
@@ -186,18 +188,18 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         mapperContext.getCounter("total", "request-time(ms)").increment(
                 reader.getFetchTime());
         closeReader();
-        
+
         mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached" + maxMsg));
-        
+
         EtlRequest request = null;
-        
+
         while ((request = (EtlRequest) split.popRequest()) != null) {
            key.set(request.getTopic(), request.getLeaderId(), request.getPartition(), request.getOffset(), request.getOffset(), 0);
            mapperContext.write(key, new ExceptionWritable("Topic not fully pulled, max task time reached"));
         }
-        
+
         return false;
-      } 
+      }
 
         Message message = null;
 
@@ -250,9 +252,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                     long checksum = key.getChecksum();
                     if (checksum != messageWithKey.checksum() && checksum != messageWithoutKey.checksum()) {
                     	throw new ChecksumException("Invalid message checksum : MessageWithKey : "
-                              + messageWithKey.checksum() + " MessageWithoutKey checksum : " 
-                    		  + messageWithoutKey.checksum() 
-                    		  + ". Expected " + key.getChecksum(),	
+                              + messageWithKey.checksum() + " MessageWithoutKey checksum : "
+                    		  + messageWithoutKey.checksum()
+                    		  + ". Expected " + key.getChecksum(),
                     		  key.getOffset());
                     }
 
@@ -303,7 +305,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
                         mapperContext.getCounter("total", "request-time(ms)").increment(
                                 reader.getFetchTime());
                         closeReader();
-                    } 
+                    }
 
                     long secondTime = System.currentTimeMillis();
                     value = wrapper;
@@ -341,7 +343,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             }
         }
     }
-    
+
     public void setServerService()
     {
     	if(ignoreServerServiceList.contains(key.getTopic()) || ignoreServerServiceList.contains("all"))

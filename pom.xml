@@ -14,10 +14,11 @@
 	<name>Camus Parent</name>
 	<description>
     Camus is LinkedIn's Kafka->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka.
-  </description>
+	</description>
 	<url>https://github.com/linkedin/camus</url>
 
 	<properties>
+		<cdh.version>2.6.0-cdh5.4.0</cdh.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
@@ -78,12 +79,12 @@
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-client</artifactId>
-				<version>2.5.0-cdh5.3.2</version>
+				<version>${cdh.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-common</artifactId>
-				<version>2.5.0-cdh5.3.2</version>
+				<version>${cdh.version}</version>
 			</dependency>
 			<dependency>
                 <groupId>org.apache.kafka</groupId>

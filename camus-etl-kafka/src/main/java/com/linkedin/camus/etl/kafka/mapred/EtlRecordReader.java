@@ -290,6 +290,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           CamusWrapper wrapper;
           try {
             wrapper = getWrappedRecord(message);
+
+            if (wrapper == null) {
+              throw new RuntimeException("null record");
+            }
           } catch (Exception e) {
             if (exceptionCount < getMaximumDecoderExceptionsToPrint(context)) {
               mapperContext.write(key, new ExceptionWritable(e));
@@ -303,11 +307,6 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               exceptionCount = 0;
               break;
             }
-            continue;
-          }
-
-          if (wrapper == null) {
-            mapperContext.write(key, new ExceptionWritable(new RuntimeException("null record")));
             continue;
           }
 

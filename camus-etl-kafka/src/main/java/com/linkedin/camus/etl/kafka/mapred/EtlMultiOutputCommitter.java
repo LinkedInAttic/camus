@@ -152,7 +152,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {
-    FileSystem.get(job.getConfiguration()).rename(source, target);
+    if (!FileSystem.get(job.getConfiguration()).rename(source, target)) {
+      throw new IOException(String.format("Failed to move from %s to %s", source, target));
+    }
   }
 
   public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {

@@ -80,9 +80,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }
-    workingFileMetadataPattern =
-        Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
-            + recordWriterProvider.getFilenameExtension());
+    workingFileMetadataPattern = Pattern.compile(
+        "data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+" + recordWriterProvider.getFilenameExtension());
     this.log = log;
   }
 
@@ -136,12 +135,10 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       log.info("Not moving run data.");
     }
 
-    SequenceFile.Writer offsetWriter =
-        SequenceFile.createWriter(
-            fs,
-            context.getConfiguration(),
-            new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
-                EtlMultiOutputFormat.OFFSET_PREFIX, "")), EtlKey.class, NullWritable.class);
+    SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs, context.getConfiguration(),
+        new Path(super.getWorkPath(),
+            EtlMultiOutputFormat.getUniqueFile(context, EtlMultiOutputFormat.OFFSET_PREFIX, "")),
+        EtlKey.class, NullWritable.class);
     for (String s : offsets.keySet()) {
       log.info("Avg record size for " + offsets.get(s).getTopic() + ":" + offsets.get(s).getPartition() + " = "
           + offsets.get(s).getMessageSize());
@@ -152,7 +149,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {
+    log.info(String.format("Moving %s to %s", source, target));
     if (!FileSystem.get(job.getConfiguration()).rename(source, target)) {
+      log.error(String.format("Failed to move from %s to %s", source, target));
       throw new IOException(String.format("Failed to move from %s to %s", source, target));
     }
   }
@@ -170,10 +169,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     String partitionedPath =
         EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, encodedPartition);
 
-    partitionedPath +=
-        "/"
-            + EtlMultiOutputFormat.getPartitioner(context, topic).generateFileName(context, topic, leaderId,
-                Integer.parseInt(partition), count, offset, encodedPartition);
+    partitionedPath += "/" + EtlMultiOutputFormat.getPartitioner(context, topic).generateFileName(context, topic,
+        leaderId, Integer.parseInt(partition), count, offset, encodedPartition);
 
     return partitionedPath + recordWriterProvider.getFilenameExtension();
   }

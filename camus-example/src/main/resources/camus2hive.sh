@@ -85,7 +85,7 @@ fi
 HIVE="hive --database $DATABASE -S"
 
 # What namenode Hive is communicating with for this database
-NAME_NODE_URI=$(${HIVE} -e "describe database $DATABASE;" | sed -re 's%.*\t(hdfs://[a-zA-Z0-9]+)(:[0-9]+)?.*%\1\2%')
+NAME_NODE_URI=$(${HIVE} -e "describe database $DATABASE;" | egrep -v '^\[HiveConf' | sed -re 's%.*\t(hdfs://[a-zA-Z0-9]+)(:[0-9]+)?.*%\1\2%')
 
 # Behavior config
 REQUERY_HADOOP_DIRS=true

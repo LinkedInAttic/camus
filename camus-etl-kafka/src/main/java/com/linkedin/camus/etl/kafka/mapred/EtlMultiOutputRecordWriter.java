@@ -43,7 +43,7 @@ public class EtlMultiOutputRecordWriter extends RecordWriter<EtlKey, Object> {
     this.committer = committer;
     errorWriter =
         SequenceFile.createWriter(
-            FileSystem.get(context.getConfiguration()),
+            committer.getWorkPath().getFileSystem(context.getConfiguration()),
             context.getConfiguration(),
             new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
                 EtlMultiOutputFormat.ERRORS_PREFIX, "")), EtlKey.class, ExceptionWritable.class);

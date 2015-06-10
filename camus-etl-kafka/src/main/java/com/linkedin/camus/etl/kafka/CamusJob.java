@@ -646,14 +646,9 @@ public class CamusJob extends Configured implements Tool {
             String pathname = cmd.getOptionValue('P');
 
             InputStream fStream;
-            if (pathname.startsWith("hdfs:")) {
-                Path pt = new Path(pathname);
-                FileSystem fs = FileSystem.get(new Configuration());
-                fStream = fs.open(pt);
-            } else {
-                File file = new File(pathname);
-                fStream = new FileInputStream(file);
-            }
+            Path pt = new Path(pathname);
+            FileSystem fs = pt.getFileSystem(new Configuration());
+            fStream = fs.open(pt);
 
             props.load(fStream);
             fStream.close();

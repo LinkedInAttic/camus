@@ -1,3 +1,8 @@
 apply plugin: 'java'
+
+dependencies {
+  compile spec.external.junit
+  compile spec.external.easymock
+}
  
 classification="library"

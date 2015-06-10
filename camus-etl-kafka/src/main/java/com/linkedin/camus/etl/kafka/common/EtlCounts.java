@@ -38,6 +38,8 @@ public class EtlCounts {
   private static final String ERROR_COUNT = "errorCount";
   private static final String MONITORING_EVENT_CLASS = "monitoring.event.class";
 
+  public static final int NUM_TRIES_PUBLISH_COUNTS = 3;
+
   private String topic;
   private long startTime;
   private long granularity;
@@ -45,7 +47,7 @@ public class EtlCounts {
   private long endTime;
   private long lastTimestamp;
   private long firstTimestamp = Long.MAX_VALUE;
-  private HashMap<String, Source> counts;
+  protected HashMap<String, Source> counts;
 
   private transient EtlKey lastKey;
   private transient int eventCount = 0;
@@ -63,6 +65,11 @@ public class EtlCounts {
 
   public EtlCounts(String topic, long granularity) {
     this(topic, granularity, System.currentTimeMillis());
+  }
+
+  public EtlCounts(EtlCounts other) {
+    this(other.topic, other.granularity, other.startTime);
+    this.counts = other.counts;
   }
 
   public HashMap<String, Source> getCounts() {
@@ -198,7 +205,7 @@ public class EtlCounts {
 
       encoder.init(props, "TrackingMonitoringEvent");
       monitoringDetails =
-          (AbstractMonitoringEvent) Class.forName(conf.get(MONITORING_EVENT_CLASS))
+          (AbstractMonitoringEvent) Class.forName(getMonitoringEventClass(conf))
               .getDeclaredConstructor(Configuration.class).newInstance(conf);
     } catch (Exception e1) {
       throw new RuntimeException(e1);
@@ -229,6 +236,10 @@ public class EtlCounts {
     log.info(topic + " sent " + counts + " counts");
   }
 
+  protected String getMonitoringEventClass(Configuration conf) {
+    return conf.get(MONITORING_EVENT_CLASS);
+  }
+
   private void produceCount(String brokerList, ArrayList<byte[]> monitorSet) {
     // Shuffle the broker
 
@@ -238,21 +249,44 @@ public class EtlCounts {
     props.put("request.required.acks", "1");
     props.put("request.timeout.ms", "30000");
     log.debug("Broker list: " + brokerList);
-    Producer producer = new Producer(new ProducerConfig(props));
+
+    Producer producer = null;
+
     try {
+      producer = createProducer(props);
       for (byte[] message : monitorSet) {
-        KeyedMessage keyedMessage = new KeyedMessage("TrackingMonitoringEvent", message);
-        producer.send(keyedMessage);
+        for (int i = 0; i < NUM_TRIES_PUBLISH_COUNTS; i++) {
+          try {
+            KeyedMessage keyedMessage = new KeyedMessage("TrackingMonitoringEvent", message);
+            producer.send(keyedMessage);
+            break;
+          } catch (Exception e) {
+            log.error("Publishing count for topic " + topic + " to " + brokerList.toString() + " has failed " + (i + 1)
+                + " times. " + (NUM_TRIES_PUBLISH_COUNTS - i - 1) + " more attempts will be made.");
+            if (i == NUM_TRIES_PUBLISH_COUNTS - 1) {
+              throw new RuntimeException(e.getMessage() + ": " + "Have retried maximum (" + NUM_TRIES_PUBLISH_COUNTS
+                  + ") times.");
+            }
+            try {
+              Thread.sleep((long) (Math.random() * (i + 1) * 1000));
+            } catch (InterruptedException e1) {
+              log.error("Caught interrupted exception between retries of publishing counts to Kafka. "
+                  + e1.getMessage());
+            }
+          }
+        }
       }
     } catch (Exception e) {
-      e.printStackTrace();
-      System.out.println(topic + " issue sending tracking to " + brokerList.toString());
+      throw new RuntimeException("failed to publish counts to kafka: " + e.getMessage(), e);
     } finally {
       if (producer != null) {
         producer.close();
       }
     }
+  }
 
+  protected Producer createProducer(Properties props) {
+    return new Producer(new ProducerConfig(props));
   }
 
 }

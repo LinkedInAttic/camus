@@ -36,9 +36,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
   private Logger log;
-  
+
   private void mkdirs(FileSystem fs, Path path) throws IOException {
-    if (! fs.exists(path.getParent())) {
+    if (!fs.exists(path.getParent())) {
       mkdirs(fs, path.getParent());
     }
     fs.mkdirs(path);
@@ -58,9 +58,10 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     EtlKey offsetKey = new EtlKey(key);
 
     if (offsets.containsKey(topicPart)) {
-      long avgSize = offsets.get(topicPart).getMessageSize() * eventCounts.get(topicPart) + key.getMessageSize();
-      avgSize /= eventCounts.get(topicPart) + 1;
+      long totalSize = offsets.get(topicPart).getTotalMessageSize() + key.getMessageSize();
+      long avgSize = totalSize / (eventCounts.get(topicPart) + 1);
       offsetKey.setMessageSize(avgSize);
+      offsetKey.setTotalMessageSize(totalSize);
     } else {
       eventCounts.put(topicPart, 0l);
     }
@@ -79,9 +80,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }
-    workingFileMetadataPattern =
-        Pattern.compile("data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+"
-            + recordWriterProvider.getFilenameExtension());
+    workingFileMetadataPattern = Pattern.compile(
+        "data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+" + recordWriterProvider.getFilenameExtension());
     this.log = log;
   }
 
@@ -135,13 +135,13 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       log.info("Not moving run data.");
     }
 
-    SequenceFile.Writer offsetWriter =
-        SequenceFile.createWriter(
-            fs,
-            context.getConfiguration(),
-            new Path(super.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context,
-                EtlMultiOutputFormat.OFFSET_PREFIX, "")), EtlKey.class, NullWritable.class);
+    SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs, context.getConfiguration(),
+        new Path(super.getWorkPath(),
+            EtlMultiOutputFormat.getUniqueFile(context, EtlMultiOutputFormat.OFFSET_PREFIX, "")),
+        EtlKey.class, NullWritable.class);
     for (String s : offsets.keySet()) {
+      log.info("Avg record size for " + offsets.get(s).getTopic() + ":" + offsets.get(s).getPartition() + " = "
+          + offsets.get(s).getMessageSize());
       offsetWriter.append(offsets.get(s), NullWritable.get());
     }
     offsetWriter.close();
@@ -149,7 +149,11 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {
-    FileSystem.get(job.getConfiguration()).rename(source, target);
+    log.info(String.format("Moving %s to %s", source, target));
+    if (!FileSystem.get(job.getConfiguration()).rename(source, target)) {
+      log.error(String.format("Failed to move from %s to %s", source, target));
+      throw new IOException(String.format("Failed to move from %s to %s", source, target));
+    }
   }
 
   public String getPartitionedPath(JobContext context, String file, int count, long offset) throws IOException {
@@ -165,10 +169,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     String partitionedPath =
         EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, encodedPartition);
 
-    partitionedPath +=
-        "/"
-            + EtlMultiOutputFormat.getPartitioner(context, topic).generateFileName(context, topic, leaderId,
-                Integer.parseInt(partition), count, offset, encodedPartition);
+    partitionedPath += "/" + EtlMultiOutputFormat.getPartitioner(context, topic).generateFileName(context, topic,
+        leaderId, Integer.parseInt(partition), count, offset, encodedPartition);
 
     return partitionedPath + recordWriterProvider.getFilenameExtension();
   }

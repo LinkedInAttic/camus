@@ -4,7 +4,6 @@ import org.apache.hadoop.io.DataInputBuffer;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.WritableComparable;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.DataInput;
@@ -12,6 +11,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
 
 
 public class EtlKeyTest {
@@ -36,6 +36,46 @@ public class EtlKeyTest {
     assertEquals(5, newKey.getTime());
     assertEquals("server", newKey.getServer());
     assertEquals("service", newKey.getService());
+  }
+
+  @Test
+  public void testEqualsMethodForEqualObjects() throws Exception {
+    final EtlKey etlKeyA = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyA.setTime(123);
+    final EtlKey etlKeyB = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyB.setTime(123);
+
+    assertEquals(etlKeyA, etlKeyB);
+  }
+
+  @Test
+  public void testEqualsMethodForNonEqualObjects() throws Exception {
+    final EtlKey etlKeyA = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyA.setTime(123);
+    final EtlKey etlKeyB = new EtlKey("different_topic_id", "leader_id", 2);
+    etlKeyB.setTime(123);
+
+    assertFalse(etlKeyA.equals(etlKeyB));
+  }
+
+  @Test
+  public void testHashCodeMethodForEqualObjects() throws Exception {
+    final EtlKey etlKeyA = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyA.setTime(123);
+    final EtlKey etlKeyB = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyB.setTime(123);
+
+    assertEquals(etlKeyA.hashCode(), etlKeyB.hashCode());
+  }
+
+  @Test
+  public void testHashCodeMethodForNonEqualObjects() throws Exception {
+    final EtlKey etlKeyA = new EtlKey("topic_id", "leader_id", 2);
+    etlKeyA.setTime(123);
+    final EtlKey etlKeyB = new EtlKey("different_topic_id", "leader_id", 2);
+    etlKeyB.setTime(123);
+
+    assertFalse(etlKeyA.hashCode() == etlKeyB.hashCode());
   }
 
   public static class OldEtlKey implements WritableComparable<OldEtlKey> {

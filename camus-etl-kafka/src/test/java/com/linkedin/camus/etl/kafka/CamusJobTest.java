@@ -4,6 +4,17 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import com.linkedin.camus.etl.kafka.coders.FailDecoder;
+import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
+import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
+import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+
+import kafka.javaapi.producer.Producer;
+import kafka.producer.KeyedMessage;
+import kafka.producer.ProducerConfig;
+import kafka.serializer.StringEncoder;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -13,12 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
-
-import com.linkedin.camus.etl.kafka.coders.FailDecoder;
-import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
-import kafka.producer.ProducerConfig;
-import kafka.serializer.StringEncoder;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -31,15 +36,10 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.google.gson.Gson;
-import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
-import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
-import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
-import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
 
 
 public class CamusJobTest {
@@ -117,9 +117,13 @@ public class CamusJobTest {
   }
 
   @After
-  public void after() throws IOException {
+  public void after() throws IOException, NoSuchFieldException, SecurityException, IllegalArgumentException,
+    IllegalAccessException {
     // Delete all camus data
     folder.delete();
+    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
+    field.setAccessible(true);
+    field.set(null, null);
   }
 
   @Test
@@ -140,17 +144,6 @@ public class CamusJobTest {
   }
 
   @Test
-  public void runJobWithErrors() throws Exception {
-    props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
-    job = new CamusJob(props);
-    job.run();
-
-    assertThat(readMessages(TOPIC_1).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_2).isEmpty(), is(true));
-    assertThat(readMessages(TOPIC_3).isEmpty(), is(true));
-  }
-
-  @Test
   public void runJobWithoutErrorsAndFailOnErrors() throws Exception {
     props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
     job = new CamusJob(props);
@@ -161,6 +154,7 @@ public class CamusJobTest {
   public void runJobWithErrorsAndFailOnErrors() throws Exception {
     props.setProperty(CamusJob.ETL_FAIL_ON_ERRORS, Boolean.TRUE.toString());
     props.setProperty(EtlInputFormat.CAMUS_MESSAGE_DECODER_CLASS, FailDecoder.class.getName());
+    props.setProperty(CamusJob.ETL_MAX_PERCENT_SKIPPED_OTHER, "100.0");
     job = new CamusJob(props);
     job.run();
   }

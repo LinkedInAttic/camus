@@ -70,21 +70,22 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
     String keySchemaStr = getConfValue(job, topic, "camus.sweeper.avro.key.schema");
 
     Schema keySchema;
-    if (keySchemaStr == null || keySchemaStr.isEmpty() || job.getConfiguration().getBoolean("second.stage", false)) {
+    if (job.getConfiguration().getBoolean("camus.sweeper.use.all.attributes", false)) {
+      log.info("Using all attributes in the schema (except Map fields) for deduping");
+      keySchema = getAllFieldsExceptMap(schema);
+    } else if (keySchemaStr == null || keySchemaStr.isEmpty()
+        || job.getConfiguration().getBoolean("second.stage", false)) {
       job.setNumReduceTasks(0);
       keySchema = schema;
     } else {
       keySchema = RelaxedSchemaUtils.parseSchema(keySchemaStr, job.getConfiguration());
 
       keySchema = duplicateRecord(keySchema, schema);
-      log.info("key schema:" + keySchema);
 
       if (!validateKeySchema(schema, keySchema)) {
         log.info("topic:" + topic + " key invalid, using map only job");
         job.setNumReduceTasks(0);
         keySchema = schema;
-      } else {
-        log.info("topic:" + topic + " key is valid, deduping");
       }
     }
 
@@ -93,6 +94,19 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
     // setting the compression level. Only used if compression is enabled. default is 6
     job.getConfiguration().setInt(AvroOutputFormat.DEFLATE_LEVEL_KEY,
         job.getConfiguration().getInt(AvroOutputFormat.DEFLATE_LEVEL_KEY, 6));
+  }
+
+  private Schema getAllFieldsExceptMap(Schema schema) {
+    List<Field> fields = new ArrayList<Schema.Field>();
+    for (Field f : schema.getFields()) {
+      if (f.schema().getType() != Schema.Type.MAP) {
+        fields.add(new Field(f.name(), f.schema(), f.doc(), f.defaultValue(), f.order()));
+      }
+    }
+
+    Schema newSchema = Schema.createRecord(schema.getName(), schema.getDoc(), schema.getName(), false);
+    newSchema.setFields(fields);
+    return newSchema;
   }
 
   private boolean validateKeySchema(Schema schema, Schema keySchema) {
@@ -121,8 +135,6 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
   }
 
   private void setupSchemas(String topic, Job job, Schema schema, Schema keySchema) {
-    log.info("Input Schema set to " + schema.toString());
-    log.info("Key Schema set to " + keySchema.toString());
     AvroJob.setInputKeySchema(job, schema);
 
     AvroJob.setMapOutputKeySchema(job, keySchema);
@@ -132,7 +144,6 @@ public class CamusSweeperAvroKeyJob extends CamusSweeperJob {
         RelaxedSchemaUtils.parseSchema(getConfValue(job, topic, "camus.output.schema", schema.toString()),
             job.getConfiguration());
     AvroJob.setOutputKeySchema(job, reducerSchema);
-    log.info("Output Schema set to " + reducerSchema.toString());
   }
 
   private Schema getNewestSchemaFromSource(Job job) throws IOException {

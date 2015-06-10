@@ -1,6 +1,7 @@
 package com.linkedin.camus.etl.kafka;
 
 import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EmailClient;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
@@ -8,8 +9,8 @@ import com.linkedin.camus.etl.kafka.common.Source;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMapper;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
+import com.linkedin.camus.etl.kafka.mapred.EtlRecordReader;
 import com.linkedin.camus.etl.kafka.reporter.BaseReporter;
-import com.linkedin.camus.etl.kafka.reporter.TimeReporter;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -17,22 +18,16 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.lang.ClassNotFoundException;
-import java.net.URI;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
-import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.Comparator;
-import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import org.apache.commons.cli.CommandLine;
@@ -41,6 +36,7 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.PosixParser;
+import org.apache.commons.math3.util.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -53,15 +49,16 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.TIPStatus;
 import org.apache.hadoop.mapred.TaskCompletionEvent;
 import org.apache.hadoop.mapred.TaskReport;
 import org.apache.hadoop.mapreduce.Counter;
 import org.apache.hadoop.mapreduce.CounterGroup;
 import org.apache.hadoop.mapreduce.Counters;
+import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
@@ -76,16 +73,29 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 
 public class CamusJob extends Configured implements Tool {
 
   public static final String ETL_EXECUTION_BASE_PATH = "etl.execution.base.path";
   public static final String ETL_EXECUTION_HISTORY_PATH = "etl.execution.history.path";
   public static final String ETL_COUNTS_PATH = "etl.counts.path";
+  public static final String ETL_COUNTS_CLASS = "etl.counts.class";
+  public static final String ETL_COUNTS_CLASS_DEFAULT = "com.linkedin.camus.etl.kafka.common.EtlCounts";
   public static final String ETL_KEEP_COUNT_FILES = "etl.keep.count.files";
   public static final String ETL_BASEDIR_QUOTA_OVERIDE = "etl.basedir.quota.overide";
   public static final String ETL_EXECUTION_HISTORY_MAX_OF_QUOTA = "etl.execution.history.max.of.quota";
   public static final String ETL_FAIL_ON_ERRORS = "etl.fail.on.errors";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE = "etl.fail.on.offset.outofrange";
+  public static final String ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT = Boolean.TRUE.toString();
+  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND = "etl.max.percent.skipped.schemanotfound";
+  public static final String ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT = "0.1";
+  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER = "etl.max.percent.skipped.other";
+  public static final String ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT = "0.1";
+  public static final String ETL_MAX_ERRORS_TO_PRINT_FROM_FILE = "etl.max.errors.to.print.from.file";
+  public static final String ETL_MAX_ERRORS_TO_PRINT_FROM_FILE_DEFAULT = "10";
   public static final String ZK_AUDIT_HOSTS = "zookeeper.audit.hosts";
   public static final String KAFKA_MONITOR_TIER = "kafka.monitor.tier";
   public static final String CAMUS_MESSAGE_ENCODER_CLASS = "camus.message.encoder.class";
@@ -102,6 +112,7 @@ public class CamusJob extends Configured implements Tool {
   public static final String KAFKA_TIMEOUT_VALUE = "kafka.timeout.value";
   public static final String CAMUS_REPORTER_CLASS = "etl.reporter.class";
   public static final String LOG4J_CONFIGURATION = "log4j.configuration";
+
   private static org.apache.log4j.Logger log;
   private Job hadoopJob = null;
 
@@ -221,9 +232,17 @@ public class CamusJob extends Configured implements Tool {
   }
 
   public void run() throws Exception {
+    run(EtlInputFormat.class, EtlMultiOutputFormat.class);
+  }
+
+  public void run(Class<? extends InputFormat> inputFormatClass,
+                  Class<? extends OutputFormat> outputFormatClass) throws Exception {
 
     startTiming("pre-setup");
     startTiming("total");
+
+    EmailClient.setup(props);
+
     Job job = createJob(props);
     if (getLog4jConfigure(job)) {
       DOMConfigurator.configure("log4j.xml");
@@ -327,8 +346,8 @@ public class CamusJob extends Configured implements Tool {
     EtlInputFormat.setLogger(log);
     job.setMapperClass(EtlMapper.class);
 
-    job.setInputFormatClass(EtlInputFormat.class);
-    job.setOutputFormatClass(EtlMultiOutputFormat.class);
+    job.setInputFormatClass(inputFormatClass);
+    job.setOutputFormatClass(outputFormatClass);
     job.setNumReduceTasks(0);
 
     stopTiming("pre-setup");
@@ -348,19 +367,14 @@ public class CamusJob extends Configured implements Tool {
     stopTiming("hadoop");
     startTiming("commit");
 
+    boolean hadExecutionErrors = checkExecutionErrors(fs, newExecutionOutput);
+
+    checkIfTooManySkippedMsg(counters);
+
     // Send Tracking counts to Kafka
-    sendTrackingCounts(job, fs, newExecutionOutput);
-
-    Map<EtlKey, ExceptionWritable> errors = readErrors(fs, newExecutionOutput);
-
-    // Print any potential errors encountered
-    if (!errors.isEmpty())
-      log.error("Errors encountered during job run:");
-
-    for (Entry<EtlKey, ExceptionWritable> entry : errors.entrySet()) {
-      log.error(entry.getKey().toString());
-      log.error(entry.getValue().toString());
-    }
+    String etlCountsClassName = props.getProperty(ETL_COUNTS_CLASS, ETL_COUNTS_CLASS_DEFAULT);
+    Class<? extends EtlCounts> etlCountsClass = (Class<? extends EtlCounts>) Class.forName(etlCountsClassName);
+    sendTrackingCounts(job, fs, newExecutionOutput, etlCountsClass);
 
     Path newHistory = new Path(execHistory, executionDate);
     log.info("Moving execution to history : " + newHistory);
@@ -375,20 +389,82 @@ public class CamusJob extends Configured implements Tool {
       JobClient client = new JobClient(new JobConf(job.getConfiguration()));
 
       TaskCompletionEvent[] tasks = job.getTaskCompletionEvents(0);
-
-      for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
-        if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
-          for (String s : task.getDiagnostics()) {
-            System.err.println("task error: " + s);
+      if (tasks.length > 0) {
+        for (TaskReport task : client.getMapTaskReports(tasks[0].getTaskAttemptId().getJobID())) {
+          if (task.getCurrentStatus().equals(TIPStatus.FAILED)) {
+            for (String s : task.getDiagnostics()) {
+              System.err.println("task error: " + s);
+            }
           }
         }
       }
       throw new RuntimeException("hadoop job failed");
     }
 
-    if (!errors.isEmpty()
+    if (hadExecutionErrors
         && props.getProperty(ETL_FAIL_ON_ERRORS, Boolean.FALSE.toString()).equalsIgnoreCase(Boolean.TRUE.toString())) {
       throw new RuntimeException("Camus saw errors, check stderr");
+    }
+
+    if (EtlInputFormat.reportJobFailureDueToOffsetOutOfRange) {
+      EtlInputFormat.reportJobFailureDueToOffsetOutOfRange = false;
+      if (props.getProperty(ETL_FAIL_ON_OFFSET_OUTOFRANGE, ETL_FAIL_ON_OFFSET_OUTOFRANGE_DEFAULT)
+        .equalsIgnoreCase(Boolean.TRUE.toString())) {
+        throw new RuntimeException("Some topics skipped due to offsets from Kafka metadata out of range.");
+      }
+    }
+
+    if (EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka) {
+      EtlInputFormat.reportJobFailureUnableToGetOffsetFromKafka = false;
+      throw new RuntimeException("Some topics skipped due to failure in getting latest offset from Kafka leaders.");
+    }
+
+    if (EtlInputFormat.reportJobFailureDueToLeaderNotAvailable) {
+      EtlInputFormat.reportJobFailureDueToLeaderNotAvailable = false;
+      throw new RuntimeException("Some topic partitions skipped due to Kafka leader not available.");
+    }
+  }
+
+  private void checkIfTooManySkippedMsg(Counters counters) {
+    double maxPercentSkippedSchemaNotFound = Double.parseDouble(props.getProperty(ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND,
+        ETL_MAX_PERCENT_SKIPPED_SCHEMANOTFOUND_DEFAULT));
+    double maxPercentSkippedOther = Double.parseDouble(props.getProperty(ETL_MAX_PERCENT_SKIPPED_OTHER,
+        ETL_MAX_PERCENT_SKIPPED_OTHER_DEFAULT));
+
+    long actualSkippedSchemaNotFound = 0;
+    long actualSkippedOther = 0;
+    long actualDecodeSuccessful = 0;
+    for (String groupName : counters.getGroupNames()) {
+      if (groupName.equals(EtlRecordReader.KAFKA_MSG.class.getName())) {
+        CounterGroup group = counters.getGroup(groupName);
+        for (Counter counter : group) {
+          if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.DECODE_SUCCESSFUL.toString())) {
+            actualDecodeSuccessful = counter.getValue();
+          } else if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.SKIPPED_SCHEMA_NOT_FOUND.toString())) {
+            actualSkippedSchemaNotFound = counter.getValue();
+          } else if (counter.getDisplayName().equals(EtlRecordReader.KAFKA_MSG.SKIPPED_OTHER.toString())) {
+            actualSkippedOther = counter.getValue();
+          }
+        }
+      }
+    }
+    checkIfTooManySkippedMsg(maxPercentSkippedSchemaNotFound, actualSkippedSchemaNotFound, actualDecodeSuccessful,
+        "schema not found");
+    checkIfTooManySkippedMsg(maxPercentSkippedOther, actualSkippedOther, actualDecodeSuccessful, "other");
+  }
+
+  private void checkIfTooManySkippedMsg(double maxPercentAllowed, long actualSkipped, long actualSuccessful,
+      String reason) {
+    if (actualSkipped == 0 && actualSuccessful == 0) {
+      return;
+    }
+    double actualSkippedPercent = (double)actualSkipped / (double)(actualSkipped + actualSuccessful) * 100;
+    if (actualSkippedPercent > maxPercentAllowed) {
+      String message =
+          "job failed: " + actualSkippedPercent + "% messages skipped due to " + reason + ", maximum allowed is "
+              + maxPercentAllowed + "%";
+      log.error(message);
+      throw new RuntimeException(message);
     }
   }
 
@@ -398,30 +474,80 @@ public class CamusJob extends Configured implements Tool {
     }
   }
 
-  public Map<EtlKey, ExceptionWritable> readErrors(FileSystem fs, Path newExecutionOutput) throws IOException {
-    Map<EtlKey, ExceptionWritable> errors = new HashMap<EtlKey, ExceptionWritable>();
+  private Map<String, List<Pair<EtlKey, ExceptionWritable>>> readErrors(final FileSystem fs,
+                                                                        final Path newExecutionOutput) throws IOException {
+    final int maxErrorsFromFile =
+        Integer.parseInt(props.getProperty(ETL_MAX_ERRORS_TO_PRINT_FROM_FILE,
+                                           ETL_MAX_ERRORS_TO_PRINT_FROM_FILE_DEFAULT));
+    final Map<String, List<Pair<EtlKey, ExceptionWritable>>> errors = Maps.newHashMap();
 
-    for (FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(EtlMultiOutputFormat.ERRORS_PREFIX))) {
-      SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(), fs.getConf());
-
-      String errorFrom = "\nError from file [" + f.getPath() + "]";
+    for (final FileStatus f : fs.listStatus(newExecutionOutput, new PrefixFilter(EtlMultiOutputFormat.ERRORS_PREFIX))) {
+      int errorCounter = 0;
+      final Path filePath = f.getPath();
+      final SequenceFile.Reader reader = new SequenceFile.Reader(fs, filePath, fs.getConf());
 
       EtlKey key = new EtlKey();
       ExceptionWritable value = new ExceptionWritable();
 
+      final List<Pair<EtlKey, ExceptionWritable>> errorsFromFile = Lists.<Pair<EtlKey, ExceptionWritable>>newArrayList();
+
       while (reader.next(key, value)) {
-        ExceptionWritable exceptionWritable = new ExceptionWritable(value.toString() + errorFrom);
-        errors.put(new EtlKey(key), exceptionWritable);
+        errorCounter++;
+
+        if (errorCounter <= maxErrorsFromFile) {
+          errorsFromFile.add(
+              new Pair<EtlKey, ExceptionWritable>(new EtlKey(key),
+                                                  new ExceptionWritable(value.toString())));
+        }
       }
+
+      if (errorCounter > 0) {
+        if (errorCounter > maxErrorsFromFile) {
+          errorsFromFile.add(
+              new Pair<EtlKey, ExceptionWritable>(
+                  new EtlKey(key),
+                  new ExceptionWritable("... Too many errors to show. " +
+                                        "Skipped " + (errorCounter - maxErrorsFromFile) + " ...")));
+        }
+        errors.put(filePath.toString(), errorsFromFile);
+      }
+
       reader.close();
     }
 
     return errors;
   }
 
+  private boolean checkExecutionErrors(final FileSystem fs,
+                                       final Path newExecutionOutput) throws IOException {
+    Map<String, List<Pair<EtlKey, ExceptionWritable>>> errors = readErrors(fs, newExecutionOutput);
+
+    // Print any potential errors encountered
+    if (!errors.isEmpty())
+      log.error("Errors encountered during job run:");
+
+    for (final Entry<String, List<Pair<EtlKey, ExceptionWritable>>> fileEntry : errors.entrySet()) {
+      final String filePath = fileEntry.getKey();
+      final List<Pair<EtlKey, ExceptionWritable>> errorsFromFile = fileEntry.getValue();
+      if (errorsFromFile.size() > 0) {
+        log.error("Errors from file [" + filePath + "]");
+      }
+
+      for (final Pair<EtlKey, ExceptionWritable> errorEntry : errorsFromFile) {
+        final EtlKey errorKey = errorEntry.getKey();
+        final ExceptionWritable errorValue = errorEntry.getValue();
+        log.error("Error for EtlKey [" + errorKey + "]: " + errorValue.toString());
+      }
+    }
+
+    return !errors.isEmpty();
+  }
+
   // Posts the tracking counts to Kafka
-  public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput) throws IOException,
-      URISyntaxException {
+  public void sendTrackingCounts(JobContext job, FileSystem fs, Path newExecutionOutput,
+      Class<? extends EtlCounts> etlCountsClass) throws IOException, URISyntaxException, IllegalArgumentException,
+      SecurityException, InstantiationException, IllegalAccessException, InvocationTargetException,
+      NoSuchMethodException {
     if (EtlMultiOutputFormat.isRunTrackingPost(job)) {
       FileStatus[] gstatuses = fs.listStatus(newExecutionOutput, new PrefixFilter("counts"));
       HashMap<String, EtlCounts> allCounts = new HashMap<String, EtlCounts>();
@@ -477,8 +603,10 @@ public class CamusJob extends Configured implements Tool {
       }
 
       String brokerList = getKafkaBrokers(job);
-      for (EtlCounts finalCounts : allCounts.values()) {
-        finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER), brokerList);
+      for (EtlCounts finalEtlCounts : allCounts.values()) {
+        EtlCounts finalCounts = etlCountsClass.getDeclaredConstructor(EtlCounts.class).newInstance(finalEtlCounts);
+        finalCounts.postTrackingCountToKafka(job.getConfiguration(), props.getProperty(KAFKA_MONITOR_TIER),
+            brokerList);
       }
     }
   }
@@ -487,7 +615,7 @@ public class CamusJob extends Configured implements Tool {
    * Creates a diagnostic report based on provided logger
    * defaults to TimeLogger which focusses on timing breakdowns. Useful
    * for determining where to optimize.
-   * 
+   *
    * @param job
    * @param timingMap
    * @throws IOException
@@ -619,3 +747,4 @@ public class CamusJob extends Configured implements Tool {
     return job.getConfiguration().get(CAMUS_REPORTER_CLASS, "com.linkedin.camus.etl.kafka.reporter.TimeReporter");
   }
 }
+

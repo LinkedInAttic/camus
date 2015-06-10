@@ -33,6 +33,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
   private long time = 0;
   private String server = "";
   private String service = "";
+  private long totalMessageSize = 0;
   private MapWritable partitionMap = new MapWritable();
 
   /**
@@ -153,6 +154,17 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
       return 1024; //default estimated size
   }
 
+  public long getTotalMessageSize() {
+    if (this.totalMessageSize == 0) {
+      this.totalMessageSize = this.getMessageSize();
+    }
+    return this.totalMessageSize;
+  }
+
+  public void setTotalMessageSize(long totalMessageSize) {
+    this.totalMessageSize = totalMessageSize;
+  }
+
   public void setMessageSize(long messageSize) {
     Text key = new Text("message.size");
     put(key, new LongWritable(messageSize));
@@ -257,5 +269,65 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     }
 
     return builder.toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof EtlKey)) {
+      return false;
+    }
+
+    EtlKey etlKey = (EtlKey) o;
+
+    if (beginOffset != etlKey.beginOffset) {
+      return false;
+    }
+    if (checksum != etlKey.checksum) {
+      return false;
+    }
+    if (offset != etlKey.offset) {
+      return false;
+    }
+    if (partition != etlKey.partition) {
+      return false;
+    }
+    if (time != etlKey.time) {
+      return false;
+    }
+    if (!leaderId.equals(etlKey.leaderId)) {
+      return false;
+    }
+    if (!partitionMap.equals(etlKey.partitionMap)) {
+      return false;
+    }
+    if (!server.equals(etlKey.server)) {
+      return false;
+    }
+    if (!service.equals(etlKey.service)) {
+      return false;
+    }
+    if (!topic.equals(etlKey.topic)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = leaderId.hashCode();
+    result = 31 * result + partition;
+    result = 31 * result + (int) (beginOffset ^ (beginOffset >>> 32));
+    result = 31 * result + (int) (offset ^ (offset >>> 32));
+    result = 31 * result + (int) (checksum ^ (checksum >>> 32));
+    result = 31 * result + topic.hashCode();
+    result = 31 * result + (int) (time ^ (time >>> 32));
+    result = 31 * result + server.hashCode();
+    result = 31 * result + service.hashCode();
+    result = 31 * result + partitionMap.hashCode();
+    return result;
   }
 }

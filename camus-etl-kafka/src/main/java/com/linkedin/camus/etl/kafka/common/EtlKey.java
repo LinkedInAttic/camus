@@ -33,6 +33,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
   private long time = 0;
   private String server = "";
   private String service = "";
+  private long totalMessageSize = 0;
   private MapWritable partitionMap = new MapWritable();
 
   /**
@@ -151,6 +152,17 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
       return ((LongWritable) this.partitionMap.get(key)).get();
     else
       return 1024; //default estimated size
+  }
+
+  public long getTotalMessageSize() {
+    if (this.totalMessageSize == 0) {
+      this.totalMessageSize = this.getMessageSize();
+    }
+    return this.totalMessageSize;
+  }
+
+  public void setTotalMessageSize(long totalMessageSize) {
+    this.totalMessageSize = totalMessageSize;
   }
 
   public void setMessageSize(long messageSize) {

@@ -39,6 +39,7 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTimeZone;
+import org.mortbay.log.Log;
 
 import com.linkedin.camus.sweeper.mapreduce.CamusSweeperJob;
 import com.linkedin.camus.sweeper.utils.PriorityExecutor;
@@ -188,6 +189,14 @@ public class CamusSweeper extends Configured implements Tool {
 
     if (!fileSystem.exists(tmpPath)) {
       fileSystem.mkdirs(tmpPath, perm);
+      Log.info("Created tmpPath " + tmpPath + " with permissions " + perm + " and umask " + getUmask(conf));
+
+      if (!fileSystem.getFileStatus(tmpPath).getPermission().equals(perm)) {
+        log.error(String.format("Wrong permission for %s. Expects %s, actual %s", tmpPath, perm, fileSystem
+            .getFileStatus(tmpPath).getPermission()));
+        fileSystem.setPermission(tmpPath, perm);
+      }
+
       String user = UserGroupInformation.getCurrentUser().getUserName();
       fileSystem.setOwner(tmpPath, user, user);
     }
@@ -227,6 +236,28 @@ public class CamusSweeper extends Configured implements Tool {
         error.e.printStackTrace();
       }
       throw new RuntimeException("Sweeper Failed");
+    }
+  }
+
+  private static String getUmask(Configuration conf) {
+    if (conf.get(FsPermission.UMASK_LABEL) != null && conf.get(FsPermission.DEPRECATED_UMASK_LABEL) != null) {
+      log.warn(String.format("Both umask labels exist: %s=%s, %s=%s", FsPermission.UMASK_LABEL,
+          conf.get(FsPermission.UMASK_LABEL), FsPermission.DEPRECATED_UMASK_LABEL,
+          conf.get(FsPermission.DEPRECATED_UMASK_LABEL)));
+      return conf.get(FsPermission.UMASK_LABEL);
+
+    } else if (conf.get(FsPermission.UMASK_LABEL) != null) {
+      log.info(String.format("umask set: %s=%s", FsPermission.UMASK_LABEL, conf.get(FsPermission.UMASK_LABEL)));
+      return conf.get(FsPermission.UMASK_LABEL);
+
+    } else if (conf.get(FsPermission.DEPRECATED_UMASK_LABEL) != null) {
+      log.info(String.format("umask set: %s=%s", FsPermission.DEPRECATED_UMASK_LABEL,
+          conf.get(FsPermission.DEPRECATED_UMASK_LABEL)));
+      return conf.get(FsPermission.DEPRECATED_UMASK_LABEL);
+
+    } else {
+      log.info("umask unset");
+      return "undefined";
     }
   }
 
@@ -278,6 +309,13 @@ public class CamusSweeper extends Configured implements Tool {
       try {
         log.info("Starting runner for " + name);
         collector = new KafkaCollector(props, name, topic);
+
+        log.info("Waiting until input for job " + name + " is ready. Input directories:  "
+            + props.getProperty("input.paths"));
+        if (!planner.waitUntilReadyToProcess(props, fileSystem)) {
+          throw new JobCancelledException("Job has been cancelled by planner while waiting for input to be ready.");
+        }
+
         log.info("Running " + name + " for input " + props.getProperty("input.paths"));
         collector.run();
       } catch (Throwable e) // Sometimes the error is the Throwable, e.g. java.lang.NoClassDefFoundError
@@ -366,7 +404,7 @@ public class CamusSweeper extends Configured implements Tool {
       }
 
       log.info("Moving " + tmpPath + " to " + outputPath);
-      mkdirs(fs, outputPath.getParent(), perm);
+      mkdirs(fs, outputPath.getParent(), perm, job.getConfiguration());
 
       if (!fs.rename(tmpPath, outputPath)) {
         fs.rename(oldPath, outputPath);
@@ -457,10 +495,23 @@ public class CamusSweeper extends Configured implements Tool {
     }
   }
 
-  protected void mkdirs(FileSystem fs, Path path, FsPermission perm) throws IOException {
+  protected void mkdirs(FileSystem fs, Path path, FsPermission perm, Configuration conf) throws IOException {
     if (!fs.exists(path.getParent()))
-      mkdirs(fs, path.getParent(), perm);
-    fs.mkdirs(path, perm);
+      mkdirs(fs, path.getParent(), perm, conf);
+    String msg = "Creating " + path + " with permissions " + perm + " and umask " + getUmask(conf);
+    if (!fs.exists(path)) {
+      log.info(msg);
+    }
+    if (!fs.mkdirs(path, perm)) {
+      msg = msg + " failed";
+      log.error(msg);
+      throw new IOException(msg);
+    }
+    if (!fs.getFileStatus(path).getPermission().equals(perm)) {
+      log.error(String.format("Wrong permission for %s. Expects %s, actual %s", path, perm, fs.getFileStatus(path)
+          .getPermission()));
+      fs.setPermission(path, perm);
+    }
   }
 
   public static class WhiteBlackListPathFilter implements PathFilter {

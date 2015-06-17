@@ -57,7 +57,7 @@ public class CamusCleaner extends Configured implements Tool {
   private boolean simulate = false;
   private boolean force = false;
   private static Logger log = Logger.getLogger(CamusCleaner.class);
-  private String topicExceptionString = null;
+  private boolean shouldFailJob = false;
 
   public CamusCleaner() {
     this.props = new Properties();
@@ -125,13 +125,13 @@ public class CamusCleaner extends Configured implements Tool {
       enforceRetention(fullname, status, sourceSubDir, destSubDir, topicRetention);
     }
 
-    if (topicExceptionString != null) {
-      throw new RuntimeException(topicExceptionString);
+    if (shouldFailJob) {
+      throw new RuntimeException("Cannot delete some folders. See LOG errors for details.");
     }
   }
 
-  private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir,
-      String topicDestSubdir, int numDays) throws Exception {
+  private void enforceRetention(String topicName, FileStatus topicDir, String topicSourceSubdir, String topicDestSubdir,
+      int numDays) throws Exception {
     log.info("Running retention for " + topicName + " using " + numDays + " days");
 
     if (numDays != -1) {
@@ -139,28 +139,34 @@ public class CamusCleaner extends Configured implements Tool {
       DateTime daysAgo = time.minusDays(numDays);
       Path sourceDailyGlob = new Path(topicDir.getPath() + "/" + topicSourceSubdir + "/*/*/*");
       for (FileStatus f : fs.globStatus(sourceDailyGlob)) {
-        DateTime dirDateTime =
-            outputDailyFormat.parseDateTime(f.getPath().toString()
-                .substring(f.getPath().toString().length() - OUTPUT_DAILY_FORMAT_STR.length()));
+        DateTime dirDateTime = outputDailyFormat.parseDateTime(
+            f.getPath().toString().substring(f.getPath().toString().length() - OUTPUT_DAILY_FORMAT_STR.length()));
         if (dirDateTime.isBefore(daysAgo)) {
           if (!(force || topicDestSubdir.isEmpty())) {
             Path destPath =
                 new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
 
             if (!fs.exists(destPath)) {
-              topicExceptionString =
-                  topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f
-                      .getPath());
+              shouldFailJob = true;
+              log.error(String.format("Cannot delete folder %s, since rollup folder %s doesn't exist.", f.getPath(),
+                  destPath));
               continue;
             } else {
               FileStatus dest = fs.getFileStatus(destPath);
+              boolean canDelete = true;
 
               for (FileStatus sourceFile : fs.listStatus(f.getPath())) {
                 if (dest.getModificationTime() < sourceFile.getModificationTime()) {
-                  topicExceptionString =
-                      topicExceptionString == null ? ("source is older than rollup for inputs: " + f.getPath())
-                          : (", " + f.getPath());
+                  shouldFailJob = true;
+                  log.error(String.format(
+                      "Cannot delete folder %s, since the timestamp of %s (%d) is later than the timestamp of rollup folder %s (%d)",
+                      f.getPath(), sourceFile.getPath(), sourceFile.getModificationTime(), destPath,
+                      dest.getModificationTime()));
+                  canDelete = false;
                 }
+              }
+              if (!canDelete) {
+                continue;
               }
             }
           }

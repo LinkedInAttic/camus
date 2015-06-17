@@ -11,7 +11,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
@@ -32,6 +35,9 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
   private static final boolean DEFAULT_MAPRED_COMPRESS_MAP_OUTPUT = Boolean.TRUE;
 
   static final String TOPIC_AND_HOUR = "topic.and.hour";
+  static final String STATE_FILE_NAME = "_state";
+  static final String MAPREDUCE_SUBMIT_TIME = "mapreduce.submit.time";
+  public static final String FOLDER_HOUR = "camus.sweeper.folder.hour";
 
   private final CamusSweeperMetrics metrics;
 
@@ -104,26 +110,31 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
 
   /**
    * If the destination folder already exist, get the timestamp when the MapReduce job was submitted
-   * to create that folder. The timestamp is stored in a _{timestamp} file.
+   * to create that folder. The timestamp is stored in a _state file.
    *
    * If such a file doesn't exist, return the timestamp of the folder.
-   * @throws IOException 
    */
-  public static long getDestinationModTime(FileSystem fs, String outputPathStr, boolean deleteTimestamp)
-      throws IOException {
+  public static long getDestinationModTime(FileSystem fs, String outputPathStr) throws IOException {
     for (FileStatus status : fs.listStatus(new Path(outputPathStr))) {
-      if (!status.isDir() && status.getPath().getName().matches("_\\d+")) {
-        LOG.info("Found timestamp file: " + status.getPath());
-        long timeStamp = Long.valueOf(status.getPath().getName().substring(1));
-
-        if (deleteTimestamp) {
-          fs.delete(status.getPath(), false);
+      if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
+        LOG.info("Found state file: " + status.getPath());
+        FSDataInputStream fin = null;
+        try {
+          fin = fs.open(status.getPath());
+          Properties properties = new Properties();
+          properties.load(fin);
+          if (properties.containsKey(MAPREDUCE_SUBMIT_TIME)) {
+            return Long.valueOf(properties.getProperty(MAPREDUCE_SUBMIT_TIME));
+          }
+        } finally {
+          if (fin != null) {
+            fin.close();
+          }
         }
-        return timeStamp;
       }
     }
 
-    //return the timestamp of the folder
+    //return the timestamp of the folder, if the state file doesn't exist, or cannot get timestamp from state file.
     return fs.getFileStatus(new Path(outputPathStr)).getModificationTime();
   }
 
@@ -168,8 +179,28 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
     return executorService.submit(new KafkaCollectorRunner(jobName, props, errorMessages, topic));
   }
 
-  private static void createTimeStampFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
-    fs.createNewFile(new Path(folder, "_" + timeStamp));
+  private static void createStateFileInFolder(FileSystem fs, Path folder, long timeStamp) throws IOException {
+    // delete existing state file
+    for (FileStatus status : fs.listStatus(folder)) {
+      if (!status.isDir() && status.getPath().getName().equals(STATE_FILE_NAME)) {
+        if (!fs.delete(status.getPath(), false)) {
+          throw new IOException("Failed to delete state file " + status.getPath());
+        }
+      }
+    }
+
+    // write new state file
+    FSDataOutputStream fout = null;
+    try {
+      fout = fs.create(new Path(folder, STATE_FILE_NAME));
+      Properties properties = new Properties();
+      properties.setProperty(MAPREDUCE_SUBMIT_TIME, String.valueOf(timeStamp));
+      properties.store(fout, StringUtils.EMPTY);
+    } finally {
+      if (fout != null) {
+        fout.close();
+      }
+    }
   }
 
   private class KafkaCollectorRunner extends CamusSweeper.KafkaCollectorRunner {
@@ -222,9 +253,7 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
       CamusSingleFolderSweeper.this.metrics.recordMrSubmitTimeByTopic(this.topicAndHour, jobSubmitTime);
       submitMrJob();
       moveTmpPathToOutputPath();
-
-      // Creating timestamp file is temporarily disabled.
-      // CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, this.outputPath, jobSubmitTime);
+      CamusSingleFolderSweeper.createStateFileInFolder(fs, this.outputPath, jobSubmitTime);
     }
 
     @Override
@@ -262,7 +291,7 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
     public Void call() throws IOException {
       String inputPaths = this.props.getProperty(CamusSingleFolderSweeper.INPUT_PATHS);
       String outputPathStr = this.props.getProperty(CamusSingleFolderSweeper.DEST_PATH);
-      long destinationModTime = getDestinationModTime(this.fs, outputPathStr, true);
+      long destinationModTime = getDestinationModTime(this.fs, outputPathStr);
       Path outputPath = new Path(outputPathStr, "outlier");
       fs.mkdirs(outputPath);
 
@@ -282,7 +311,7 @@ public class CamusSingleFolderSweeper extends CamusSweeper {
 
         // Create new timestamp file
         if (outlierMaxTimestamp != Long.MIN_VALUE) {
-          CamusSingleFolderSweeper.createTimeStampFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
+          CamusSingleFolderSweeper.createStateFileInFolder(fs, new Path(outputPathStr), outlierMaxTimestamp);
         }
       }
 

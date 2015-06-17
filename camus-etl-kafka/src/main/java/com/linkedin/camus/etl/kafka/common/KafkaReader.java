@@ -20,7 +20,6 @@ import kafka.javaapi.message.ByteBufferMessageSet;
 import kafka.message.Message;
 import kafka.message.MessageAndOffset;
 
-import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.log4j.Logger;
 
@@ -57,9 +56,8 @@ public class KafkaReader {
   /**
    * Construct using the json representation of the kafka request
    */
-  public KafkaReader(EtlInputFormat inputFormat, TaskAttemptContext context, EtlRequest request, 
-                     int clientTimeout, int fetchBufferSize)
-      throws Exception {
+  public KafkaReader(EtlInputFormat inputFormat, TaskAttemptContext context, EtlRequest request, int clientTimeout,
+      int fetchBufferSize) throws Exception {
     this.fetchBufferSize = fetchBufferSize;
     this.context = context;
 
@@ -79,19 +77,21 @@ public class KafkaReader {
     // read data from queue
 
     URI uri = kafkaRequest.getURI();
-    simpleConsumer =
-        inputFormat.createSimpleConsumer(context, uri.getHost(), uri.getPort());
+    simpleConsumer = inputFormat.createSimpleConsumer(context, uri.getHost(), uri.getPort());
     log.info("Connected to leader " + uri + " beginning reading at offset " + beginOffset + " latest offset="
         + lastOffset);
     fetch();
   }
 
   public boolean hasNext() throws IOException {
-    if (messageIter != null && messageIter.hasNext())
+    if (currentOffset >= lastOffset) {
+      return false;
+    }
+    if (messageIter != null && messageIter.hasNext()) {
       return true;
-    else
+    } else {
       return fetch();
-
+    }
   }
 
   /**
@@ -114,9 +114,7 @@ public class KafkaReader {
       if (payload == null) {
         log.warn("Received message with null message.payload(): " + msgAndOffset);
       }
-      if (key == null) {
-        log.warn("Received message with null message.key(): " + msgAndOffset);
-      }
+
       etlKey.clear();
       etlKey.set(kafkaRequest.getTopic(), kafkaRequest.getLeaderId(), kafkaRequest.getPartition(), currentOffset,
           msgAndOffset.offset() + 1, message.checksum());
@@ -126,7 +124,8 @@ public class KafkaReader {
       currentOffset = msgAndOffset.offset() + 1; // increase offset
       currentCount++; // increase count
 
-      return new KafkaMessage(payload, key, kafkaRequest.getTopic(), kafkaRequest.getPartition(), msgAndOffset.offset(), message.checksum());
+      return new KafkaMessage(payload, key, kafkaRequest.getTopic(), kafkaRequest.getPartition(),
+          msgAndOffset.offset(), message.checksum());
     } else {
       return null;
     }
@@ -141,7 +140,6 @@ public class KafkaReader {
     }
     return bytes;
   }
-
 
   /**
    * Creates a fetch request.
@@ -170,14 +168,15 @@ public class KafkaReader {
     try {
       fetchResponse = simpleConsumer.fetch(fetchRequest);
       if (fetchResponse.hasError()) {
-        String message = "Error Code generated : "
-            + fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition()) + "\n";
+        String message =
+            "Error Code generated : " + fetchResponse.errorCode(kafkaRequest.getTopic(), kafkaRequest.getPartition())
+                + "\n";
         throw new RuntimeException(message);
       }
       return processFetchResponse(fetchResponse, tempTime);
     } catch (Exception e) {
-      log.info("Exception generated during fetch for topic " + kafkaRequest.getTopic()
-          + ": " + e.getMessage() + ". Will refresh topic metadata and retry.");
+      log.info("Exception generated during fetch for topic " + kafkaRequest.getTopic() + ": " + e.getMessage()
+          + ". Will refresh topic metadata and retry.");
       return refreshTopicMetadataAndRetryFetch(fetchRequest, tempTime);
     }
   }
@@ -213,9 +212,10 @@ public class KafkaReader {
     TopicMetadata metadata = response.topicsMetadata().get(0);
     for (PartitionMetadata partitionMetadata : metadata.partitionsMetadata()) {
       if (partitionMetadata.partitionId() == kafkaRequest.getPartition()) {
-        simpleConsumer = new SimpleConsumer(partitionMetadata.leader().host(), partitionMetadata.leader().port(),
-            CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
-            CamusJob.getKafkaClientName(context));
+        simpleConsumer =
+            new SimpleConsumer(partitionMetadata.leader().host(), partitionMetadata.leader().port(),
+                CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
+                CamusJob.getKafkaClientName(context));
         break;
       }
     }

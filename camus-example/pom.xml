@@ -31,11 +31,8 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-mapreduce-client-common</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-common</artifactId>
+      <artifactId>hadoop-core</artifactId>
+      <version>1.2.1</version>
     </dependency>
     <dependency>
       <groupId>org.easymock</groupId>

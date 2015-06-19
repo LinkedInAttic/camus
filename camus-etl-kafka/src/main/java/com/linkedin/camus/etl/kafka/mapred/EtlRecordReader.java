@@ -281,7 +281,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           this.numRecordsReadForCurrentPartition++;
           this.bytesReadForCurrentPartition += key.getMessageSize();
           context.progress();
-          mapperContext.getCounter("total", "data-read").increment(message.getPayload().length);
+          mapperContext.getCounter("total", "data-read").increment(message.getPayload() != null ? message.getPayload().length : 0);
           mapperContext.getCounter("total", "event-count").increment(1);
 
           message.validate();

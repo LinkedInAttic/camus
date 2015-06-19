@@ -30,12 +30,11 @@ public class StatsdReporter extends TimeReporter {
   private void submitCountersToStatsd(Job job) throws IOException {
     Counters counters = job.getCounters();
     if (getStatsdEnabled(job)) {
-      StatsDClient statsd =
-          new NonBlockingStatsDClient("Camus", getStatsdHost(job), getStatsdPort(job),
-              new String[] { "camus:counters" });
+      StatsDClient statsd = new NonBlockingStatsDClient("Camus", getStatsdHost(job), getStatsdPort(job));
+//          new NonBlockingStatsDClient("Camus", getStatsdHost(job), getStatsdPort(job), new String[] { "camus:counters" });
       for (CounterGroup counterGroup : counters) {
         for (Counter counter : counterGroup) {
-          statsd.gauge(counterGroup.getDisplayName() + "." + counter.getDisplayName(), counter.getValue());
+          statsd.gauge(counterGroup.getDisplayName() + "." + counter.getDisplayName(), (int) counter.getValue());
         }
       }
     }

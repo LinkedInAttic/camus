@@ -5,7 +5,7 @@
   <parent>
     <groupId>com.linkedin.camus</groupId>
     <artifactId>camus-parent</artifactId>
-    <version>${camus.version}</version>
+    <version>0.9.1-SNAPSHOT</version>
   </parent>
 
   <artifactId>camus-example</artifactId>

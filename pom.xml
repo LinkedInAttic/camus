@@ -211,7 +211,7 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>hadoop2</classifier>
+                            <classifier>hadoop1</classifier>
                         </configuration>
                     </execution>
                 </executions>

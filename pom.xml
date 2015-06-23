@@ -19,6 +19,7 @@
     <url>https://github.com/linkedin/camus</url>
 
     <properties>
+        <parent.project.version>${project.version}</parent.project.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

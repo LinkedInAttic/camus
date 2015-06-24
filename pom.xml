@@ -12,7 +12,7 @@
     <artifactId>camus-parent</artifactId>
     <version>0.9.1-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Camus Parent</name>
+    <name>camus-parent</name>
     <description>
         Camus is LinkedIn's Kafka->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka.
     </description>
@@ -22,6 +22,60 @@
         <parent.project.version>${project.version}</parent.project.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>hadoop1</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+                <property>
+                    <name>hadoop.version</name>
+                    <value>hadoop1</value>
+                </property>
+            </activation>
+            <properties>
+                <jar.classifier>hadoop1</jar.classifier>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-mapred</artifactId>
+                    <version>1.7.7</version>
+                    <classifier>hadoop1</classifier>
+                </dependency>
+                <dependency>
+                    <groupId>org.apache.hadoop</groupId>
+                    <artifactId>hadoop-core</artifactId>
+                    <version>1.2.1</version>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>hadoop2</id>
+            <activation>
+                <property>
+                    <name>hadoop.version</name>
+                    <value>hadoop2</value>
+                </property>
+            </activation>
+            <properties>
+                <jar.classifier>hadoop2</jar.classifier>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>org.apache.avro</groupId>
+                    <artifactId>avro-mapred</artifactId>
+                    <version>1.7.7</version>
+                    <classifier>hadoop2</classifier>
+                </dependency>
+                <dependency>
+                    <groupId>org.apache.hadoop</groupId>
+                    <artifactId>hadoop-client</artifactId>
+                    <version>2.4.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 
     <dependencyManagement>
         <dependencies>
@@ -67,11 +121,7 @@
                 <artifactId>avro</artifactId>
                 <version>1.7.7</version>
             </dependency>
-            <dependency>
-                <groupId>org.apache.avro</groupId>
-                <artifactId>avro-mapred</artifactId>
-                <version>1.7.7</version>
-            </dependency>
+
             <dependency>
                 <groupId>org.apache.avro</groupId>
                 <version>1.7.4-SNAPSHOT</version>
@@ -83,11 +133,7 @@
                 <version>1.6.2</version>
             </dependency>
 
-            <dependency>
-                <groupId>org.apache.hadoop</groupId>
-                <artifactId>hadoop-core</artifactId>
-                <version>1.2.1</version>
-            </dependency>
+
 
             <dependency>
                 <groupId>org.easymock</groupId>
@@ -212,7 +258,7 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>hadoop1</classifier>
+                            <classifier>${jar.classifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>

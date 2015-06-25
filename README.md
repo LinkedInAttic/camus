@@ -22,9 +22,6 @@ compile "com.linkedin.camus:camus-api:0.9.2:hadoop1"
 
 
 
-
-* Official Camus Readme
-
 # Intro
 Camus is LinkedIn's [Kafka](http://kafka.apache.org "Kafka")->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka. It includes the following features:
 

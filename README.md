@@ -3,17 +3,28 @@
 ### Active branches:
 - master: Can be built against Hadoop1 or Hadoop2 using `mvn clean package -Dhadoop.version=hadoop[1-2]`. Linked to [TeamCity AutoBuild](https://teamcity.amz.relateiq.com/viewType.html?buildTypeId=RIQ2014_ExternalForks_Camus) which produces [Camus jars in Artifactory](https://relateiq.artifactoryonline.com/relateiq/webapp/browserepo.html?4)
 
+Use in a gradle project with
+```
+compile "com.linkedin.camus:camus-kafka-coders:0.9.2:hadoop1"
+compile "com.linkedin.camus:camus-schema-registry:0.9.2:hadoop1"
+compile "com.linkedin.camus:camus-etl-kafka:0.9.2:hadoop1"
+compile "com.linkedin.camus:camus-api:0.9.2:hadoop1"
+```
+
 
 ### Obsolete Branches
 - hadoop1: used to build for hadoop1 only. to be deleted
 - hadoop2: used to build for hadoop2 only. to be deleted
+- camus-kafka-0.8: Not sure. We use Kafka 0.8.1 now.
+- riq: Not sure. Find differences between master & this branch
 
 
 
 
 
 
-Official Camus Readme
+* Official Camus Readme
+
 # Intro
 Camus is LinkedIn's [Kafka](http://kafka.apache.org "Kafka")->HDFS pipeline. It is a mapreduce job that does distributed data loads out of Kafka. It includes the following features:
 

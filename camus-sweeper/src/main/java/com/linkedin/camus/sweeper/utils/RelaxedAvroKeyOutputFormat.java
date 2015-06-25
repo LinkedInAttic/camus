@@ -10,8 +10,13 @@ import org.apache.avro.mapreduce.AvroKeyRecordWriter;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.mapreduce.OutputCommitter;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import com.linkedin.camus.sweeper.mapreduce.CamusSweeperOutputCommitter;
 
 
 /**
@@ -25,6 +30,8 @@ public class RelaxedAvroKeyOutputFormat<T> extends AvroKeyOutputFormat<T> {
   private static final Log LOG = LogFactory.getLog(RelaxedAvroKeyOutputFormat.class.getName());
 
   private static final String CONF_OUTPUT_KEY_SCHEMA = "avro.schema.output.key";
+
+  private FileOutputCommitter commiter = null;
 
   @Override
   public RecordWriter<AvroKey<T>, NullWritable> getRecordWriter(TaskAttemptContext context) throws IOException {
@@ -41,6 +48,14 @@ public class RelaxedAvroKeyOutputFormat<T> extends AvroKeyOutputFormat<T> {
     return new AvroKeyRecordWriter<T>(writerSchema, GenericData.get(), getCompressionCodec(context),
         getAvroFileOutputStream(context));
 
+  }
+
+  @Override
+  public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException {
+    if (this.commiter == null) {
+      this.commiter = new CamusSweeperOutputCommitter(FileOutputFormat.getOutputPath(context), context);
+    }
+    return this.commiter;
   }
 
 }

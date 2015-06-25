@@ -127,11 +127,11 @@
                 <version>1.7.7</version>
             </dependency>
 
-            <dependency>
-                <groupId>org.apache.avro</groupId>
-                <version>1.7.4-SNAPSHOT</version>
-                <artifactId>avro-repo-bundle</artifactId>
-            </dependency>
+            <!--<dependency>-->
+                <!--<groupId>org.apache.avro</groupId>-->
+                <!--<version>1.7.4-SNAPSHOT</version>-->
+                <!--<artifactId>avro-repo-bundle</artifactId>-->
+            <!--</dependency>-->
             <dependency>
                 <groupId>joda-time</groupId>
                 <artifactId>joda-time</artifactId>
@@ -213,7 +213,7 @@
         <module>camus-kafka-coders</module>
         <module>camus-etl-kafka</module>
         <module>camus-schema-registry</module>
-        <module>camus-schema-registry-avro</module>
+        <!--<module>camus-schema-registry-avro</module>-->
         <module>camus-example</module>
         <module>camus-sweeper</module>
     </modules>

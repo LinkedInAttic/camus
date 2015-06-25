@@ -1,7 +1,7 @@
 # RelateIQ/Camus fork
 
 ### Active branches:
-- master: Can be built against Hadoop1 or Hadoop2 using `mvn clean package -Dhadoop.version=hadoop[1-2]`. Linked to [TeamCity AutoBuild](https://teamcity.amz.relateiq.com/viewType.html?buildTypeId=RIQ2014_ExternalForks_Camus) which produces [Camus jars in Artifactory](https://relateiq.artifactoryonline.com/relateiq/webapp/browserepo.html?4)
+- master: Can be built against Hadoop1 or Hadoop2 using `mvn clean package -Dhadoop.version=hadoop[1-2]`. Linked to [TeamCity Build](https://teamcity.amz.relateiq.com/viewType.html?buildTypeId=RIQ2014_ExternalForks_Camus) which produces [Camus jars in Artifactory](https://relateiq.artifactoryonline.com/relateiq/webapp/browserepo.html?7&pathId=libs-snapshots-local:com/linkedin/camus)
 
 Use in a gradle project with
 ```

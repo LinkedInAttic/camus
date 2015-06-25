@@ -9,8 +9,15 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Reducer;
 
 
-public class AvroKeyReducer extends
-    Reducer<AvroKey<GenericRecord>, AvroValue<GenericRecord>, AvroKey<GenericRecord>, NullWritable> {
+public class AvroKeyReducer
+    extends Reducer<AvroKey<GenericRecord>, AvroValue<GenericRecord>, AvroKey<GenericRecord>, NullWritable> {
+
+  public static enum EVENT_COUNTER {
+    MORE_THAN_1,
+    DEDUPED,
+    RECORD_COUNT
+  };
+
   private AvroKey<GenericRecord> outKey;
 
   @Override
@@ -29,9 +36,10 @@ public class AvroKeyReducer extends
     }
 
     if (numVals > 1) {
-      context.getCounter("EventCounter", "More_Than_1").increment(1);
-      context.getCounter("EventCounter", "Deduped").increment(numVals - 1);
+      context.getCounter(EVENT_COUNTER.MORE_THAN_1).increment(1);
+      context.getCounter(EVENT_COUNTER.DEDUPED).increment(numVals - 1);
     }
+    context.getCounter(EVENT_COUNTER.RECORD_COUNT).increment(1);
 
     context.write(outKey, NullWritable.get());
   }

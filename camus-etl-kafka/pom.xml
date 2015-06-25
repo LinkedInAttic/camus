@@ -26,10 +26,12 @@
         <dependency>
             <groupId>com.linkedin.camus</groupId>
             <artifactId>camus-api</artifactId>
+            <classifier>${jar.classifier}</classifier>
         </dependency>
         <dependency>
             <groupId>com.linkedin.camus</groupId>
             <artifactId>camus-kafka-coders</artifactId>
+            <classifier>${jar.classifier}</classifier>
         </dependency>
         <dependency>
             <groupId>joda-time</groupId>

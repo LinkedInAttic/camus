@@ -17,14 +17,17 @@
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-api</artifactId>
+      <classifier>${jar.classifier}</classifier>
     </dependency>
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-schema-registry</artifactId>
+      <classifier>${jar.classifier}</classifier>
     </dependency>
     <dependency>
       <groupId>com.linkedin.camus</groupId>
       <artifactId>camus-etl-kafka</artifactId>
+      <classifier>${jar.classifier}</classifier>
     </dependency>
     <dependency>
       <groupId>org.apache.avro</groupId>

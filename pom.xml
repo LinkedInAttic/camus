@@ -83,21 +83,25 @@
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-api</artifactId>
                 <version>${project.version}</version>
+                <classifier>${jar.classifier}</classifier>
             </dependency>
             <dependency>
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-etl-kafka</artifactId>
                 <version>${project.version}</version>
+                <classifier>${jar.classifier}</classifier>
             </dependency>
             <dependency>
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-kafka-coders</artifactId>
                 <version>${project.version}</version>
+                <classifier>${jar.classifier}</classifier>
             </dependency>
             <dependency>
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-schema-registry</artifactId>
                 <version>${project.version}</version>
+                <classifier>${jar.classifier}</classifier>
             </dependency>
             <dependency>
                 <groupId>com.linkedin.camus</groupId>
@@ -110,6 +114,7 @@
                 <groupId>com.linkedin.camus</groupId>
                 <artifactId>camus-sweeper</artifactId>
                 <version>${project.version}</version>
+                <classifier>${jar.classifier}</classifier>
             </dependency>
             <dependency>
                 <groupId>log4j</groupId>

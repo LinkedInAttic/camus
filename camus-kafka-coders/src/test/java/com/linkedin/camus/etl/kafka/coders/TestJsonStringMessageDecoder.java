@@ -7,7 +7,6 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Properties;
 
-
 public class TestJsonStringMessageDecoder {
 
   @Test
@@ -113,6 +112,55 @@ public class TestJsonStringMessageDecoder {
 
     JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
     testDecoder.decode(new TestMessage().setPayload(bytePayload));
+  }
+
+  @Test
+  public void testMultiTimestampFields() {
+    long testTimestamp1 = 1406947271534L;
+    long expectedTimestamp1 = 1406947271534L;
+
+    String testTimestamp2 = "1994-11-05T13:15:30Z";
+    long expectedTimestamp2 = 784041330000L;
+
+    Properties testProperties = new Properties();
+    testProperties.setProperty("camus.message.timestamp.1.format", "unix_milliseconds");
+    testProperties.setProperty("camus.message.timestamp.1.field", "unix_tiemestamp");
+    testProperties.setProperty("camus.message.timestamp.2.format", "ISO-8601");
+    testProperties.setProperty("camus.message.timestamp.2.field", "custom_timestamp");
+
+    JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
+    testDecoder.init(testProperties, "testTopic");
+
+    String payload = "{\"unix_tiemestamp\":  \"" + testTimestamp1 + "\", \"myData\": \"myValue\"}";
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(payload.getBytes()));
+    long actualTimestamp = actualResult.getTimestamp();
+
+    assertEquals(expectedTimestamp1, actualTimestamp);
+
+    payload = "{\"custom_timestamp\":  \"" + testTimestamp2 + "\", \"myData\": \"myValue\"}";
+    actualResult = testDecoder.decode(new TestMessage().setPayload(payload.getBytes()));
+    actualTimestamp = actualResult.getTimestamp();
+
+    assertEquals(expectedTimestamp2, actualTimestamp);
+  }
+
+  @Test
+  public void testNestedJSONField() {
+    long expectedTimestamp = 1406947271534L;
+
+    Properties testProperties = new Properties();
+
+    testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
+    testProperties.setProperty("camus.message.timestamp.field", "metadata.timestamp");
+
+    JsonStringMessageDecoder testDecoder = new JsonStringMessageDecoder();
+    testDecoder.init(testProperties, "testTopic");
+    String payload = "{\"metadata\": {\"timestamp\":  " + expectedTimestamp + "}, \"myData\": \"myValue\"}";
+    byte[] bytePayload = payload.getBytes();
+
+    CamusWrapper actualResult = testDecoder.decode(new TestMessage().setPayload(bytePayload));
+    long actualTimestamp = actualResult.getTimestamp();
+    assertEquals(expectedTimestamp, actualTimestamp);
   }
 
 }

@@ -125,10 +125,10 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
       while (timestampField.indexOf('.') != -1) { // go through nested objects
         String field = timestampField.substring(0, timestampField.indexOf('.'));
-        timestampField = timestampField.substring(timestampField.indexOf('.') + 1);
         if (!jsonObject.has(field)) {
           break;
         }
+        timestampField = timestampField.substring(timestampField.indexOf('.') + 1);
         jsonObject = jsonObject.getAsJsonObject(field);
       }
 

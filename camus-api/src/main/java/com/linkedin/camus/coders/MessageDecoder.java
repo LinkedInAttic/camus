@@ -22,4 +22,5 @@ public abstract class MessageDecoder<M,R> {
 
 	public abstract CamusWrapper<R> decode(M message) ;
 
+	public void terminate() {}
 }

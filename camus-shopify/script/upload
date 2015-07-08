@@ -4,7 +4,7 @@ from fabric.api import env
 from fabric.operations import run, put
 
 env.forward_agent = True
-env.host_string = 'spark-etl1.chi.shopify.com'
+env.host_string = 'hadoop-misc4.chi.shopify.com'
 env.user = 'deploy'
 app_name = 'camus'
 code_dir = '/u/apps/camus/current'

@@ -34,7 +34,7 @@ public class CamusSweeperOutputCommitter extends FileOutputCommitter {
   @Override
   public void commitTask(TaskAttemptContext context) throws IOException {
     long recordCount = getRecordCountCounter(context);
-    String fileName = recordCount + "." + System.currentTimeMillis() + ".avro";
+    String fileName = "part-r-" + recordCount + "." + System.currentTimeMillis() + ".avro";
 
     for (FileStatus status : fs.listStatus(super.getWorkPath())) {
       if (status.getPath().getName().endsWith("avro")) {

@@ -300,7 +300,8 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     if (!leaderId.equals(etlKey.leaderId)) {
       return false;
     }
-    if (!partitionMap.equals(etlKey.partitionMap)) {
+    //MapWritable does not have .equal() in hadoop 1.2.1
+    if (!partitionMapsAreEqual(partitionMap, etlKey.partitionMap)) {
       return false;
     }
     if (!server.equals(etlKey.server)) {
@@ -316,6 +317,11 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     return true;
   }
 
+  private boolean partitionMapsAreEqual(MapWritable o1, MapWritable o2) {
+    return o1 == o2 ||
+            o1 != null && o2 != null && o1.size() == o2.size() && o1.entrySet().equals(o2.entrySet());
+  }
+
   @Override
   public int hashCode() {
     int result = leaderId.hashCode();
@@ -327,7 +333,7 @@ public class EtlKey implements WritableComparable<EtlKey>, IEtlKey {
     result = 31 * result + (int) (time ^ (time >>> 32));
     result = 31 * result + server.hashCode();
     result = 31 * result + service.hashCode();
-    result = 31 * result + partitionMap.hashCode();
+    result = 31 * result + 1 + partitionMap.entrySet().hashCode();
     return result;
   }
 }

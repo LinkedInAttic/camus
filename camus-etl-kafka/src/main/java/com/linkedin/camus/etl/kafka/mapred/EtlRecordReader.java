@@ -52,7 +52,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private long bytesReadForCurrentPartition = 0;
 
   private boolean skipSchemaErrors = false;
-  private MessageDecoder decoder;
+  private MessageDecoder decoder = null;
   private final BytesWritable msgValue = new BytesWritable();
   private final BytesWritable msgKey = new BytesWritable();
   private final EtlKey key = new EtlKey();
@@ -133,6 +133,10 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   public synchronized void close() throws IOException {
     if (reader != null) {
       reader.close();
+    }
+
+    if (this.decoder != null) {
+      this.decoder.terminate();
     }
   }
 
@@ -271,6 +275,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
               new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
                   CamusJob.getKafkaBufferSize(mapperContext));
 
+          if (this.decoder != null) {
+            this.decoder.terminate();
+          }
           decoder = createDecoder(request.getTopic());
         }
         int count = 0;
@@ -281,7 +288,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           this.numRecordsReadForCurrentPartition++;
           this.bytesReadForCurrentPartition += key.getMessageSize();
           context.progress();
-          mapperContext.getCounter("total", "data-read").increment(message.getPayload().length);
+          mapperContext.getCounter("total", "data-read").increment(message.getPayload() != null ? message.getPayload().length : 0);
           mapperContext.getCounter("total", "event-count").increment(1);
 
           message.validate();

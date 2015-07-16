@@ -149,7 +149,7 @@ public class CamusCleaner extends Configured implements Tool {
 
             if (!fs.exists(destPath)) {
               topicExceptionString =
-                  topicExceptionString == null ? ("rollups do not exist for inputs: " + f.getPath()) : (", " + f
+                  topicExceptionString == null ? ("aggregations do not exist for source inputs: " + f.getPath()) : (", " + f
                       .getPath());
               continue;
             } else {
@@ -158,7 +158,7 @@ public class CamusCleaner extends Configured implements Tool {
               for (FileStatus sourceFile : fs.listStatus(f.getPath())) {
                 if (dest.getModificationTime() < sourceFile.getModificationTime()) {
                   topicExceptionString =
-                      topicExceptionString == null ? ("source is older than rollup for inputs: " + f.getPath())
+                      topicExceptionString == null ? ("source inputs were modified more recently than aggregation: " + f.getPath())
                           : (", " + f.getPath());
                 }
               }

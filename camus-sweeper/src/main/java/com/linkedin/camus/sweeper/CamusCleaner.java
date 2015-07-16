@@ -63,21 +63,9 @@ public class CamusCleaner extends Configured implements Tool {
     this.props = new Properties();
   }
 
-  public CamusCleaner(Properties props) {
-    this.props = props;
-    dUtils = new DateUtils(props);
-    outputDailyFormat = dUtils.getDateTimeFormatter(OUTPUT_DAILY_FORMAT_STR);
-    outputMonthFormat = dUtils.getDateTimeFormatter("YYYY/MM");
-    outputYearFormat = dUtils.getDateTimeFormatter("YYYY");
-
-    sourceSubDir = props.getProperty("camus.sweeper.source.subdir");
-    destSubDir = props.getProperty("camus.sweeper.dest.subdir", "");
-  }
-
   public static void main(String args[]) throws Exception {
     CamusCleaner job = new CamusCleaner();
     ToolRunner.run(job, args);
-
   }
 
   public void run() throws Exception {
@@ -246,6 +234,9 @@ public class CamusCleaner extends Configured implements Tool {
     outputDailyFormat = dUtils.getDateTimeFormatter(OUTPUT_DAILY_FORMAT_STR);
     outputMonthFormat = dUtils.getDateTimeFormatter("YYYY/MM");
     outputYearFormat = dUtils.getDateTimeFormatter("YYYY");
+
+    sourceSubDir = props.getProperty("camus.sweeper.source.subdir");
+    destSubDir = props.getProperty("camus.sweeper.dest.subdir", "");
 
     run();
     return 0;

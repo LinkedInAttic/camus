@@ -117,6 +117,7 @@ public class CamusCleaner extends Configured implements Tool {
     for (FileStatus status : topics.keySet()) {
       String name = status.getPath().getName();
       if (name.startsWith(".") || name.startsWith("_")) {
+        log.info("topics: \n" + topics.toString());
         continue;
       }
 

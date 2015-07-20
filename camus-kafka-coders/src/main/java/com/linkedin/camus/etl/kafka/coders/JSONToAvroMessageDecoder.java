@@ -37,6 +37,7 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
+  private CamusWrapper<GenericData.Record> camusWrapper;
   
   public JSONToAvroMessageDecoder() {
     this.jsonParser = new JsonParser();
@@ -58,6 +59,7 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
       
       this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = ((Schema) registry.getLatestSchemaByTopic(topicName).getSchema());
+      this.camusWrapper = new CamusWrapper<GenericData.Record>();
     } catch (Exception e) {
       throw new MessageDecoderException(e);
     }
@@ -119,8 +121,10 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
       
       DatumReader<GenericRecord> avroReader = helper.getTargetSchema() == null ? new GenericDatumReader<GenericRecord>(
           helper.getSchema()) : new GenericDatumReader<GenericRecord>(helper.getTargetSchema());
-      return new KafkaAvroMessageDecoder.CamusAvroWrapper((GenericData.Record) avroReader.read(null,
-          this.decoderFactory.binaryDecoder(output.toByteArray(), 0, output.toByteArray().length, null)));
+
+      this.camusWrapper.set((GenericData.Record) avroReader.read(null,
+              this.decoderFactory.binaryDecoder(output.toByteArray(), 0, output.toByteArray().length, null)));
+      return this.camusWrapper;
     } catch (RuntimeException e) {
       log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
       throw new RuntimeException(e);

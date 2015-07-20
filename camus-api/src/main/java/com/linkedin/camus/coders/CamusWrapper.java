@@ -13,24 +13,34 @@ import org.apache.hadoop.io.Writable;
  * @param <R> The type of decoded payload
  */
 public class CamusWrapper<R> {
+    public static final Text SERVER = new Text("server");
+    public static final Text SERVICE = new Text("service");
+
+    public static final Text DEFAULT_SERVER = new Text("unknown_server");
+    public static final Text DEFAULT_SERVICE = new Text("unknown_service");
+
     private R record;
     private long timestamp;
-    private MapWritable partitionMap;
+    private final MapWritable partitionMap = new MapWritable();
 
-    public CamusWrapper(R record) {
-        this(record, System.currentTimeMillis());
+    public CamusWrapper() {
+        super();
     }
 
-    public CamusWrapper(R record, long timestamp) {
-        this(record, timestamp, "unknown_server", "unknown_service");
+    public void set(R record) {
+        this.set(record, System.currentTimeMillis());
     }
 
-    public CamusWrapper(R record, long timestamp, String server, String service) {
+    public void set(R record, long timestamp) {
+        this.set(record, timestamp, DEFAULT_SERVER, DEFAULT_SERVICE);
+    }
+
+    public void set(R record, long timestamp, Text server, Text service) {
         this.record = record;
         this.timestamp = timestamp;
-        this.partitionMap = new MapWritable();
-        partitionMap.put(new Text("server"), new Text(server));
-        partitionMap.put(new Text("service"), new Text(service));
+        this.partitionMap.clear();
+        this.partitionMap.put(this.SERVER, server);
+        this.partitionMap.put(this.SERVICE, service);
     }
 
     /**
@@ -38,7 +48,7 @@ public class CamusWrapper<R> {
      * @return
      */
     public R getRecord() {
-        return record;
+        return this.record;
     }
 
     /**
@@ -46,14 +56,14 @@ public class CamusWrapper<R> {
      * @return
      */
     public long getTimestamp() {
-        return timestamp;
+        return this.timestamp;
     }
 
     /**
      * Add a value for partitions
      */
     public void put(Writable key, Writable value) {
-        partitionMap.put(key, value);
+        this.partitionMap.put(key, value);
     }
 
     /**
@@ -61,14 +71,14 @@ public class CamusWrapper<R> {
      * @return the value for the given key
      */
     public Writable get(Writable key) {
-        return partitionMap.get(key);
+        return this.partitionMap.get(key);
     }
 
     /**
      * Get all the partition key/partitionMap
      */
     public MapWritable getPartitionMap() {
-        return partitionMap;
+        return this.partitionMap;
     }
 
 }

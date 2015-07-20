@@ -49,11 +49,13 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
   private String timestampFormat;
   private String timestampField;
+  private CamusWrapper<String> camusWrapper;
 
   @Override
   public void init(Properties props, String topicName) {
     this.props = props;
     this.topicName = topicName;
+    this.camusWrapper = new CamusWrapper<String>();
 
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
@@ -129,6 +131,7 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       timestamp = System.currentTimeMillis();
     }
 
-    return new CamusWrapper<String>(payloadString, timestamp);
+    this.camusWrapper.set(payloadString, timestamp);
+    return this.camusWrapper;
   }
 }

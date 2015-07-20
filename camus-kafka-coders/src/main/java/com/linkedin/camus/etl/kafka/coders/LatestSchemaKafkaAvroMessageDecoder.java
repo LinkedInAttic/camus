@@ -21,9 +21,11 @@ public class LatestSchemaKafkaAvroMessageDecoder extends KafkaAvroMessageDecoder
 
       reader.setSchema(schema);
 
-      return new CamusWrapper<Record>(reader.read(null, decoderFactory.jsonDecoder(schema, new String(message.getPayload(),
-      //Message.payloadOffset(message.magic()),
-          kafka.message.Message.MagicOffset(), message.getPayload().length - kafka.message.Message.MagicOffset()))));
+      this.camusWrapper.set(reader.read(null, decoderFactory.jsonDecoder(schema, new String(message.getPayload(),
+              //Message.payloadOffset(message.magic()),
+              kafka.message.Message.MagicOffset(), message.getPayload().length - kafka.message.Message.MagicOffset()))));
+
+      return this.camusWrapper;
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

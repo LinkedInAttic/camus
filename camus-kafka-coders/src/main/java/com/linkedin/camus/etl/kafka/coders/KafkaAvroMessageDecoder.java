@@ -23,11 +23,11 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
   private static final Logger log = Logger.getLogger(KafkaAvroMessageDecoder.class);
   public static final Text SERVER = new Text("server");
   public static final Text SERVICE = new Text("service");
+  protected static final CamusWrapper<Record> camusWrapper = new CamusAvroWrapper();
 
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
-  protected CamusWrapper<Record> camusWrapper;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -43,7 +43,6 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 
       this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
-      this.camusWrapper = new CamusAvroWrapper();
 
     } catch (Exception e) {
       throw new MessageDecoderException(e);

@@ -32,13 +32,13 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
   private static final Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
   public static final String CAMUS_SCHEMA_ID_FIELD = "camus.message.schema.id.field";
   public static final String DEFAULT_SCHEMA_ID_FIELD = "schemaID";
+  private static final CamusWrapper<GenericData.Record> camusWrapper = new CamusWrapper<GenericData.Record>();
   JsonParser jsonParser;
   private String schemaIDField;
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
-  private CamusWrapper<GenericData.Record> camusWrapper;
-  
+
   public JSONToAvroMessageDecoder() {
     this.jsonParser = new JsonParser();
   }
@@ -59,7 +59,6 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
       
       this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = ((Schema) registry.getLatestSchemaByTopic(topicName).getSchema());
-      this.camusWrapper = new CamusWrapper<GenericData.Record>();
     } catch (Exception e) {
       throw new MessageDecoderException(e);
     }

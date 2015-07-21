@@ -45,12 +45,13 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
 
+  private static final CamusWrapper<String> camusWrapper = new CamusWrapper<String>();
+
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
 
   private String timestampFormat;
   private String timestampField;
-  private CamusWrapper<String> camusWrapper;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -59,8 +60,6 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
 
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
-
-    this.camusWrapper = new CamusWrapper<String>();
   }
 
   @Override

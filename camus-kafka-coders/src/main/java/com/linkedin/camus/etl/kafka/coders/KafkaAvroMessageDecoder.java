@@ -43,7 +43,7 @@ public class KafkaAvroMessageDecoder extends MessageDecoder<Message, Record> {
 
       this.registry = new CachedSchemaRegistry<Schema>(registry, props);
       this.latestSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
-      this.camusWrapper = new CamusWrapper<Record>();
+      this.camusWrapper = new CamusAvroWrapper();
 
     } catch (Exception e) {
       throw new MessageDecoderException(e);

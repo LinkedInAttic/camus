@@ -37,6 +37,10 @@ public class HybridMessageDecoder extends MessageDecoder<byte[], String> {
         if (timestampFormat.equals("iso")) {
             timestampFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'";
         }
+
+        if (timestampFormat.equals("iso_millis")) {
+            timestampFormat = "yyyy-MM-dd'T'HH:mm:ss.S'Z'";
+        }
     }
 
     @Override

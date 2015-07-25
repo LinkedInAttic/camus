@@ -10,4 +10,4 @@ fi
 cwd=$(perl -e 'use Cwd "abs_path";print abs_path(shift)' $0/..)
 
 CLASSPATH="$(echo ${cwd}/target/camus-*-SNAPSHOT-shaded.jar):$(hadoop classpath)"
-exec /usr/bin/java -cp $CLASSPATH com.linkedin.camus.etl.kafka.CamusJob -P ${1:-${cwd}/camus.properties}
+exec /usr/bin/java -cp $CLASSPATH com.linkedin.camus.etl.kafka.CamusJob -P ${1:-${cwd}/camus.properties} "$@"

@@ -21,6 +21,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import com.linkedin.camus.etl.DestinationFileAggregator;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.EtlCounts;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
@@ -35,6 +36,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
   private TaskAttemptContext context;
   private final RecordWriterProvider recordWriterProvider;
+  private final DestinationFileAggregator destinationFileAggregator;
   private Logger log;
 
   private void mkdirs(FileSystem fs, Path path) throws IOException {
@@ -77,6 +79,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       Class<RecordWriterProvider> rwp = EtlMultiOutputFormat.getRecordWriterProviderClass(context);
       Constructor<RecordWriterProvider> crwp = rwp.getConstructor(TaskAttemptContext.class);
       recordWriterProvider = crwp.newInstance(context);
+
+      destinationFileAggregator = EtlMultiOutputFormat.getDestinationFileAggregator(context);
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }
@@ -153,6 +157,8 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     if (!FileSystem.get(job.getConfiguration()).rename(source, target)) {
       log.error(String.format("Failed to move from %s to %s", source, target));
       throw new IOException(String.format("Failed to move from %s to %s", source, target));
+    } else {
+      destinationFileAggregator.addDestinationFile(target);
     }
   }
 

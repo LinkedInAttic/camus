@@ -3,32 +3,55 @@
  * 
  * DO NOT EDIT DIRECTLY
  */
-package com.linkedin.camus.example.records;  
+package com.linkedin.camus.example.records;
+
 @SuppressWarnings("all")
 /** Logs for not so important stuff. */
-public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"DummyLog\",\"namespace\":\"com.linkedin.camus.example.records\",\"doc\":\"Logs for not so important stuff.\",\"fields\":[{\"name\":\"id\",\"type\":\"long\"},{\"name\":\"logTime\",\"type\":\"long\"},{\"name\":\"muchoStuff\",\"type\":{\"type\":\"map\",\"values\":\"string\"}}]}");
-  @Deprecated public long id;
-  @Deprecated public long logTime;
-  @Deprecated public java.util.Map<java.lang.CharSequence,java.lang.CharSequence> muchoStuff;
-  public org.apache.avro.Schema getSchema() { return SCHEMA$; }
+public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implements
+    org.apache.avro.specific.SpecificRecord {
+  public static final org.apache.avro.Schema SCHEMA$ =
+      new org.apache.avro.Schema.Parser()
+          .parse("{\"type\":\"record\",\"name\":\"DummyLog\",\"namespace\":\"com.linkedin.camus.example.records\",\"doc\":\"Logs for not so important stuff.\",\"fields\":[{\"name\":\"id\",\"type\":\"long\"},{\"name\":\"logTime\",\"type\":\"long\"},{\"name\":\"muchoStuff\",\"type\":{\"type\":\"map\",\"values\":\"string\"}}]}");
+  @Deprecated
+  public long id;
+  @Deprecated
+  public long logTime;
+  @Deprecated
+  public java.util.Map<java.lang.CharSequence, java.lang.CharSequence> muchoStuff;
+
+  public org.apache.avro.Schema getSchema() {
+    return SCHEMA$;
+  }
+
   // Used by DatumWriter.  Applications should not call. 
   public java.lang.Object get(int field$) {
     switch (field$) {
-    case 0: return id;
-    case 1: return logTime;
-    case 2: return muchoStuff;
-    default: throw new org.apache.avro.AvroRuntimeException("Bad index");
+      case 0:
+        return id;
+      case 1:
+        return logTime;
+      case 2:
+        return muchoStuff;
+      default:
+        throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
+
   // Used by DatumReader.  Applications should not call. 
-  @SuppressWarnings(value="unchecked")
+  @SuppressWarnings(value = "unchecked")
   public void put(int field$, java.lang.Object value$) {
     switch (field$) {
-    case 0: id = (java.lang.Long)value$; break;
-    case 1: logTime = (java.lang.Long)value$; break;
-    case 2: muchoStuff = (java.util.Map<java.lang.CharSequence,java.lang.CharSequence>)value$; break;
-    default: throw new org.apache.avro.AvroRuntimeException("Bad index");
+      case 0:
+        id = (java.lang.Long) value$;
+        break;
+      case 1:
+        logTime = (java.lang.Long) value$;
+        break;
+      case 2:
+        muchoStuff = (java.util.Map<java.lang.CharSequence, java.lang.CharSequence>) value$;
+        break;
+      default:
+        throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
 
@@ -65,7 +88,7 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
   /**
    * Gets the value of the 'muchoStuff' field.
    */
-  public java.util.Map<java.lang.CharSequence,java.lang.CharSequence> getMuchoStuff() {
+  public java.util.Map<java.lang.CharSequence, java.lang.CharSequence> getMuchoStuff() {
     return muchoStuff;
   }
 
@@ -73,7 +96,7 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
    * Sets the value of the 'muchoStuff' field.
    * @param value the value to set.
    */
-  public void setMuchoStuff(java.util.Map<java.lang.CharSequence,java.lang.CharSequence> value) {
+  public void setMuchoStuff(java.util.Map<java.lang.CharSequence, java.lang.CharSequence> value) {
     this.muchoStuff = value;
   }
 
@@ -81,40 +104,42 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
   public static com.linkedin.camus.example.records.DummyLog.Builder newBuilder() {
     return new com.linkedin.camus.example.records.DummyLog.Builder();
   }
-  
+
   /** Creates a new DummyLog RecordBuilder by copying an existing Builder */
-  public static com.linkedin.camus.example.records.DummyLog.Builder newBuilder(com.linkedin.camus.example.records.DummyLog.Builder other) {
+  public static com.linkedin.camus.example.records.DummyLog.Builder newBuilder(
+      com.linkedin.camus.example.records.DummyLog.Builder other) {
     return new com.linkedin.camus.example.records.DummyLog.Builder(other);
   }
-  
+
   /** Creates a new DummyLog RecordBuilder by copying an existing DummyLog instance */
-  public static com.linkedin.camus.example.records.DummyLog.Builder newBuilder(com.linkedin.camus.example.records.DummyLog other) {
+  public static com.linkedin.camus.example.records.DummyLog.Builder newBuilder(
+      com.linkedin.camus.example.records.DummyLog other) {
     return new com.linkedin.camus.example.records.DummyLog.Builder(other);
   }
-  
+
   /**
    * RecordBuilder for DummyLog instances.
    */
-  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<DummyLog>
-    implements org.apache.avro.data.RecordBuilder<DummyLog> {
+  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<DummyLog> implements
+      org.apache.avro.data.RecordBuilder<DummyLog> {
 
     private long id;
     private long logTime;
-    private java.util.Map<java.lang.CharSequence,java.lang.CharSequence> muchoStuff;
+    private java.util.Map<java.lang.CharSequence, java.lang.CharSequence> muchoStuff;
 
     /** Creates a new Builder */
     private Builder() {
       super(com.linkedin.camus.example.records.DummyLog.SCHEMA$);
     }
-    
+
     /** Creates a Builder by copying an existing Builder */
     private Builder(com.linkedin.camus.example.records.DummyLog.Builder other) {
       super(other);
     }
-    
+
     /** Creates a Builder by copying an existing DummyLog instance */
     private Builder(com.linkedin.camus.example.records.DummyLog other) {
-            super(com.linkedin.camus.example.records.DummyLog.SCHEMA$);
+      super(com.linkedin.camus.example.records.DummyLog.SCHEMA$);
       if (isValidValue(fields()[0], other.id)) {
         this.id = (java.lang.Long) data().deepCopy(fields()[0].schema(), other.id);
         fieldSetFlags()[0] = true;
@@ -124,7 +149,9 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
         fieldSetFlags()[1] = true;
       }
       if (isValidValue(fields()[2], other.muchoStuff)) {
-        this.muchoStuff = (java.util.Map<java.lang.CharSequence,java.lang.CharSequence>) data().deepCopy(fields()[2].schema(), other.muchoStuff);
+        this.muchoStuff =
+            (java.util.Map<java.lang.CharSequence, java.lang.CharSequence>) data().deepCopy(fields()[2].schema(),
+                other.muchoStuff);
         fieldSetFlags()[2] = true;
       }
     }
@@ -133,20 +160,20 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
     public java.lang.Long getId() {
       return id;
     }
-    
+
     /** Sets the value of the 'id' field */
     public com.linkedin.camus.example.records.DummyLog.Builder setId(long value) {
       validate(fields()[0], value);
       this.id = value;
       fieldSetFlags()[0] = true;
-      return this; 
+      return this;
     }
-    
+
     /** Checks whether the 'id' field has been set */
     public boolean hasId() {
       return fieldSetFlags()[0];
     }
-    
+
     /** Clears the value of the 'id' field */
     public com.linkedin.camus.example.records.DummyLog.Builder clearId() {
       fieldSetFlags()[0] = false;
@@ -157,20 +184,20 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
     public java.lang.Long getLogTime() {
       return logTime;
     }
-    
+
     /** Sets the value of the 'logTime' field */
     public com.linkedin.camus.example.records.DummyLog.Builder setLogTime(long value) {
       validate(fields()[1], value);
       this.logTime = value;
       fieldSetFlags()[1] = true;
-      return this; 
+      return this;
     }
-    
+
     /** Checks whether the 'logTime' field has been set */
     public boolean hasLogTime() {
       return fieldSetFlags()[1];
     }
-    
+
     /** Clears the value of the 'logTime' field */
     public com.linkedin.camus.example.records.DummyLog.Builder clearLogTime() {
       fieldSetFlags()[1] = false;
@@ -178,23 +205,24 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
     }
 
     /** Gets the value of the 'muchoStuff' field */
-    public java.util.Map<java.lang.CharSequence,java.lang.CharSequence> getMuchoStuff() {
+    public java.util.Map<java.lang.CharSequence, java.lang.CharSequence> getMuchoStuff() {
       return muchoStuff;
     }
-    
+
     /** Sets the value of the 'muchoStuff' field */
-    public com.linkedin.camus.example.records.DummyLog.Builder setMuchoStuff(java.util.Map<java.lang.CharSequence,java.lang.CharSequence> value) {
+    public com.linkedin.camus.example.records.DummyLog.Builder setMuchoStuff(
+        java.util.Map<java.lang.CharSequence, java.lang.CharSequence> value) {
       validate(fields()[2], value);
       this.muchoStuff = value;
       fieldSetFlags()[2] = true;
-      return this; 
+      return this;
     }
-    
+
     /** Checks whether the 'muchoStuff' field has been set */
     public boolean hasMuchoStuff() {
       return fieldSetFlags()[2];
     }
-    
+
     /** Clears the value of the 'muchoStuff' field */
     public com.linkedin.camus.example.records.DummyLog.Builder clearMuchoStuff() {
       muchoStuff = null;
@@ -208,7 +236,9 @@ public class DummyLog extends org.apache.avro.specific.SpecificRecordBase implem
         DummyLog record = new DummyLog();
         record.id = fieldSetFlags()[0] ? this.id : (java.lang.Long) defaultValue(fields()[0]);
         record.logTime = fieldSetFlags()[1] ? this.logTime : (java.lang.Long) defaultValue(fields()[1]);
-        record.muchoStuff = fieldSetFlags()[2] ? this.muchoStuff : (java.util.Map<java.lang.CharSequence,java.lang.CharSequence>) defaultValue(fields()[2]);
+        record.muchoStuff =
+            fieldSetFlags()[2] ? this.muchoStuff
+                : (java.util.Map<java.lang.CharSequence, java.lang.CharSequence>) defaultValue(fields()[2]);
         return record;
       } catch (Exception e) {
         throw new org.apache.avro.AvroRuntimeException(e);

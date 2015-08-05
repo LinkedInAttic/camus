@@ -18,6 +18,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.serializer.Deserializer;
 import org.apache.hadoop.io.serializer.Serializer;
 
+
 /**
  * The AvroSerialization class to relax the name validation
  * 
@@ -25,10 +26,8 @@ import org.apache.hadoop.io.serializer.Serializer;
  *
  * @param <T> The Java type of the Avro data to serialize.
  */
-public class RelaxedAvroSerialization<T> extends AvroSerialization<T> 
-{
-  private static final Log LOG =
-    LogFactory.getLog(RelaxedAvroSerialization.class.getName());
+public class RelaxedAvroSerialization<T> extends AvroSerialization<T> {
+  private static final Log LOG = LogFactory.getLog(RelaxedAvroSerialization.class.getName());
 
   private static final String CONF_KEY_WRITER_SCHEMA = "avro.serialization.key.writer.schema";
   private static final String CONF_KEY_READER_SCHEMA = "avro.serialization.key.reader.schema";
@@ -43,8 +42,7 @@ public class RelaxedAvroSerialization<T> extends AvroSerialization<T>
       List<String> newList = new ArrayList<String>();
       newList.add(RelaxedAvroSerialization.class.getName());
       newList.addAll(serializations);
-      conf.setStrings("io.serializations",
-          newList.toArray(new String[newList.size()]));
+      conf.setStrings("io.serializations", newList.toArray(new String[newList.size()]));
     }
   }
 
@@ -67,13 +65,9 @@ public class RelaxedAvroSerialization<T> extends AvroSerialization<T>
     LOG.info("getDeerializer for " + c);
     Configuration conf = getConf();
     if (AvroKey.class.isAssignableFrom(c)) {
-      return new AvroKeyDeserializer<T>(getKeyWriterSchema(conf),
-                                        getKeyReaderSchema(conf),
-                                        conf.getClassLoader());
+      return new AvroKeyDeserializer<T>(getKeyWriterSchema(conf), getKeyReaderSchema(conf), conf.getClassLoader());
     } else if (AvroValue.class.isAssignableFrom(c)) {
-      return new AvroValueDeserializer<T>(getValueWriterSchema(conf),
-                                          getValueReaderSchema(conf),
-                                          conf.getClassLoader());
+      return new AvroValueDeserializer<T>(getValueWriterSchema(conf), getValueReaderSchema(conf), conf.getClassLoader());
     } else {
       throw new IllegalStateException("Only AvroKey and AvroValue are supported.");
     }

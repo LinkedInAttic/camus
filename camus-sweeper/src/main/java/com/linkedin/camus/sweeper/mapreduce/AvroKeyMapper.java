@@ -17,10 +17,9 @@ import org.apache.hadoop.mapreduce.Mapper;
 
 import com.linkedin.camus.sweeper.utils.RelaxedAvroSerialization;
 
-public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, AvroKey<GenericRecord>, Object>
-{
-  private static final Log LOG =
-      LogFactory.getLog(AvroKeyMapper.class.getName());
+
+public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, AvroKey<GenericRecord>, Object> {
+  private static final Log LOG = LogFactory.getLog(AvroKeyMapper.class.getName());
 
   private AvroKey<GenericRecord> outKey;
   private AvroValue<GenericRecord> outValue;
@@ -28,9 +27,7 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
   private Schema keySchema;
 
   @Override
-  protected void setup(Context context) throws IOException,
-      InterruptedException
-  {
+  protected void setup(Context context) throws IOException, InterruptedException {
     // For class path debugging
     LOG.info("classpath: " + System.getProperty("java.class.path"));
     ClassLoader loader = AvroKeyMapper.class.getClassLoader();
@@ -52,54 +49,43 @@ public class AvroKeyMapper extends Mapper<AvroKey<GenericRecord>, NullWritable, 
 
   @Override
   protected void map(AvroKey<GenericRecord> key, NullWritable value, Context context) throws IOException,
-      InterruptedException
-  {
-    if (mapOnly)
-    {
+      InterruptedException {
+    if (mapOnly) {
       context.write(key, NullWritable.get());
-    }
-    else
-    {
+    } else {
       outValue.datum(key.datum());
       projectData(key.datum(), outKey.datum());
       context.write(outKey, outValue);
     }
   }
 
-  private void projectData(GenericRecord source, GenericRecord target)
-  {
-    for (Field fld : target.getSchema().getFields())
-    {
-      if (fld.schema().getType() == Type.UNION)
-      {
+  private void projectData(GenericRecord source, GenericRecord target) {
+    for (Field fld : target.getSchema().getFields()) {
+      if (fld.schema().getType() == Type.UNION) {
         Object obj = source.get(fld.name());
         Schema sourceSchema = GenericData.get().induce(obj);
-        if (sourceSchema.getType() == Type.RECORD){
-        for (Schema type : fld.schema().getTypes()){
-          if (type.getFullName().equals(sourceSchema.getFullName())){
-            GenericRecord record = new GenericData.Record(type);
-            target.put(fld.name(), record);
-            projectData((GenericRecord) obj, record);
-            break;
+        if (sourceSchema.getType() == Type.RECORD) {
+          for (Schema type : fld.schema().getTypes()) {
+            if (type.getFullName().equals(sourceSchema.getFullName())) {
+              GenericRecord record = new GenericData.Record(type);
+              target.put(fld.name(), record);
+              projectData((GenericRecord) obj, record);
+              break;
+            }
           }
-        }
         } else {
           target.put(fld.name(), source.get(fld.name()));
         }
-      }
-      else if (fld.schema().getType() == Type.RECORD)
-      {
+      } else if (fld.schema().getType() == Type.RECORD) {
         GenericRecord record = (GenericRecord) target.get(fld.name());
-        
-        if (record == null){
+
+        if (record == null) {
           record = new GenericData.Record(fld.schema());
           target.put(fld.name(), record);
         }
-        
+
         projectData((GenericRecord) source.get(fld.name()), record);
-      }
-      else
-      {
+      } else {
         target.put(fld.name(), source.get(fld.name()));
       }
     }

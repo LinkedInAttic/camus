@@ -4,5 +4,4 @@ source .venv/bin/activate
 pip install Fabric==1.10.1
 pip install git+git://github.com/orenmazor/oozie.py@78cb35f4e5210412baa7b1dac8c3231242f8bad7
 ./camus-shopify/script/upload
-./camus-shopify/script/update_schedule
 ./camus-shopify/script/update_oozie_schedule

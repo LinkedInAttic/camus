@@ -42,6 +42,9 @@ public class CamusCleaner extends Configured implements Tool {
   public static final String FORCE = "camus.sweeper.clean.force";
   public static final String RETENTION_TOPIC_PREFIX = "camus.sweeper.clean.retention.days.topic.";
   public static final String OUTPUT_DAILY_FORMAT_STR = "YYYY/MM/dd";
+  public static final String FAIL_JOB_IF_FOLDER_NOT_QUALIFY_FOR_DELETION =
+      "fail.job.if.folder.not.qualify.for.deletion";
+  public static final String DELETE_FOLDERS_NOT_QUALIFY_FOR_DELETION = "delete.folders.not.qualify.for.deletion";
 
   private DateUtils dUtils;
   private DateTimeFormatter outputDailyFormat;
@@ -57,7 +60,9 @@ public class CamusCleaner extends Configured implements Tool {
   private boolean simulate = false;
   private boolean force = false;
   private static Logger log = Logger.getLogger(CamusCleaner.class);
-  private boolean shouldFailJob = false;
+  private boolean someFoldersNotQualifyForDeletion = false;
+  private boolean failJobIfFolderNotQualifyForDeletion = false;
+  private boolean deleteFoldersNotQualifyForDeletion = true;
 
   public CamusCleaner() {
     this.props = new Properties();
@@ -98,6 +103,10 @@ public class CamusCleaner extends Configured implements Tool {
     log.debug("Path : " + sourcePath);
     simulate = Boolean.parseBoolean(props.getProperty(SIMULATE, "false"));
     force = Boolean.parseBoolean(props.getProperty(FORCE, "false"));
+    this.failJobIfFolderNotQualifyForDeletion =
+        Boolean.parseBoolean(this.props.getProperty(FAIL_JOB_IF_FOLDER_NOT_QUALIFY_FOR_DELETION, "false"));
+    this.deleteFoldersNotQualifyForDeletion =
+        Boolean.parseBoolean(this.props.getProperty(DELETE_FOLDERS_NOT_QUALIFY_FOR_DELETION, "true"));
 
     // Topic-specific retention
     Map<String, String> map = Utils.getMapByPrefix(props, RETENTION_TOPIC_PREFIX);
@@ -125,7 +134,7 @@ public class CamusCleaner extends Configured implements Tool {
       enforceRetention(fullname, status, sourceSubDir, destSubDir, topicRetention);
     }
 
-    if (shouldFailJob) {
+    if (this.someFoldersNotQualifyForDeletion && this.failJobIfFolderNotQualifyForDeletion) {
       throw new RuntimeException("Cannot delete some folders. See LOG errors for details.");
     }
   }
@@ -147,7 +156,7 @@ public class CamusCleaner extends Configured implements Tool {
                 new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
 
             if (!fs.exists(destPath)) {
-              shouldFailJob = true;
+              someFoldersNotQualifyForDeletion = true;
               log.error(String.format("Cannot delete folder %s, since rollup folder %s doesn't exist.", f.getPath(),
                   destPath));
               continue;
@@ -157,7 +166,7 @@ public class CamusCleaner extends Configured implements Tool {
 
               for (FileStatus sourceFile : fs.listStatus(f.getPath())) {
                 if (dest.getModificationTime() < sourceFile.getModificationTime()) {
-                  shouldFailJob = true;
+                  someFoldersNotQualifyForDeletion = true;
                   log.error(String.format(
                       "Cannot delete folder %s, since the timestamp of %s (%d) is later than the timestamp of rollup folder %s (%d)",
                       f.getPath(), sourceFile.getPath(), sourceFile.getModificationTime(), destPath,
@@ -165,7 +174,7 @@ public class CamusCleaner extends Configured implements Tool {
                   canDelete = false;
                 }
               }
-              if (!canDelete) {
+              if (!canDelete && !this.deleteFoldersNotQualifyForDeletion) {
                 continue;
               }
             }

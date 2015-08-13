@@ -39,7 +39,8 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
   public List<Properties> createSweeperJobProps(String topic, Path inputDir, Path outputDir, FileSystem fs)
       throws IOException {
     DateTime midnight = dUtils.getMidnight();
-    DateTime daysAgo = midnight.minusDays(Integer.parseInt(props.getProperty("camus.sweeper.days.ago", "1")));
+    DateTime minDaysAgo = midnight.minusDays(Integer.parseInt(props.getProperty("camus.sweeper.min.days.ago", "1")));
+    DateTime maxDaysAgo = midnight.minusDays(Integer.parseInt(props.getProperty("camus.sweeper.max.days.ago", "2")));
 
     List<Properties> jobPropsList = new ArrayList<Properties>();
 
@@ -51,7 +52,7 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
 
       DateTime inputDate = getDateFromPath(f.getPath(), inputDir);
 
-      if (inputDate.isBefore(daysAgo) || inputDate.isEqual(daysAgo)) {
+      if (shouldProcessDir(f.getPath(), inputDate, minDaysAgo, maxDaysAgo)) {
         List<Path> sourcePaths = new ArrayList<Path>();
         sourcePaths.add(f.getPath());
 
@@ -64,7 +65,8 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
           LOG.info(topic + " dest dir " + destPath.toString() + " doesn't exist or . Processing.");
           jobPropsList.add(jobProps);
         } else if (shouldReprocess(fs, sourcePaths, destPath)) {
-          LOG.info(topic + " dest dir " + destPath.toString() + " has a modified time before the source. Reprocessing.");
+          LOG.info(
+              topic + " dest dir " + destPath.toString() + " has a modified time before the source. Reprocessing.");
           sourcePaths.add(destPath);
           jobProps.put("input.paths", pathListToCommaSeperated(sourcePaths));
           jobPropsList.add(jobProps);
@@ -76,6 +78,20 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
 
     return jobPropsList;
 
+  }
+
+  private boolean shouldProcessDir(Path inputDir, DateTime inputDate, DateTime minDaysAgo, DateTime maxDaysAgo) {
+    if (inputDate.isAfter(minDaysAgo)) {
+      LOG.info(String.format("folder %s with timestamp %s is later than latest allowed timestamp %s. Skipping",
+          inputDir, inputDate, minDaysAgo));
+      return false;
+    }
+    if (inputDate.isBefore(maxDaysAgo)) {
+      LOG.info(String.format("folder %s with timestamp %s is earlier than earliest allowed timestamp %s. Skipping",
+          inputDir, inputDate, maxDaysAgo));
+      return false;
+    }
+    return true;
   }
 
   @Override

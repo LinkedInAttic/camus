@@ -1,30 +1,15 @@
 package com.linkedin.camus.etl.kafka;
 
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-
+import com.google.gson.Gson;
 import com.linkedin.camus.etl.kafka.coders.FailDecoder;
 import com.linkedin.camus.etl.kafka.coders.JsonStringMessageDecoder;
 import com.linkedin.camus.etl.kafka.common.SequenceFileRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlInputFormat;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
 import kafka.serializer.StringEncoder;
-
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -32,14 +17,16 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
-import com.google.gson.Gson;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.*;
+
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 
 public class CamusJobTest {
@@ -85,7 +72,6 @@ public class CamusJobTest {
 
   @Before
   public void before() throws IOException, NoSuchFieldException, IllegalAccessException {
-    resetCamus();
 
     folder = new TemporaryFolder();
     folder.create();
@@ -121,9 +107,6 @@ public class CamusJobTest {
     IllegalAccessException {
     // Delete all camus data
     folder.delete();
-    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
-    field.setAccessible(true);
-    field.set(null, null);
   }
 
   @Test
@@ -251,16 +234,4 @@ public class CamusJobTest {
       return number == other.number;
     }
   }
-
-  private static void resetCamus() throws NoSuchFieldException, IllegalAccessException {
-    // The EtlMultiOutputFormat has a static private field called committer which is only created if null. The problem is this
-    // writes the Camus metadata meaning the first execution of the camus job defines where all committed output goes causing us
-    // problems if you want to run Camus again using the meta data (i.e. what offsets we processed). Setting it null here forces
-    // it to re-instantiate the object with the appropriate output path
-
-    Field field = EtlMultiOutputFormat.class.getDeclaredField("committer");
-    field.setAccessible(true);
-    field.set(null, null);
-  }
-
 }

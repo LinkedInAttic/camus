@@ -55,23 +55,26 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String COUNTS_PREFIX = "counts";
 
   public static final String REQUESTS_FILE = "requests.previous";
-  private static EtlMultiOutputCommitter committer = null;
+  private EtlMultiOutputCommitter committer;
   private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
 
   private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
   @Override
-  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context) throws IOException,
-      InterruptedException {
-    if (committer == null)
+  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context) throws IOException, InterruptedException {
+    if (committer == null) {
       committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+    }
+    
     return new EtlMultiOutputRecordWriter(context, committer);
   }
 
   @Override
   public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException {
-    if (committer == null)
+    if (committer == null) {
       committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+    }
+    
     return committer;
   }
 

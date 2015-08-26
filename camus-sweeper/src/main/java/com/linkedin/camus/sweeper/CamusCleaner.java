@@ -138,7 +138,7 @@ public class CamusCleaner extends Configured implements Tool {
                 new Path(topicDir.getPath(), topicDestSubdir + "/" + dirDateTime.toString(outputDailyFormat));
 
             if (!fs.exists(destPath)) {
-              log.warn("(skipping) No aggregations exist at: " + destPath + "... Is there valid input data?\n")
+              log.warn("(skipping) No aggregations exist at: " + destPath + "... Is there valid input data?\n");
               continue;
             } else {
               FileStatus dest = fs.getFileStatus(destPath);

@@ -54,7 +54,11 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
   public List<Properties> createSweeperJobProps(String topic, Path inputDir, Path outputDir, FileSystem fs)
       throws IOException {
     DateTime midnight = dUtils.getMidnight();
-    DateTime daysAgo = midnight.minusDays(Integer.parseInt(props.getProperty("camus.sweeper.days.ago", "1")));
+    numDaysAgo = Integer.parseInt(props.getProperty("camus.sweeper.days.ago", "1"));
+    if (numDaysAgo < 1) {
+        throw new RuntimeException("Property [camus.sweeper.days.ago] cannot be less than 1.");
+    }
+    DateTime daysAgo = midnight.minusDays(numDaysAgo);
 
     List<Properties> jobPropsList = new ArrayList<Properties>();
 

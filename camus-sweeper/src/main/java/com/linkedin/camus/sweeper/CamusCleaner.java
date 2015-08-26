@@ -100,6 +100,13 @@ public class CamusCleaner extends Configured implements Tool {
 
     WhiteBlackListPathFilter filter = new WhiteBlackListPathFilter(whitelist, blacklist, sourcePath);
 
+    // DEBUG
+    log.info("\t*** DEBUG\n")
+    log.info("\tsourcePath = " + sourcePath + "\n")
+    log.info("\tsourceSubDir = " + sourceSubDir + "\n")
+    log.info("\tfs = " + fs.getUri() + "\n")
+    log.info("\tDEBUG END ***\n")
+
     Map<FileStatus, String> topics = CamusSweeper.findAllTopics(sourcePath, filter, sourceSubDir, fs);
     log.info("topics: \n" + topics.toString());
     log.info("sourcePath: " + sourcePath);

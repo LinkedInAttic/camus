@@ -191,7 +191,7 @@ fi
 while read topic; do
     ## Strip/convert some things in the topic names to make them nicer in hive...
     # (Hive can't handle "-" in table name so translate it)
-    topic_table=$(echo $topic | sed s/-/_/g | sed -r "s/^\(prd|prod|stg|dev\)//" | sed "s/^_vsw_avrodto_//")
+    topic_table=$(echo $topic | sed s/-/_/g | sed -r "s/^(prd|prod|stg|dev)//" | sed "s/^_vsw_avrodto_//")
 
     # append the partitioning scheme (i.e. daily/hourly) to the table name
     topic_table="${topic_table}_${PARTITION_SCHEME}"

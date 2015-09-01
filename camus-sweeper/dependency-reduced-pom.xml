@@ -3,13 +3,13 @@
   <parent>
     <artifactId>camus-parent</artifactId>
     <groupId>com.linkedin.camus</groupId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.linkedin.camus</groupId>
   <artifactId>camus-sweeper</artifactId>
   <name>Camus compaction code small files produced Camus</name>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.3.0-SNAPSHOT</version>
   <build>
     <finalName>${project.artifactId}-${project.version}</finalName>
     <plugins>

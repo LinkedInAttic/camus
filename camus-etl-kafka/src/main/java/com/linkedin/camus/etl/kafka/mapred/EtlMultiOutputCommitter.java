@@ -81,7 +81,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       throw new IllegalStateException(e);
     }
     workingFileMetadataPattern = Pattern.compile(
-        "data\\.([^\\.]+)\\.([\\d_]+)\\.(\\d+)\\.([^\\.]+)-m-\\d+" + recordWriterProvider.getFilenameExtension());
+        "data#([^#]+)#([\\d_]+)#(\\d+)#([^#]+)-m-\\d+" + recordWriterProvider.getFilenameExtension());
     this.log = log;
   }
 
@@ -167,7 +167,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
     String encodedPartition = m.group(4);
 
     String partitionedPath =
-        EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, encodedPartition);
+        EtlMultiOutputFormat.getPartitioner(context, topic).generatePartitionedPath(context, topic, encodedPartition, Integer.parseInt(partition));
 
     partitionedPath += "/" + EtlMultiOutputFormat.getPartitioner(context, topic).generateFileName(context, topic,
         leaderId, Integer.parseInt(partition), count, offset, encodedPartition);

@@ -20,7 +20,7 @@ abstract public class BaseTimeBasedPartitioner extends Partitioner {
 
   /** Size of a partition in milliseconds.*/
   private long outfilePartitionMillis = 0;
-  private DateTimeFormatter outputDirFormatter;
+  protected DateTimeFormatter outputDirFormatter;
 
   /**
    * Initialize the partitioner.
@@ -43,7 +43,7 @@ abstract public class BaseTimeBasedPartitioner extends Partitioner {
   }
 
   @Override
-  public String generatePartitionedPath(JobContext context, String topic, String encodedPartition) {
+  public String generatePartitionedPath(JobContext context, String topic, String encodedPartition, int partitionId) {
     DateTime bucket = new DateTime(Long.valueOf(encodedPartition));
     return topic + "/" + bucket.toString(outputDirFormatter);
   }

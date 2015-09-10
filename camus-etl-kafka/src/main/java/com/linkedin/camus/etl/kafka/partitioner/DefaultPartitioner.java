@@ -36,7 +36,7 @@ public class DefaultPartitioner extends Partitioner {
   }
 
   @Override
-  public String generatePartitionedPath(JobContext context, String topic, String encodedPartition) {
+  public String generatePartitionedPath(JobContext context, String topic, String encodedPartition, int partitionId) {
     StringBuilder sb = new StringBuilder();
     sb.append(topic).append("/");
     sb.append(EtlMultiOutputFormat.getDestPathTopicSubDir(context)).append("/");

@@ -138,23 +138,29 @@ function hive_success_check {
 }
 
 function latest_schema_for_topic {
+    # schemas are getting too long to store in bash variables, so use temp files instead...
+    local latest_tmpfile=$(mktemp)
+    local latest_schema_tmpfile=$(mktemp)
+
     # Need to strip prefix, convert class underscores to dots and put back together for querying repo
     local prefix=$(echo $1 | cut -d_ -f1)
     local class=$(echo $1 | cut -d_ -f2- | sed s/_/./g)
     local topic="${prefix}_${class}"
     local uri="$AVRO_SCHEMA_REPOSITORY/$topic/latest"
     # This gets returned in the format ID\tSCHEMA
-    local latest=$(curl -fs ${uri})
-    if [[ -z $latest ]]; then
+    curl -fs -o ${latest_tmpfile} ${uri}
+    if [ $? -ne 0 ]; then
         # We need to crap out here because if this fails, we could lose data
         echo "Could not access avro repository at $uri"
         exit 1
     fi
-    local latest_id=$(echo $latest | awk '{print $1}')
-    local latest_schema=$(echo $latest | awk '{$1=""; print substr($0,2)}')
+    local latest_id=$(cat $latest_tmpfile | awk '{print $1}')
+    cat $latest_tmpfile | awk "{\$1=\"\"; print substr(\$0,2)}" > $latest_schema_tmpfile
+
+    rm -f $latest_tmpfile
 
     eval "$2='$latest_id'"
-    eval "$3='$latest_schema'"
+    eval "$3='$latest_schema_tmpfile'"
 }
 
 ## create_hive_table ${topic_table} "${PARTITION_BY}" ${AVRO_SCHEMA_URL}
@@ -212,8 +218,13 @@ while read topic; do
 	> $HIVE_STDERR
 
     if [[ ! -z "$AVRO_SCHEMA_REPOSITORY" ]]; then
-        latest_schema_for_topic $topic SCHEMA_ID SCHEMA_TEXT
-        echo $SCHEMA_TEXT > $WORK_DIR/$SCHEMA_ID
+        # unset some variables so we don't accidentally use previous schema lookup's values in case of error...
+        unset SCHEMA_ID
+        unset SCHEMA_TEXT_TMPFILE
+        # Don't forget to delete the SCHEMA_TEXT_TMPFILE when done with it!
+        latest_schema_for_topic $topic SCHEMA_ID SCHEMA_TEXT_TMPFILE
+        cat $SCHEMA_TEXT_TMPFILE > $WORK_DIR/$SCHEMA_ID
+        rm -f $SCHEMA_TEXT_TMPFILE
         SCHEMA_DIR=$CAMUS_DESTINATION_DIR/$topic/schemas
         LATEST_SCHEMA=$SCHEMA_DIR/$SCHEMA_ID
         

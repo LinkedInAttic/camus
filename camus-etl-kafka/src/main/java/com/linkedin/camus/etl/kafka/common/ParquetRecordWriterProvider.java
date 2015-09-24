@@ -20,7 +20,9 @@ import parquet.hadoop.ParquetWriter;
 import parquet.hadoop.metadata.CompressionCodecName;
 
 /**
- *
+ * Provides a RecordWriter that uses AvroParquetWriter to write
+ * Parquet records to HDFS. Compression settings are controlled via ETL_OUTPUT_CODEC
+ * Supports Snappy & Gzip compression codecs.
  *
  */
 public class ParquetRecordWriterProvider implements RecordWriterProvider {

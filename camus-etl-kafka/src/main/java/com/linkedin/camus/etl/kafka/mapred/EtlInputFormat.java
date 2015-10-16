@@ -1,18 +1,5 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import com.google.common.base.Strings;
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.coders.MessageDecoder;
-import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
-import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
-import com.linkedin.camus.etl.kafka.common.EmailClient;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.EtlRequest;
-import com.linkedin.camus.etl.kafka.common.LeaderInfo;
-import com.linkedin.camus.workallocater.CamusRequest;
-import com.linkedin.camus.workallocater.WorkAllocator;
-
 import java.io.IOException;
 import java.net.URI;
 import java.security.InvalidParameterException;
@@ -29,16 +16,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import kafka.api.PartitionOffsetRequestInfo;
-import kafka.common.ErrorMapping;
-import kafka.common.TopicAndPartition;
-import kafka.javaapi.OffsetRequest;
-import kafka.javaapi.OffsetResponse;
-import kafka.javaapi.PartitionMetadata;
-import kafka.javaapi.TopicMetadata;
-import kafka.javaapi.TopicMetadataRequest;
-import kafka.javaapi.consumer.SimpleConsumer;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -53,8 +30,32 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 
+import kafka.api.PartitionOffsetRequestInfo;
+import kafka.common.ErrorMapping;
+import kafka.common.TopicAndPartition;
+import kafka.javaapi.OffsetRequest;
+import kafka.javaapi.OffsetResponse;
+import kafka.javaapi.PartitionMetadata;
+import kafka.javaapi.TopicMetadata;
+import kafka.javaapi.TopicMetadataRequest;
+import kafka.javaapi.consumer.SimpleConsumer;
+
+import com.google.common.base.Strings;
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.EtlRecordListener;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EmailClient;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+import com.linkedin.camus.workallocater.CamusRequest;
+import com.linkedin.camus.workallocater.WorkAllocator;
 
 /**
  * Input format for a Kafka pull job.
@@ -78,6 +79,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static final String ETL_IGNORE_SCHEMA_ERRORS = "etl.ignore.schema.errors";
   public static final String ETL_AUDIT_IGNORE_SERVICE_TOPIC_LIST = "etl.audit.ignore.service.topic.list";
 
+  public static final String ETL_RECORD_READER_LISTENER = "etl.record.reader.listener";
+
   public static final String CAMUS_WORK_ALLOCATOR_CLASS = "camus.work.allocator.class";
   public static final String CAMUS_WORK_ALLOCATOR_DEFAULT = "com.linkedin.camus.workallocater.BaseAllocator";
 
@@ -91,11 +94,14 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public static boolean reportJobFailureUnableToGetOffsetFromKafka = false;
   public static boolean reportJobFailureDueToLeaderNotAvailable = false;
 
+  private static Map<String, EtlRecordListener> recordReaderListenersByTopic = new HashMap<String, EtlRecordListener>();
+
   private static Logger log = null;
 
   public EtlInputFormat() {
-    if (log == null)
+    if (log == null) {
       log = Logger.getLogger(getClass());
+    }
   }
 
   public static void setLogger(Logger log) {
@@ -104,7 +110,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   @Override
   public RecordReader<EtlKey, CamusWrapper> createRecordReader(InputSplit split, TaskAttemptContext context)
-      throws IOException, InterruptedException {
+    throws IOException, InterruptedException {
     return new EtlRecordReader(this, split, context);
   }
 
@@ -112,15 +118,16 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
    * Gets the metadata from Kafka
    *
    * @param context
-   * @param metaRequestTopics specify the list of topics to get topicMetadata. The empty list means
-   * get the TopicsMetadata for all topics.
+   * @param metaRequestTopics specify the list of topics to get topicMetadata. The empty list means get the
+   *          TopicsMetadata for all topics.
    * @return the list of TopicMetadata
    */
   public List<TopicMetadata> getKafkaMetadata(JobContext context, List<String> metaRequestTopics) {
     CamusJob.startTiming("kafkaSetupTime");
     String brokerString = CamusJob.getKafkaBrokers(context);
-    if (brokerString.isEmpty())
+    if (brokerString.isEmpty()) {
       throw new InvalidParameterException("kafka.brokers must contain at least one node");
+    }
     List<String> brokers = Arrays.asList(brokerString.split("\\s*,\\s*"));
     Collections.shuffle(brokers);
     boolean fetchMetaDataSucceeded = false;
@@ -162,16 +169,16 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   private SimpleConsumer createBrokerConsumer(JobContext context, String broker) {
-    if (!broker.matches(".+:\\d+"))
+    if (!broker.matches(".+:\\d+")) {
       throw new InvalidParameterException("The kakfa broker " + broker + " must follow address:port pattern");
+    }
     String[] hostPort = broker.split(":");
     return createSimpleConsumer(context, hostPort[0], Integer.valueOf(hostPort[1]));
   }
 
   public SimpleConsumer createSimpleConsumer(JobContext context, String host, int port) {
-    SimpleConsumer consumer =
-        new SimpleConsumer(host, port, CamusJob.getKafkaTimeoutValue(context), CamusJob.getKafkaBufferSize(context),
-            CamusJob.getKafkaClientName(context));
+    SimpleConsumer consumer = new SimpleConsumer(host, port, CamusJob.getKafkaTimeoutValue(context),
+        CamusJob.getKafkaBufferSize(context), CamusJob.getKafkaClientName(context));
     return consumer;
   }
 
@@ -188,15 +195,13 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     for (LeaderInfo leader : offsetRequestInfo.keySet()) {
       SimpleConsumer consumer = createSimpleConsumer(context, leader.getUri().getHost(), leader.getUri().getPort());
       // Latest Offset
-      PartitionOffsetRequestInfo partitionLatestOffsetRequestInfo =
-          new PartitionOffsetRequestInfo(kafka.api.OffsetRequest.LatestTime(), 1);
+      PartitionOffsetRequestInfo partitionLatestOffsetRequestInfo = new PartitionOffsetRequestInfo(
+          kafka.api.OffsetRequest.LatestTime(), 1);
       // Earliest Offset
-      PartitionOffsetRequestInfo partitionEarliestOffsetRequestInfo =
-          new PartitionOffsetRequestInfo(kafka.api.OffsetRequest.EarliestTime(), 1);
-      Map<TopicAndPartition, PartitionOffsetRequestInfo> latestOffsetInfo =
-          new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
-      Map<TopicAndPartition, PartitionOffsetRequestInfo> earliestOffsetInfo =
-          new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
+      PartitionOffsetRequestInfo partitionEarliestOffsetRequestInfo = new PartitionOffsetRequestInfo(
+          kafka.api.OffsetRequest.EarliestTime(), 1);
+      Map<TopicAndPartition, PartitionOffsetRequestInfo> latestOffsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
+      Map<TopicAndPartition, PartitionOffsetRequestInfo> earliestOffsetInfo = new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
       ArrayList<TopicAndPartition> topicAndPartitions = offsetRequestInfo.get(leader);
       for (TopicAndPartition topicAndPartition : topicAndPartitions) {
         latestOffsetInfo.put(topicAndPartition, partitionLatestOffsetRequestInfo);
@@ -217,13 +222,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
       for (TopicAndPartition topicAndPartition : topicAndPartitions) {
         long latestOffset = latestOffsetResponse.offsets(topicAndPartition.topic(), topicAndPartition.partition())[0];
-        long earliestOffset =
-            earliestOffsetResponse.offsets(topicAndPartition.topic(), topicAndPartition.partition())[0];
+        long earliestOffset = earliestOffsetResponse.offsets(topicAndPartition.topic(),
+            topicAndPartition.partition())[0];
 
-        //TODO: factor out kafka specific request functionality
-        CamusRequest etlRequest =
-            new EtlRequest(context, topicAndPartition.topic(), Integer.toString(leader.getLeaderId()),
-                topicAndPartition.partition(), leader.getUri());
+        // TODO: factor out kafka specific request functionality
+        CamusRequest etlRequest = new EtlRequest(context, topicAndPartition.topic(),
+            Integer.toString(leader.getLeaderId()), topicAndPartition.partition(), leader.getUri());
         etlRequest.setLatestOffset(latestOffset);
         etlRequest.setEarliestOffset(earliestOffset);
         finalRequests.add(etlRequest);
@@ -236,9 +240,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       Map<TopicAndPartition, PartitionOffsetRequestInfo> offsetInfo, JobContext context) {
     for (int i = 0; i < NUM_TRIES_FETCH_FROM_LEADER; i++) {
       try {
-        OffsetResponse offsetResponse =
-            consumer.getOffsetsBefore(new OffsetRequest(offsetInfo, kafka.api.OffsetRequest.CurrentVersion(), CamusJob
-                .getKafkaClientName(context)));
+        OffsetResponse offsetResponse = consumer.getOffsetsBefore(new OffsetRequest(offsetInfo,
+            kafka.api.OffsetRequest.CurrentVersion(), CamusJob.getKafkaClientName(context)));
         if (offsetResponse.hasError()) {
           throw new RuntimeException("offsetReponse has error.");
         }
@@ -299,8 +302,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   public List<InputSplit> getSplits(JobContext context) throws IOException, InterruptedException {
     CamusJob.startTiming("getSplits");
     ArrayList<CamusRequest> finalRequests;
-    HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo =
-        new HashMap<LeaderInfo, ArrayList<TopicAndPartition>>();
+    HashMap<LeaderInfo, ArrayList<TopicAndPartition>> offsetRequestInfo = new HashMap<LeaderInfo, ArrayList<TopicAndPartition>>();
     try {
 
       // Get Metadata for all topics
@@ -331,13 +333,12 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           for (PartitionMetadata partitionMetadata : topicMetadata.partitionsMetadata()) {
             // We only care about LeaderNotAvailableCode error on partitionMetadata level
             // Error codes such as ReplicaNotAvailableCode should not stop us.
-            partitionMetadata =
-                this.refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, topicMetadata, context,
-                    NUM_TRIES_PARTITION_METADATA);
+            partitionMetadata = refreshPartitionMetadataOnLeaderNotAvailable(partitionMetadata, topicMetadata, context,
+                NUM_TRIES_PARTITION_METADATA);
 
             if (partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
-              log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
-                  + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
+              log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic() + " and Partition : "
+                  + partitionMetadata.partitionId() + " Exception : "
                   + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
               reportJobFailureDueToLeaderNotAvailable = true;
             } else {
@@ -346,9 +347,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
                     + topicMetadata.topic() + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
                     + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
               }
-              LeaderInfo leader =
-                  new LeaderInfo(new URI("tcp://" + partitionMetadata.leader().getConnectionString()),
-                      partitionMetadata.leader().id());
+              LeaderInfo leader = new LeaderInfo(new URI("tcp://" + partitionMetadata.leader().getConnectionString()),
+                  partitionMetadata.leader().id());
               if (offsetRequestInfo.containsKey(leader)) {
                 ArrayList<TopicAndPartition> topicAndPartitions = offsetRequestInfo.get(leader);
                 topicAndPartitions.add(new TopicAndPartition(topicMetadata.topic(), partitionMetadata.partitionId()));
@@ -384,14 +384,14 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     for (CamusRequest request : finalRequests) {
       if (moveLatest.contains(request.getTopic()) || moveLatest.contains("all")) {
         log.info("Moving to latest for topic: " + request.getTopic());
-        //TODO: factor out kafka specific request functionality
+        // TODO: factor out kafka specific request functionality
         EtlKey oldKey = offsetKeys.get(request);
-        EtlKey newKey =
-            new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0,
-                request.getLastOffset());
+        EtlKey newKey = new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0,
+            request.getLastOffset());
 
-        if (oldKey != null)
+        if (oldKey != null) {
           newKey.setMessageSize(oldKey.getMessageSize());
+        }
 
         offsetKeys.put(request, newKey);
       }
@@ -417,28 +417,26 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         if (move_to_earliest_offset || offsetUnset) {
           log.error("Moving to the earliest offset available");
           request.setOffset(request.getEarliestOffset());
-          offsetKeys.put(
-              request,
-              //TODO: factor out kafka specific request functionality
-              new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0, request
-                  .getOffset()));
+          offsetKeys.put(request,
+              // TODO: factor out kafka specific request functionality
+              new EtlKey(request.getTopic(), ((EtlRequest) request).getLeaderId(), request.getPartition(), 0,
+                  request.getOffset()));
         } else {
-          log.error("Offset range from kafka metadata is outside the previously persisted offset, " + request + "\n" +
-                    " Topic " + request.getTopic() + " will be skipped.\n" +
-                    " Please check whether kafka cluster configuration is correct." +
-                    " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET +
-                    " to start processing from earliest kafka metadata offset.");
+          log.error("Offset range from kafka metadata is outside the previously persisted offset, " + request + "\n"
+              + " Topic " + request.getTopic() + " will be skipped.\n"
+              + " Please check whether kafka cluster configuration is correct."
+              + " You can also specify config parameter: " + KAFKA_MOVE_TO_EARLIEST_OFFSET
+              + " to start processing from earliest kafka metadata offset.");
           reportJobFailureDueToOffsetOutOfRange = true;
         }
-      } else if (3 * (request.getOffset() - request.getEarliestOffset())
-          < request.getLastOffset() - request.getOffset()) {
-        camusRequestEmailMessage +=
-                "The current offset is too close to the earliest offset, Camus might be falling behind: "
-                    + request + "\n";
+      } else if (3 * (request.getOffset() - request.getEarliestOffset()) < request.getLastOffset()
+          - request.getOffset()) {
+        camusRequestEmailMessage += "The current offset is too close to the earliest offset, Camus might be falling behind: "
+            + request + "\n";
       }
       log.info(request);
     }
-    if(!Strings.isNullOrEmpty(camusRequestEmailMessage)) {
+    if (!Strings.isNullOrEmpty(camusRequestEmailMessage)) {
       EmailClient.sendEmail(camusRequestEmailMessage);
     }
 
@@ -489,8 +487,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     }
 
     output = new Path(output, EtlMultiOutputFormat.OFFSET_PREFIX + "-previous");
-    SequenceFile.Writer writer =
-        SequenceFile.createWriter(fs, context.getConfiguration(), output, EtlKey.class, NullWritable.class);
+    SequenceFile.Writer writer = SequenceFile.createWriter(fs, context.getConfiguration(), output, EtlKey.class,
+        NullWritable.class);
 
     for (EtlKey key : missedKeys) {
       writer.append(key, NullWritable.get());
@@ -508,11 +506,11 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     }
 
     output = new Path(output, EtlMultiOutputFormat.REQUESTS_FILE);
-    SequenceFile.Writer writer =
-        SequenceFile.createWriter(fs, context.getConfiguration(), output, EtlRequest.class, NullWritable.class);
+    SequenceFile.Writer writer = SequenceFile.createWriter(fs, context.getConfiguration(), output, EtlRequest.class,
+        NullWritable.class);
 
     for (CamusRequest r : requests) {
-      //TODO: factor out kafka specific request functionality
+      // TODO: factor out kafka specific request functionality
       writer.append(r, NullWritable.get());
     }
     writer.close();
@@ -527,7 +525,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
         SequenceFile.Reader reader = new SequenceFile.Reader(fs, f.getPath(), context.getConfiguration());
         EtlKey key = new EtlKey();
         while (reader.next(key, NullWritable.get())) {
-          //TODO: factor out kafka specific request functionality
+          // TODO: factor out kafka specific request functionality
           CamusRequest request = new EtlRequest(context, key.getTopic(), key.getLeaderId(), key.getPartition());
           if (offsetKeysMap.containsKey(request)) {
 
@@ -551,8 +549,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
     int tryCounter = 0;
     while (tryCounter < numTries && partitionMetadata.errorCode() == ErrorMapping.LeaderNotAvailableCode()) {
       log.info("Retry to referesh the topicMetadata on LeaderNotAvailable...");
-      List<TopicMetadata> topicMetadataList =
-          this.getKafkaMetadata(context, Collections.singletonList(topicMetadata.topic()));
+      List<TopicMetadata> topicMetadataList = getKafkaMetadata(context,
+          Collections.singletonList(topicMetadata.topic()));
       if (topicMetadataList == null || topicMetadataList.size() == 0) {
         log.warn("The topicMetadataList for topic " + topicMetadata.topic() + " is empty.");
       } else {
@@ -563,7 +561,7 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
             partitionFound = true;
             if (metadataPerPartition.errorCode() != ErrorMapping.LeaderNotAvailableCode()) {
               return metadataPerPartition;
-            } else { //retry again.
+            } else { // retry again.
               if (tryCounter < numTries - 1) {
                 Thread.sleep((long) (Math.random() * (tryCounter + 1) * BACKOFF_UNIT_MILLISECONDS));
               }
@@ -572,8 +570,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
           }
         }
         if (!partitionFound) {
-          log.error("No matching partition found in the topicMetadata for Partition: "
-              + partitionMetadata.partitionId());
+          log.error(
+              "No matching partition found in the topicMetadata for Partition: " + partitionMetadata.partitionId());
         }
       }
       tryCounter++;
@@ -587,8 +585,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static WorkAllocator getWorkAllocator(JobContext job) {
     try {
-      return (WorkAllocator) job.getConfiguration()
-          .getClass(CAMUS_WORK_ALLOCATOR_CLASS, Class.forName(CAMUS_WORK_ALLOCATOR_DEFAULT)).newInstance();
+      return (WorkAllocator) job
+          .getConfiguration()
+          .getClass(CAMUS_WORK_ALLOCATOR_CLASS, Class.forName(CAMUS_WORK_ALLOCATOR_DEFAULT))
+          .newInstance();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -702,9 +702,36 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
   }
 
   public static Class<MessageDecoder> getMessageDecoderClass(JobContext job, String topicName) {
-    Class<MessageDecoder> topicDecoder =
-        (Class<MessageDecoder>) job.getConfiguration().getClass(CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
+    Class<MessageDecoder> topicDecoder = (Class<MessageDecoder>) job
+        .getConfiguration()
+        .getClass(CAMUS_MESSAGE_DECODER_CLASS + "." + topicName, null);
     return topicDecoder == null ? getMessageDecoderClass(job) : topicDecoder;
+  }
+
+  private static EtlRecordListener getEtlRecordListenerInstance(JobContext job, String propertyName) {
+    Class<? extends EtlRecordListener> etlRecordListenerClass = job.getConfiguration().getClass(propertyName, null,
+        EtlRecordListener.class);
+    if (etlRecordListenerClass == null) {
+      return null;
+    }
+    return ReflectionUtils.newInstance(etlRecordListenerClass, job.getConfiguration());
+  }
+
+  public static EtlRecordListener getEltRecordReaderListener(JobContext job, String topicName) throws IOException {
+    if (!recordReaderListenersByTopic.containsKey(ETL_RECORD_READER_LISTENER)) {
+      recordReaderListenersByTopic.put(ETL_RECORD_READER_LISTENER,
+          getEtlRecordListenerInstance(job, ETL_RECORD_READER_LISTENER));
+    }
+    String customWriterListenerProperty = ETL_RECORD_READER_LISTENER + "." + topicName;
+    if (!recordReaderListenersByTopic.containsKey(customWriterListenerProperty)) {
+      EtlRecordListener etlRecordListener = getEtlRecordListenerInstance(job, customWriterListenerProperty);
+      if (etlRecordListener == null) {
+        // Default listener as per global setting
+        etlRecordListener = recordReaderListenersByTopic.get(ETL_RECORD_READER_LISTENER);
+      }
+      recordReaderListenersByTopic.put(customWriterListenerProperty, etlRecordListener);
+    }
+    return recordReaderListenersByTopic.get(customWriterListenerProperty);
   }
 
   private class OffsetFileFilter implements PathFilter {

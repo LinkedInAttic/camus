@@ -1,16 +1,5 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.coders.Message;
-import com.linkedin.camus.coders.MessageDecoder;
-import com.linkedin.camus.etl.kafka.CamusJob;
-import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
-import com.linkedin.camus.etl.kafka.common.EtlKey;
-import com.linkedin.camus.etl.kafka.common.EtlRequest;
-import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
-import com.linkedin.camus.etl.kafka.common.KafkaReader;
-import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
-
 import java.io.IOException;
 import java.util.HashSet;
 
@@ -27,6 +16,17 @@ import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormatter;
 import org.joda.time.format.PeriodFormatterBuilder;
 
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.Message;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.EtlRecordListener;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.ExceptionWritable;
+import com.linkedin.camus.etl.kafka.common.KafkaReader;
+import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 
 public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   private static final String PRINT_MAX_DECODER_EXCEPTIONS = "max.decoder.exceptions.to.print";
@@ -42,7 +42,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
 
   protected TaskAttemptContext context;
 
-  private EtlInputFormat inputFormat;
+  private final EtlInputFormat inputFormat;
   private Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext;
   private KafkaReader reader;
 
@@ -79,8 +79,8 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
    * @throws IOException
    * @throws InterruptedException
    */
-  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context) throws IOException,
-      InterruptedException {
+  public EtlRecordReader(EtlInputFormat inputFormat, InputSplit split, TaskAttemptContext context)
+      throws IOException, InterruptedException {
     this.inputFormat = inputFormat;
     initialize(split, context);
   }
@@ -102,20 +102,21 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
       mapperContext = (Mapper.Context) context;
     }
 
-    this.skipSchemaErrors = EtlInputFormat.getEtlIgnoreSchemaErrors(context);
+    skipSchemaErrors = EtlInputFormat.getEtlIgnoreSchemaErrors(context);
 
     if (EtlInputFormat.getKafkaMaxPullHrs(context) != -1) {
-      this.maxPullHours = EtlInputFormat.getKafkaMaxPullHrs(context);
+      maxPullHours = EtlInputFormat.getKafkaMaxPullHrs(context);
     } else {
-      this.endTimeStamp = Long.MAX_VALUE;
+      endTimeStamp = Long.MAX_VALUE;
     }
 
     if (EtlInputFormat.getKafkaMaxPullMinutesPerTask(context) != -1) {
-      this.startTime = System.currentTimeMillis();
-      this.maxPullTime =
-          new DateTime(this.startTime).plusMinutes(EtlInputFormat.getKafkaMaxPullMinutesPerTask(context)).getMillis();
+      startTime = System.currentTimeMillis();
+      maxPullTime = new DateTime(startTime)
+          .plusMinutes(EtlInputFormat.getKafkaMaxPullMinutesPerTask(context))
+          .getMillis();
     } else {
-      this.maxPullTime = Long.MAX_VALUE;
+      maxPullTime = Long.MAX_VALUE;
     }
 
     ignoreServerServiceList = new HashSet<String>();
@@ -123,10 +124,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
       ignoreServerServiceList.add(ignoreServerServiceTopic);
     }
 
-    this.totalBytes = this.split.getLength();
+    totalBytes = this.split.getLength();
 
-    this.periodFormatter =
-        new PeriodFormatterBuilder().appendMinutes().appendSuffix("m").appendSeconds().appendSuffix("s").toFormatter();
+    periodFormatter = new PeriodFormatterBuilder()
+        .appendMinutes()
+        .appendSuffix("m")
+        .appendSeconds()
+        .appendSuffix("s")
+        .toFormatter();
   }
 
   @Override
@@ -159,8 +164,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
     byte[] buffer = val.getBytes();
 
     /*
-     * FIXME: remove the following part once the below jira is fixed
-     * https://issues.apache.org/jira/browse/HADOOP-6298
+     * FIXME: remove the following part once the below jira is fixed https://issues.apache.org/jira/browse/HADOOP-6298
      */
     long len = val.getLength();
     byte[] bytes = buffer;
@@ -202,7 +206,7 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
   public boolean nextKeyValue() throws IOException, InterruptedException {
 
     if (System.currentTimeMillis() > maxPullTime
-        && this.numRecordsReadForCurrentPartition >= RECORDS_TO_READ_AFTER_TIMEOUT) {
+        && numRecordsReadForCurrentPartition >= RECORDS_TO_READ_AFTER_TIMEOUT) {
       String maxMsg = "at " + new DateTime(curTimeStamp).toString();
       log.info("Kafka pull time limit reached");
       statusMsg += " max read " + maxMsg;
@@ -211,16 +215,16 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
       mapperContext.getCounter("total", "request-time(ms)").increment(reader.getFetchTime());
       closeReader();
 
-      String topicNotFullyPulledMsg =
-          String.format("Topic %s:%d not fully pulled, max task time reached %s, pulled %d records", key.getTopic(),
-              key.getPartition(), maxMsg, this.numRecordsReadForCurrentPartition);
+      String topicNotFullyPulledMsg = String.format(
+          "Topic %s:%d not fully pulled, max task time reached %s, pulled %d records", key.getTopic(),
+          key.getPartition(), maxMsg, numRecordsReadForCurrentPartition);
       mapperContext.write(key, new ExceptionWritable(topicNotFullyPulledMsg));
       log.warn(topicNotFullyPulledMsg);
 
-      String timeSpentOnPartition =
-          this.periodFormatter.print(new Duration(this.startTime, System.currentTimeMillis()).toPeriod());
-      String timeSpentOnTopicMsg =
-          String.format("Time spent on topic %s:%d = %s", key.getTopic(), key.getPartition(), timeSpentOnPartition);
+      String timeSpentOnPartition = periodFormatter
+          .print(new Duration(startTime, System.currentTimeMillis()).toPeriod());
+      String timeSpentOnTopicMsg = String.format("Time spent on topic %s:%d = %s", key.getTopic(), key.getPartition(),
+          timeSpentOnPartition);
       mapperContext.write(key, new ExceptionWritable(timeSpentOnTopicMsg));
       log.info(timeSpentOnTopicMsg);
 
@@ -231,14 +235,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
       try {
 
         if (reader == null || !reader.hasNext()) {
-          if (this.numRecordsReadForCurrentPartition != 0) {
-            String timeSpentOnPartition =
-                this.periodFormatter.print(new Duration(this.startTime, System.currentTimeMillis()).toPeriod());
+          if (numRecordsReadForCurrentPartition != 0) {
+            String timeSpentOnPartition = periodFormatter
+                .print(new Duration(startTime, System.currentTimeMillis()).toPeriod());
             log.info("Time spent on this partition = " + timeSpentOnPartition);
-            log.info("Num of records read for this partition = " + this.numRecordsReadForCurrentPartition);
-            log.info("Bytes read for this partition = " + this.bytesReadForCurrentPartition);
-            log.info("Actual avg size for this partition = " + this.bytesReadForCurrentPartition
-                / this.numRecordsReadForCurrentPartition);
+            log.info("Num of records read for this partition = " + numRecordsReadForCurrentPartition);
+            log.info("Bytes read for this partition = " + bytesReadForCurrentPartition);
+            log.info("Actual avg size for this partition = "
+                + bytesReadForCurrentPartition / numRecordsReadForCurrentPartition);
           }
 
           EtlRequest request = (EtlRequest) split.popRequest();
@@ -247,9 +251,9 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           }
 
           // Reset start time, num of records read and bytes read
-          this.startTime = System.currentTimeMillis();
-          this.numRecordsReadForCurrentPartition = 0;
-          this.bytesReadForCurrentPartition = 0;
+          startTime = System.currentTimeMillis();
+          numRecordsReadForCurrentPartition = 0;
+          bytesReadForCurrentPartition = 0;
 
           if (maxPullHours > 0) {
             endTimeStamp = 0;
@@ -267,19 +271,19 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           if (reader != null) {
             closeReader();
           }
-          reader =
-              new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
-                  CamusJob.getKafkaBufferSize(mapperContext));
+          reader = new KafkaReader(inputFormat, context, request, CamusJob.getKafkaTimeoutValue(mapperContext),
+              CamusJob.getKafkaBufferSize(mapperContext));
 
           decoder = createDecoder(request.getTopic());
         }
         int count = 0;
         Message message;
         while ((message = reader.getNext(key)) != null) {
+
           readBytes += key.getMessageSize();
           count++;
-          this.numRecordsReadForCurrentPartition++;
-          this.bytesReadForCurrentPartition += key.getMessageSize();
+          numRecordsReadForCurrentPartition++;
+          bytesReadForCurrentPartition += key.getMessageSize();
           context.progress();
           mapperContext.getCounter("total", "data-read").increment(message.getPayload().length);
           mapperContext.getCounter("total", "event-count").increment(1);
@@ -289,12 +293,19 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
           long tempTime = System.currentTimeMillis();
           CamusWrapper wrapper;
           try {
+            readAttempt(mapperContext, key);
+
             wrapper = getWrappedRecord(message);
 
             if (wrapper == null) {
               throw new RuntimeException("null record");
             }
+
+            readSuccess(mapperContext, key);
+
           } catch (Exception e) {
+            readFailure(mapperContext, key, e);
+
             if (exceptionCount < getMaximumDecoderExceptionsToPrint(context)) {
               mapperContext.write(key, new ExceptionWritable(e));
               log.info(e.getMessage());
@@ -325,15 +336,14 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
             statusMsg += " begin read at " + time.toString();
             context.setStatus(statusMsg);
             log.info(key.getTopic() + " begin read at " + time.toString());
-            endTimeStamp = (time.plusHours(this.maxPullHours)).getMillis();
+            endTimeStamp = (time.plusHours(maxPullHours)).getMillis();
           } else if (curTimeStamp > endTimeStamp) {
             String maxMsg = "at " + new DateTime(curTimeStamp).toString();
             log.info("Kafka Max history hours reached");
-            mapperContext.write(
-                key,
-                new ExceptionWritable(String.format(
-                    "Topic not fully pulled, max task time reached %s, pulled %d records", maxMsg,
-                    this.numRecordsReadForCurrentPartition)));
+            mapperContext.write(key,
+                new ExceptionWritable(
+                    String.format("Topic not fully pulled, max task time reached %s, pulled %d records", maxMsg,
+                        numRecordsReadForCurrentPartition)));
             statusMsg += " max read " + maxMsg;
             context.setStatus(statusMsg);
             log.info(key.getTopic() + " max read " + maxMsg);
@@ -362,6 +372,40 @@ public class EtlRecordReader extends RecordReader<EtlKey, CamusWrapper> {
         reader = null;
         continue;
       }
+    }
+  }
+
+  private static void readAttempt(Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext, EtlKey key) {
+    try {
+      EtlRecordListener listener = EtlInputFormat.getEltRecordReaderListener(mapperContext, key.getTopic());
+      if (listener != null) {
+        listener.onNew(mapperContext, key);
+      }
+    } catch (Exception e) {
+      log.error("Unable to notify new record read to listener", e);
+    }
+  }
+
+  private static void readSuccess(Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext, EtlKey key) {
+    try {
+      EtlRecordListener listener = EtlInputFormat.getEltRecordReaderListener(mapperContext, key.getTopic());
+      if (listener != null) {
+        listener.onSuccess(mapperContext, key);
+      }
+    } catch (Exception e) {
+      log.error("Unable to notify successful record read to listener", e);
+    }
+  }
+
+  private static void readFailure(Mapper<EtlKey, Writable, EtlKey, Writable>.Context mapperContext, EtlKey key,
+      Exception ex) {
+    try {
+      EtlRecordListener listener = EtlInputFormat.getEltRecordReaderListener(mapperContext, key.getTopic());
+      if (listener != null) {
+        listener.onFailure(mapperContext, key, ex);
+      }
+    } catch (Exception e) {
+      log.error("Unable to notify failed record read to listener: " + ex.getMessage(), e);
     }
   }
 

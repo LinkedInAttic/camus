@@ -16,6 +16,7 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.linkedin.camus.etl.EtlRecordListener;
 import com.linkedin.camus.etl.Partitioner;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
@@ -23,11 +24,8 @@ import com.linkedin.camus.etl.kafka.common.DateUtils;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
 
-
 /**
- * MultipleAvroOutputFormat.
- *
- * File names are determined by output keys.
+ * MultipleAvroOutputFormat. File names are determined by output keys.
  */
 
 public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
@@ -49,6 +47,8 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String ETL_DEFAULT_OUTPUT_CODEC = "deflate";
   public static final String ETL_RECORD_WRITER_PROVIDER_CLASS = "etl.record.writer.provider.class";
 
+  public static final String ETL_RECORD_WRITER_LISTENER = "etl.record.writer.listener";
+
   public static final DateTimeFormatter FILE_DATE_FORMATTER = DateUtils.getDateTimeFormatter("YYYYMMddHH");
   public static final String OFFSET_PREFIX = "offsets";
   public static final String ERRORS_PREFIX = "errors";
@@ -58,24 +58,29 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   private static EtlMultiOutputCommitter committer = null;
   private static Map<String, Partitioner> partitionersByTopic = new HashMap<String, Partitioner>();
 
+  private static Map<String, EtlRecordListener> recordWriterListenersByTopic = new HashMap<String, EtlRecordListener>();
+
   private static Logger log = Logger.getLogger(EtlMultiOutputFormat.class);
 
   @Override
-  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context) throws IOException,
-      InterruptedException {
-    if (committer == null)
+  public RecordWriter<EtlKey, Object> getRecordWriter(TaskAttemptContext context)
+    throws IOException, InterruptedException {
+    if (committer == null) {
       committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+    }
     return new EtlMultiOutputRecordWriter(context, committer);
   }
 
   @Override
   public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context) throws IOException {
-    if (committer == null)
+    if (committer == null) {
       committer = new EtlMultiOutputCommitter(getOutputPath(context), context, log);
+    }
     return committer;
   }
 
-  public static void setRecordWriterProviderClass(JobContext job, Class<RecordWriterProvider> recordWriterProviderClass) {
+  public static void setRecordWriterProviderClass(JobContext job,
+      Class<RecordWriterProvider> recordWriterProviderClass) {
     job.getConfiguration().setClass(ETL_RECORD_WRITER_PROVIDER_CLASS, recordWriterProviderClass,
         RecordWriterProvider.class);
   }
@@ -87,8 +92,10 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
   public static RecordWriterProvider getRecordWriterProvider(JobContext job) {
     try {
-      return (RecordWriterProvider) job.getConfiguration()
-          .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS, AvroRecordWriterProvider.class).newInstance();
+      return (RecordWriterProvider) job
+          .getConfiguration()
+          .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS, AvroRecordWriterProvider.class)
+          .newInstance();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -198,6 +205,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static Partitioner getPartitioner(JobContext job, String topicName) throws IOException {
     String customPartitionerProperty = ETL_DEFAULT_PARTITIONER_CLASS + "." + topicName;
     if (partitionersByTopic.get(customPartitionerProperty) == null) {
+      // TODO this needs to be fixed
       List<Partitioner> partitioners = new ArrayList<Partitioner>();
       if (partitioners.isEmpty()) {
         return getDefaultPartitioner(job);
@@ -210,5 +218,31 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
 
   public static void resetPartitioners() {
     partitionersByTopic = new HashMap<String, Partitioner>();
+  }
+
+  private static EtlRecordListener getEtlRecordListenerInstance(JobContext job, String propertyName) {
+    Class<? extends EtlRecordListener> etlRecordListenerClass = job.getConfiguration().getClass(propertyName, null,
+        EtlRecordListener.class);
+    if (etlRecordListenerClass == null) {
+      return null;
+    }
+    return ReflectionUtils.newInstance(etlRecordListenerClass, job.getConfiguration());
+  }
+
+  public static EtlRecordListener getEltRecordWriterListener(JobContext job, String topicName) throws IOException {
+    if (!recordWriterListenersByTopic.containsKey(ETL_RECORD_WRITER_LISTENER)) {
+      recordWriterListenersByTopic.put(ETL_RECORD_WRITER_LISTENER,
+          getEtlRecordListenerInstance(job, ETL_RECORD_WRITER_LISTENER));
+    }
+    String customWriterListenerProperty = ETL_RECORD_WRITER_LISTENER + "." + topicName;
+    if (!recordWriterListenersByTopic.containsKey(customWriterListenerProperty)) {
+      EtlRecordListener etlRecordListener = getEtlRecordListenerInstance(job, customWriterListenerProperty);
+      if (etlRecordListener == null) {
+        // Default listener as per global setting
+        etlRecordListener = recordWriterListenersByTopic.get(ETL_RECORD_WRITER_LISTENER);
+      }
+      recordWriterListenersByTopic.put(customWriterListenerProperty, etlRecordListener);
+    }
+    return recordWriterListenersByTopic.get(customWriterListenerProperty);
   }
 }

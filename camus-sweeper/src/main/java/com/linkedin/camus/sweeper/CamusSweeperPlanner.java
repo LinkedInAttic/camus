@@ -10,18 +10,17 @@ import java.util.Set;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.log4j.Logger;
 
 
 public abstract class CamusSweeperPlanner {
+  private static final Logger LOG = Logger.getLogger(CamusSweeperPlanner.class);
+
   protected Properties props;
   protected Set<Properties> outlierProperties = new HashSet<Properties>();
-  private Logger log;
 
   public CamusSweeperPlanner setPropertiesLogger(Properties props, Logger log) {
     this.props = props;
-    this.log = log;
     return this;
   }
 
@@ -35,33 +34,35 @@ public abstract class CamusSweeperPlanner {
   // folder
   protected boolean shouldReprocess(FileSystem fs, List<Path> sources, Path dest) throws IOException {
 
-    log.debug("source:" + sources.toString());
-    log.debug("dest:" + dest.toString());
+    LOG.debug("source:" + sources.toString());
+    LOG.debug("dest:" + dest.toString());
 
     FileStatus destStatus = fs.getFileStatus(dest);
     long destinationModTime = destStatus.getModificationTime();
 
     for (Path source : sources) {
-      if (shouldReprocess(fs, source, destinationModTime))
+      if (shouldReprocess(fs, source, dest, destinationModTime))
         return true;
     }
 
     return false;
   }
 
-  private boolean shouldReprocess(FileSystem fs, Path source, long destinationModTime) throws IOException {
+  private boolean shouldReprocess(FileSystem fs, Path source, Path dest, long destinationModTime) throws IOException {
     FileStatus sourceStatus = fs.getFileStatus(source);
 
-    log.debug("source mod:" + sourceStatus.getModificationTime());
-    log.debug("dest mod:" + destinationModTime);
+    LOG.debug("source mod:" + sourceStatus.getModificationTime());
+    LOG.debug("dest mod:" + destinationModTime);
 
     if (sourceStatus.getModificationTime() > destinationModTime) {
+      LOG.warn(String.format("mod time of source %s is %d, later than mod time of %s: %d", source,
+          sourceStatus.getModificationTime(), dest, destinationModTime));
       return true;
     }
 
     FileStatus[] statuses = fs.globStatus(new Path(source, "*"), new HiddenFilter());
     for (FileStatus status : statuses) {
-      if (shouldReprocess(fs, status.getPath(), destinationModTime)) {
+      if (shouldReprocess(fs, status.getPath(), dest, destinationModTime)) {
         return true;
       }
     }

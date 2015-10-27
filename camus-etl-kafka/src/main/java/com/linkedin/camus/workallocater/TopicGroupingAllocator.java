@@ -22,7 +22,7 @@ public class TopicGroupingAllocator extends BaseAllocator {
 
   @Override
   public List<InputSplit> allocateWork(List<CamusRequest> requests, JobContext context) throws IOException {
-    int numTasks = context.getConfiguration().getInt("mapred.map.tasks", 30);
+    int numTasks = getMapTasksCount(context);
     List<InputSplit> kafkaETLSplits = new ArrayList<InputSplit>();
 
     for (int i = 0; i < numTasks; i++) {

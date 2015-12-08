@@ -153,11 +153,7 @@
 				<artifactId>commons-httpclient</artifactId>
 				<version>3.0.1</version>
 			</dependency>
-			<dependency>
-				<groupId>Vsw.AvroDto</groupId>
-				<artifactId>AvroDto</artifactId>
-				<version>${vsw.avrodto.version}</version>
-			</dependency>
+
 		</dependencies>
 	</dependencyManagement>
 

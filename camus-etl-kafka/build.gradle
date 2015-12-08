@@ -1,5 +1,11 @@
 apply plugin: 'li-java'
- 
+
+repositories {
+	mavenCentral(){
+		url "http://nexus.cb.ntent.com/nexus/content/repositories/ntent-shared-libraries-release/"
+	}
+}
+
 dependencies {
 
 	compile(project(":camus-external:camus-api"))

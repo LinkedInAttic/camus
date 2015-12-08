@@ -31,16 +31,19 @@ function print_usage() {
     echo "Usage: `basename $0` <camus_destination_dir> [-d database] [-r repository_uri]"
     echo ""
     echo "camus_destination_dir"
-    echo "      HDFS path where Camus stores its destination directory."
+    echo "      HDFS path where Camus stores its destination directory. (required)"
+    echo ""
+    echo "-d,--database <database>"
+    echo "      name of database to use, default is 'default'. (required)"
+    echo ""
+    echo "-p,--partition-scheme <(daily|hourly)>"
+    echo "      the partitioning granularity of the input data. (required)"
+    echo ""
+    echo "-r,--repository <repository_uri>"
+    echo "      http uri to the schema repository. (required)"
     echo ""
     echo "-h,--help"
     echo "      prints this message"
-    echo ""
-    echo "-d,--database <database>"
-    echo "      name of database to use, default is 'default'"
-    echo ""
-    echo "-r,--repository <repository_uri>"
-    echo "      http uri to the schema repository"
     echo ""
     exit 1
 }
@@ -67,6 +70,15 @@ while [[ $# -gt 0 ]]; do
     "-r"|"--repository")
         AVRO_SCHEMA_REPOSITORY=$current_arg
         shift
+        ;;
+    "-p"|"--partition-scheme")
+        PARTITION_SCHEME=$current_arg
+        shift
+        if [ "${PARTITION_SCHEME}" != "daily" ] && [ "${PARTITION_SCHEME}" != "hourly" ]; then
+            echo "ERROR: Invalid value for --partition-scheme"
+            print_usage
+            exit 1
+        fi
         ;;
     "-h"|"--help")
         print_usage
@@ -126,26 +138,55 @@ function hive_success_check {
 }
 
 function latest_schema_for_topic {
+    # schemas are getting too long to store in bash variables, so use temp files instead...
+    local latest_tmpfile=$(mktemp)
+    local latest_schema_tmpfile=$(mktemp)
+
     # Need to strip prefix, convert class underscores to dots and put back together for querying repo
     local prefix=$(echo $1 | cut -d_ -f1)
     local class=$(echo $1 | cut -d_ -f2- | sed s/_/./g)
     local topic="${prefix}_${class}"
     local uri="$AVRO_SCHEMA_REPOSITORY/$topic/latest"
     # This gets returned in the format ID\tSCHEMA
-    local latest=$(curl -fs ${uri})
-    if [[ -z $latest ]]; then
+    curl -fs -o ${latest_tmpfile} ${uri}
+    if [ $? -ne 0 ]; then
         # We need to crap out here because if this fails, we could lose data
         echo "Could not access avro repository at $uri"
         exit 1
     fi
-    local latest_id=$(echo $latest | awk '{print $1}')
-    local latest_schema=$(echo $latest | awk '{$1=""; print substr($0,2)}')
+    local latest_id=$(cat $latest_tmpfile | awk '{print $1}')
+    cat $latest_tmpfile | awk "{\$1=\"\"; print substr(\$0,2)}" > $latest_schema_tmpfile
+
+    rm -f $latest_tmpfile
 
     eval "$2='$latest_id'"
-    eval "$3='$latest_schema'"
+    eval "$3='$latest_schema_tmpfile'"
 }
 
-# Let's get to work
+## create_hive_table ${topic_table} "${PARTITION_BY}" ${AVRO_SCHEMA_URL}
+function create_hive_table {
+    topic_table=$1
+    PARTITION_BY=$2
+    AVRO_SCHEMA_URL=$3
+
+    ${HIVE} -e "\
+    CREATE EXTERNAL TABLE ${topic_table} \
+      PARTITIONED BY ${PARTITION_BY} \
+      ROW FORMAT SERDE \
+        'org.apache.hadoop.hive.serde2.avro.AvroSerDe' \
+      STORED AS INPUTFORMAT \
+        'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat' \
+      OUTPUTFORMAT \
+        'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat' \
+      TBLPROPERTIES ( \
+        'avro.schema.url'='${NAME_NODE_URI}${LATEST_SCHEMA}' \
+      );" > /dev/null 2> $HIVE_STDERR
+}
+
+
+#####################################
+#        Let's get to work
+#####################################
 
 mkdir -p $WORK_DIR
 
@@ -154,8 +195,19 @@ if $REQUERY_HADOOP_DIRS ; then
 fi
 
 while read topic; do
-    # Hive can't handle - in table name so translate it
-    topic_table=$(echo $topic | sed s/-/_/g | sed s/^vsw_avrodto_//)
+    ## Strip/convert some things in the topic names to make them nicer in hive...
+    # (Hive can't handle "-" in table name so translate it)
+    topic_table=$(echo $topic | sed s/-/_/g | sed -r "s/^(prd|prod|stg|dev)//" | sed "s/^_vsw_avrodto_//")
+
+    # append the partitioning scheme (i.e. daily/hourly) to the table name
+    topic_table="${topic_table}_${PARTITION_SCHEME}"
+
+    # define the table partitioning scheme
+    if [ "${PARTITION_SCHEME}" == "daily" ]; then
+        PARTITION_BY="(pyear int, pmonth int, pday int)"
+    elif [ "${PARTITION_SCHEME}" == "hourly" ]; then
+        PARTITION_BY="(pyear int, pmonth int, pday int, phour int)"
+    fi
 
 	# Zero-out the per-topic state files (probably not necessary but whatever...)
 	> $EXISTING_HIVE_PARTITIONS_WITH_SLASHES
@@ -166,8 +218,13 @@ while read topic; do
 	> $HIVE_STDERR
 
     if [[ ! -z "$AVRO_SCHEMA_REPOSITORY" ]]; then
-        latest_schema_for_topic $topic SCHEMA_ID SCHEMA_TEXT
-        echo $SCHEMA_TEXT > $WORK_DIR/$SCHEMA_ID
+        # unset some variables so we don't accidentally use previous schema lookup's values in case of error...
+        unset SCHEMA_ID
+        unset SCHEMA_TEXT_TMPFILE
+        # Don't forget to delete the SCHEMA_TEXT_TMPFILE when done with it!
+        latest_schema_for_topic $topic SCHEMA_ID SCHEMA_TEXT_TMPFILE
+        cat $SCHEMA_TEXT_TMPFILE > $WORK_DIR/$SCHEMA_ID
+        rm -f $SCHEMA_TEXT_TMPFILE
         SCHEMA_DIR=$CAMUS_DESTINATION_DIR/$topic/schemas
         LATEST_SCHEMA=$SCHEMA_DIR/$SCHEMA_ID
         
@@ -182,24 +239,14 @@ while read topic; do
     fi
 
 	# Check if the table already exists in Hive
-${HIVE} -e "SHOW PARTITIONS $topic_table" 1> $EXISTING_HIVE_PARTITIONS_WITH_SLASHES 2> $HIVE_STDERR
+    ${HIVE} -e "SHOW PARTITIONS $topic_table" 1> $EXISTING_HIVE_PARTITIONS_WITH_SLASHES 2> $HIVE_STDERR
 
     if ! hive_success_check "Table '$topic_table' does not currently exist in Hive (or Hive returned some other error on SHOW PARTITIONS $topic_table)."; then
         if [[ ! -z "$AVRO_SCHEMA_REPOSITORY" ]]; then
             # Create the table from the latest schema, this assumes a Validator already made sure it is safe to do so
             echo "Creating table ${topic_table} from ${LATEST_SCHEMA}"
-            ${HIVE} -e "\
-            CREATE EXTERNAL TABLE ${topic_table} \
-              PARTITIONED BY (pyear int, pmonth int, pday int, phour int) \
-              ROW FORMAT SERDE \
-                'org.apache.hadoop.hive.serde2.avro.AvroSerDe' \
-              STORED AS INPUTFORMAT \
-                'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat' \
-              OUTPUTFORMAT \
-                'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat' \
-              TBLPROPERTIES ( \
-                'avro.schema.url'='${NAME_NODE_URI}${LATEST_SCHEMA}' \
-              );" > /dev/null 2> $HIVE_STDERR
+
+            create_hive_table "${topic_table}" "${PARTITION_BY}" "${NAME_NODE_URI}${LATEST_SCHEMA}"
 
             if hive_success_check "Some errors occurred while creating the table '$topic_table'"; then
                 echo "Successfully created Hive table '$topic_table' from schema $SCHEMA_ID :D !"
@@ -224,13 +271,22 @@ ${HIVE} -e "SHOW PARTITIONS $topic_table" 1> $EXISTING_HIVE_PARTITIONS_WITH_SLAS
     cat $EXISTING_HIVE_PARTITIONS_WITH_SLASHES | sed 's%/%, %g' > $EXISTING_HIVE_PARTITIONS
 
     # Extract all partitions currently ingested by Camus
-    hdfs dfs -ls -R $CAMUS_DESTINATION_DIR/$topic | sed "s%.*$CAMUS_DESTINATION_DIR/$topic/hourly/\([0-9]*\)/\([0-9]*\)/\([0-9]*\)/\([0-9]*\)/.*%pyear=\1, pmonth=\2, pday=\3, phour=\4%" | grep "year.*" | sort | uniq > $EXISTING_CAMUS_PARTITIONS
+    if [ "${PARTITION_SCHEME}" == "hourly" ]; then
+        hdfs dfs -ls -R $CAMUS_DESTINATION_DIR/$topic | sed "s%.*$CAMUS_DESTINATION_DIR/$topic/hourly/\([0-9]*\)/\([0-9]*\)/\([0-9]*\)/\([0-9]*\)/.*%pyear=\1, pmonth=\2, pday=\3, phour=\4%" | grep "year.*" | sort | uniq > $EXISTING_CAMUS_PARTITIONS
+    elif [ "${PARTITION_SCHEME}" == "daily" ]; then
+        hdfs dfs -ls -R $CAMUS_DESTINATION_DIR/$topic | sed "s%.*$CAMUS_DESTINATION_DIR/$topic/daily/\([0-9]*\)/\([0-9]*\)/\([0-9]*\)/.*%pyear=\1, pmonth=\2, pday=\3%" | grep "year.*" | sort | uniq > $EXISTING_CAMUS_PARTITIONS
+    fi
 
+    # find all new partitions
     grep -v -f $EXISTING_HIVE_PARTITIONS $EXISTING_CAMUS_PARTITIONS > $HIVE_PARTITIONS_TO_ADD
 
     echo "$topic currently has $(cat $EXISTING_CAMUS_PARTITIONS | wc -l) partitions in Camus directories, $(cat $EXISTING_HIVE_PARTITIONS | wc -l) in Hive and thus $(cat $HIVE_PARTITIONS_TO_ADD | wc -l) left to add to Hive"
 
-    sed "s%\(pyear=\([0-9]*\), pmonth=\([0-9]*\), pday=\([0-9]*\), phour=\([0-9]*\)\)%ALTER TABLE $topic_table ADD IF NOT EXISTS PARTITION (\1) LOCATION '$CAMUS_DESTINATION_DIR/$topic/hourly/\2/\3/\4/\5';%" < $HIVE_PARTITIONS_TO_ADD > $HIVE_ADD_PARTITION_STATEMENTS
+    if [ "${PARTITION_SCHEME}" == "hourly" ]; then
+        sed "s%\(pyear=\([0-9]*\), pmonth=\([0-9]*\), pday=\([0-9]*\), phour=\([0-9]*\)\)%ALTER TABLE $topic_table ADD IF NOT EXISTS PARTITION (\1) LOCATION '$CAMUS_DESTINATION_DIR/$topic/hourly/\2/\3/\4/\5';%" < $HIVE_PARTITIONS_TO_ADD > $HIVE_ADD_PARTITION_STATEMENTS
+    elif [ "${PARTITION_SCHEME}" == "daily" ]; then
+        sed "s%\(pyear=\([0-9]*\), pmonth=\([0-9]*\), pday=\([0-9]*\)\)%ALTER TABLE $topic_table ADD IF NOT EXISTS PARTITION (\1) LOCATION '$CAMUS_DESTINATION_DIR/$topic/daily/\2/\3/\4';%" < $HIVE_PARTITIONS_TO_ADD > $HIVE_ADD_PARTITION_STATEMENTS
+    fi
 
     ${HIVE} -f $HIVE_ADD_PARTITION_STATEMENTS > /dev/null 2> $HIVE_STDERR
 		

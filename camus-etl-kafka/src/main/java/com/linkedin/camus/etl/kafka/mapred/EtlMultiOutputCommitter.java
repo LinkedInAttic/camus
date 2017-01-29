@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
@@ -89,13 +90,14 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   public void commitTask(TaskAttemptContext context) throws IOException {
 
     ArrayList<Map<String, Object>> allCountObject = new ArrayList<Map<String, Object>>();
-    FileSystem fs = FileSystem.get(context.getConfiguration());
+    Path workPath = super.getWorkPath();
+    Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
+    FileSystem workFs = FileSystem.get(workPath.toUri(), context.getConfiguration());
+    FileSystem destFs = FileSystem.get(baseOutDir.toUri(), context.getConfiguration());
     if (EtlMultiOutputFormat.isRunMoveData(context)) {
-      Path workPath = super.getWorkPath();
       log.info("work path: " + workPath);
-      Path baseOutDir = EtlMultiOutputFormat.getDestinationPath(context);
       log.info("Destination base path: " + baseOutDir);
-      for (FileStatus f : fs.listStatus(workPath)) {
+      for (FileStatus f : workFs.listStatus(workPath)) {
         String file = f.getPath().getName();
         log.info("work file: " + file);
         if (file.startsWith("data")) {
@@ -107,16 +109,15 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
               getPartitionedPath(context, file, count.getEventCount(), count.getLastKey().getOffset());
 
           Path dest = new Path(baseOutDir, partitionedFile);
-
-          if (!fs.exists(dest.getParent())) {
-            mkdirs(fs, dest.getParent());
+          if (!destFs.exists(dest.getParent())) {
+            mkdirs(destFs, dest.getParent());
           }
 
           commitFile(context, f.getPath(), dest);
           log.info("Moved file from: " + f.getPath() + " to: " + dest);
 
           if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
-            count.writeCountsToMap(allCountObject, fs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
+            count.writeCountsToMap(allCountObject, workFs, new Path(workPath, EtlMultiOutputFormat.COUNTS_PREFIX + "."
                 + dest.getName().replace(recordWriterProvider.getFilenameExtension(), "")));
           }
         }
@@ -124,7 +125,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
 
       if (EtlMultiOutputFormat.isRunTrackingPost(context)) {
         Path tempPath = new Path(workPath, "counts." + context.getConfiguration().get("mapred.task.id"));
-        OutputStream outputStream = new BufferedOutputStream(fs.create(tempPath));
+        OutputStream outputStream = new BufferedOutputStream(workFs.create(tempPath));
         ObjectMapper mapper = new ObjectMapper();
         log.info("Writing counts to : " + tempPath.toString());
         long time = System.currentTimeMillis();
@@ -135,7 +136,7 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
       log.info("Not moving run data.");
     }
 
-    SequenceFile.Writer offsetWriter = SequenceFile.createWriter(fs, context.getConfiguration(),
+    SequenceFile.Writer offsetWriter = SequenceFile.createWriter(workFs, context.getConfiguration(),
         new Path(super.getWorkPath(),
             EtlMultiOutputFormat.getUniqueFile(context, EtlMultiOutputFormat.OFFSET_PREFIX, "")),
         EtlKey.class, NullWritable.class);
@@ -149,8 +150,9 @@ public class EtlMultiOutputCommitter extends FileOutputCommitter {
   }
 
   protected void commitFile(JobContext job, Path source, Path target) throws IOException {
-    log.info(String.format("Moving %s to %s", source, target));
-    if (!FileSystem.get(job.getConfiguration()).rename(source, target)) {
+    FileSystem sourceFs = FileSystem.get(source.toUri(), job.getConfiguration());
+    FileSystem targetFs = FileSystem.get(target.toUri(), job.getConfiguration());
+    if (!FileUtil.copy(sourceFs, source, targetFs, target, true, true, job.getConfiguration())) {
       log.error(String.format("Failed to move from %s to %s", source, target));
       throw new IOException(String.format("Failed to move from %s to %s", source, target));
     }

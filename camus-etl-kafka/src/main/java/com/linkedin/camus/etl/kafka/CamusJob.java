@@ -247,12 +247,12 @@ public class CamusJob extends Configured implements Tool {
     if (getLog4jConfigure(job)) {
       DOMConfigurator.configure("log4j.xml");
     }
-    FileSystem fs = FileSystem.get(job.getConfiguration());
-
     log.info("Dir Destination set to: " + EtlMultiOutputFormat.getDestinationPath(job));
 
     Path execBasePath = new Path(props.getProperty(ETL_EXECUTION_BASE_PATH));
     Path execHistory = new Path(props.getProperty(ETL_EXECUTION_HISTORY_PATH));
+
+    FileSystem fs = FileSystem.get(execBasePath.toUri(), job.getConfiguration());
 
     if (!fs.exists(execBasePath)) {
       log.info("The execution base path does not exist. Creating the directory");

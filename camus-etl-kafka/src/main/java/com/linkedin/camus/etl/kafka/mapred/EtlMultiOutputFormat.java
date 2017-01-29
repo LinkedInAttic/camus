@@ -16,10 +16,12 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
 import org.joda.time.format.DateTimeFormatter;
 
+import com.linkedin.camus.etl.DestinationFileAggregator;
 import com.linkedin.camus.etl.Partitioner;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.AvroRecordWriterProvider;
 import com.linkedin.camus.etl.kafka.common.DateUtils;
+import com.linkedin.camus.etl.kafka.common.EmptyDestinationFileAggregator;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.partitioner.DefaultPartitioner;
 
@@ -37,6 +39,7 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
   public static final String ETL_DESTINATION_PATH_TOPIC_SUBDIRFORMAT_LOCALE = "etl.destination.path.topic.sub.dirformat.locale";
   public static final String ETL_RUN_MOVE_DATA = "etl.run.move.data";
   public static final String ETL_RUN_TRACKING_POST = "etl.run.tracking.post";
+  public static final String ETL_DESTINATION_FILE_AGGREGATOR_CLASS = "etl.destination.file.aggregator.class";
 
   public static final String ETL_DEFAULT_TIMEZONE = "etl.default.timezone";
   public static final String ETL_DEFLATE_LEVEL = "etl.deflate.level";
@@ -89,6 +92,24 @@ public class EtlMultiOutputFormat extends FileOutputFormat<EtlKey, Object> {
     try {
       return (RecordWriterProvider) job.getConfiguration()
           .getClass(ETL_RECORD_WRITER_PROVIDER_CLASS, AvroRecordWriterProvider.class).newInstance();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static void setDestinationFileClass(JobContext job, Class<DestinationFileAggregator> destinationFileAggregatorClass) {
+    job.getConfiguration().setClass(ETL_DESTINATION_FILE_AGGREGATOR_CLASS, destinationFileAggregatorClass,
+        DestinationFileAggregator.class);
+  }
+
+  public static Class<DestinationFileAggregator> getDestinationFileAggregatorClass(JobContext job) {
+    return (Class<DestinationFileAggregator>) job.getConfiguration().getClass(ETL_DESTINATION_FILE_AGGREGATOR_CLASS,
+        EmptyDestinationFileAggregator.class);
+  }
+
+  public static DestinationFileAggregator getDestinationFileAggregator(JobContext job) {
+    try {
+        return getDestinationFileAggregatorClass(job).newInstance();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

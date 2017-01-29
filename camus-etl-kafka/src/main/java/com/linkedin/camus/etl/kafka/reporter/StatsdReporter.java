@@ -38,6 +38,7 @@ public class StatsdReporter extends TimeReporter {
           statsd.gauge(counterGroup.getDisplayName() + "." + counter.getDisplayName(), counter.getValue());
         }
       }
+      statsd.stop();
     }
   }
 

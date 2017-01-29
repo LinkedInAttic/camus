@@ -1,17 +1,10 @@
 package com.linkedin.camus.etl.kafka.common;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Map.Entry;
-
+import com.linkedin.camus.coders.MessageEncoder;
+import com.linkedin.camus.etl.kafka.CamusJob;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
-
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -20,8 +13,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.annotate.JsonIgnoreProperties;
 
-import com.linkedin.camus.coders.MessageEncoder;
-import com.linkedin.camus.etl.kafka.CamusJob;
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
 
 
 @JsonIgnoreProperties({ "trackingCount", "lastKey", "eventCount", "RANDOM" })
@@ -48,6 +42,7 @@ public class EtlCounts {
   private long lastTimestamp;
   private long firstTimestamp = Long.MAX_VALUE;
   protected HashMap<String, Source> counts;
+  private int commited;
 
   private transient EtlKey lastKey;
   private transient int eventCount = 0;
@@ -150,6 +145,14 @@ public class EtlCounts {
 
   public void setLastKey(EtlKey lastKey) {
     this.lastKey = lastKey;
+  }
+
+  public int getCommited() {
+    return commited;
+  }
+
+  public void setCommited(int commited) {
+    this.commited = commited;
   }
 
   public void incrementMonitorCount(EtlKey key) {

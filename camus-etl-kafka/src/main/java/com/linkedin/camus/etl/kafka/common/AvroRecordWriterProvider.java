@@ -4,7 +4,6 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import java.io.IOException;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.generic.GenericRecord;
@@ -14,6 +13,8 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
 
 
 /**
@@ -32,6 +33,13 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
+  public Path getFilePath(String fileName, FileOutputCommitter committer, TaskAttemptContext context) throws IOException {
+    Path path = committer.getWorkPath();
+    path = new Path(path, EtlMultiOutputFormat.getUniqueFile(context, fileName, EXT));
+    return path;
+  }
+
+  @Override
   public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
       CamusWrapper data, FileOutputCommitter committer) throws IOException, InterruptedException {
     final DataFileWriter<Object> writer = new DataFileWriter<Object>(new SpecificDatumWriter<Object>());
@@ -45,8 +53,7 @@ public class AvroRecordWriterProvider implements RecordWriterProvider {
       }
     }
 
-    Path path = committer.getWorkPath();
-    path = new Path(path, EtlMultiOutputFormat.getUniqueFile(context, fileName, EXT));
+    Path path = getFilePath(fileName, committer, context);
     writer.create(((GenericRecord) data.getRecord()).getSchema(), path.getFileSystem(context.getConfiguration())
         .create(path));
 

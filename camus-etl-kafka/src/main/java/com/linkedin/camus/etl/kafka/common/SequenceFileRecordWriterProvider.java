@@ -4,24 +4,22 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.etl.IEtlKey;
 import com.linkedin.camus.etl.RecordWriterProvider;
 import com.linkedin.camus.etl.kafka.mapred.EtlMultiOutputFormat;
-import java.io.IOException;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.SequenceFile.CompressionType;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.hadoop.io.compress.DefaultCodec;
 import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-
-import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.SequenceFile.CompressionType;
-import org.apache.hadoop.io.compress.DefaultCodec;
-import org.apache.hadoop.io.compress.CompressionCodec;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
-
-import org.apache.hadoop.conf.Configuration;
-
+import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.log4j.Logger;
+
+import java.io.IOException;
 
 
 /**
@@ -55,6 +53,13 @@ public class SequenceFileRecordWriterProvider implements RecordWriterProvider {
   }
 
   @Override
+  public Path getFilePath(String fileName, FileOutputCommitter committer, TaskAttemptContext context) throws IOException {
+    Path path =
+            new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
+    return path;
+  }
+
+  @Override
   public RecordWriter<IEtlKey, CamusWrapper> getDataRecordWriter(TaskAttemptContext context, String fileName,
       CamusWrapper camusWrapper, FileOutputCommitter committer) throws IOException, InterruptedException {
 
@@ -77,8 +82,7 @@ public class SequenceFileRecordWriterProvider implements RecordWriterProvider {
     }
 
     // Get the filename for this RecordWriter.
-    Path path =
-        new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
+    Path path = getFilePath(fileName, committer, context);
 
     log.info("Creating new SequenceFile.Writer with compression type " + compressionType + " and compression codec "
         + (compressionCodec != null ? compressionCodec.getClass().getName() : "null"));

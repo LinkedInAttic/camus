@@ -14,6 +14,7 @@ import com.linkedin.camus.etl.kafka.mapred.EtlSplit;
 
 
 public class BaseAllocator extends WorkAllocator {
+  protected final static int DEFAULT_MAP_TASKS_COUNT = 30;
 
   protected Properties props;
 
@@ -40,7 +41,7 @@ public class BaseAllocator extends WorkAllocator {
 
   @Override
   public List<InputSplit> allocateWork(List<CamusRequest> requests, JobContext context) throws IOException {
-    int numTasks = context.getConfiguration().getInt("mapred.map.tasks", 30);
+    int numTasks = getMapTasksCount(context);
 
     reverseSortRequests(requests);
 
@@ -71,6 +72,10 @@ public class BaseAllocator extends WorkAllocator {
     }
 
     return smallest;
+  }
+
+  protected int getMapTasksCount(JobContext context) {
+    return context.getConfiguration().getInt("mapred.map.tasks", DEFAULT_MAP_TASKS_COUNT);
   }
 
 }

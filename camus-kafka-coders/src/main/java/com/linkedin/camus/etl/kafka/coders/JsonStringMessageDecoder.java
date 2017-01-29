@@ -44,6 +44,8 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
 
+  private static final CamusWrapper<String> camusWrapper = new CamusWrapper<String>();
+
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
 
@@ -129,6 +131,7 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       timestamp = System.currentTimeMillis();
     }
 
-    return new CamusWrapper<String>(payloadString, timestamp);
+    this.camusWrapper.set(payloadString, timestamp);
+    return this.camusWrapper;
   }
 }

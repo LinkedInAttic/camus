@@ -44,7 +44,9 @@ public class EtlRecordReaderForUnitTest extends EtlRecordReader {
   public static MessageDecoder createMockDecoder30PercentSchemaNotFound() {
     MessageDecoder mockDecoder = EasyMock.createNiceMock(MessageDecoder.class);
     EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andThrow(new SchemaNotFoundException()).times(3);
-    EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andReturn(new CamusWrapper<String>("dummy")).times(7);
+    CamusWrapper<String> stringCamusWrapper = new CamusWrapper<String>();
+    stringCamusWrapper.set("dummy");
+    EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andReturn(stringCamusWrapper).times(7);
     EasyMock.replay(mockDecoder);
     return mockDecoder;
   }
@@ -52,7 +54,9 @@ public class EtlRecordReaderForUnitTest extends EtlRecordReader {
   public static MessageDecoder createMockDecoder30PercentOther() {
     MessageDecoder mockDecoder = EasyMock.createNiceMock(MessageDecoder.class);
     EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andThrow(new RuntimeException()).times(3);
-    EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andReturn(new CamusWrapper<String>("dummy")).times(7);
+    CamusWrapper<String> stringCamusWrapper = new CamusWrapper<String>();
+    stringCamusWrapper.set("dummy");
+    EasyMock.expect(mockDecoder.decode(EasyMock.anyObject())).andReturn(stringCamusWrapper).times(7);
     EasyMock.replay(mockDecoder);
     return mockDecoder;
   }

@@ -32,12 +32,13 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
   private static final Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
   public static final String CAMUS_SCHEMA_ID_FIELD = "camus.message.schema.id.field";
   public static final String DEFAULT_SCHEMA_ID_FIELD = "schemaID";
+  private static final CamusWrapper<GenericData.Record> camusWrapper = new CamusWrapper<GenericData.Record>();
   JsonParser jsonParser;
   private String schemaIDField;
   protected DecoderFactory decoderFactory;
   protected SchemaRegistry<Schema> registry;
   private Schema latestSchema;
-  
+
   public JSONToAvroMessageDecoder() {
     this.jsonParser = new JsonParser();
   }
@@ -119,8 +120,10 @@ public class JSONToAvroMessageDecoder extends MessageDecoder<Message, GenericDat
       
       DatumReader<GenericRecord> avroReader = helper.getTargetSchema() == null ? new GenericDatumReader<GenericRecord>(
           helper.getSchema()) : new GenericDatumReader<GenericRecord>(helper.getTargetSchema());
-      return new KafkaAvroMessageDecoder.CamusAvroWrapper((GenericData.Record) avroReader.read(null,
-          this.decoderFactory.binaryDecoder(output.toByteArray(), 0, output.toByteArray().length, null)));
+
+      this.camusWrapper.set((GenericData.Record) avroReader.read(null,
+              this.decoderFactory.binaryDecoder(output.toByteArray(), 0, output.toByteArray().length, null)));
+      return this.camusWrapper;
     } catch (RuntimeException e) {
       log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
       throw new RuntimeException(e);

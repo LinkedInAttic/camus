@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+import os
+import sys
+import json
+import subprocess
+import logging as lg
+from datetime import datetime
+
+from oozie import oozie_server, workflow, coordinators, bundle, actions
+
+formatter = lg.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s', '%d/%m/%y %H:%M:%S')
+ch = lg.StreamHandler(sys.stdout)
+ch.setFormatter(formatter)
+logger = lg.getLogger('oozie_submit_job')
+logger.setLevel(lg.INFO)
+logger.addHandler(ch)
+
+
+def run_shell_command(cmd, description, cwd=None, shell=False):
+    if not cwd:
+        cwd = os.getcwd()
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, shell=shell)
+    stdout, stderr = p.communicate()
+    logger.info('%s: %s' % (description, stdout))
+    if stderr:
+        logger.error(stderr)
+        exit(-1)
+    else:
+        return stdout.strip()
+
+
+def get_camus_version(path):
+    path = os.path.join(path, 'camus-shopify')
+    logger.info('Retrieving Camus version from %s' % path)
+    cmd = "mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | grep -Ev '(^\[|Download\w+:)'"
+    return run_shell_command(cmd, 'Retrieved Camus version', path, True)
+
+
+def main():
+    oozie = oozie_server.OozieServer('http://hadoop-misc4.chi.shopify.com:11000')
+
+    command = 'bash -c "java -Xms1G -Xmx2G -DHADOOP_USER_NAME=deploy '
+    command += '-Dlog4j.configuration=file:/u/apps/camus/shared/log4j.xml '
+    command += '-cp $(hadoop classpath):/u/apps/camus/current/camus-shopify-0.1.0-shopify1.jar:/etc/camus:/etc/hadoop/conf '
+    command += 'com.linkedin.camus.etl.kafka.CamusJob -P /u/apps/camus/shared/camus.properties"'
+
+    #TODO change the email to camus@shopify.pagerduty.com
+    os.environ['WEBHDFS_HOST'] = 'hadoop-misc.chi.shopify.com'
+    os.environ['JOBTRACKER'] = 'hadoop-rm.chi.shopify.com:8032'
+    os.environ['NAMENODE'] = 'hdfs://hadoop-production:8020'
+    os.environ['HADOOP_PRODUCTION'] = 'hadoop-production'
+
+    # the workflow is the actual job runner
+    oozie_wf = workflow.Workflow("Camus", "oren.mazor@shopify.com", path="user/oozie/workflows/")
+    camus_build = actions.ShellAction(name="CamusBuild", command="ssh", args=['azkaban@hadoop-misc4.chi.shopify.com', command], env=[]) 
+    oozie_wf.add(camus_build)
+    oozie_wf.save()
+
+    # the coordinator handles the schedule
+    starttime = datetime.now().strftime("%Y-%m-%dT%H:%MZ")
+    coordinator = coordinators.Coordinator("Camus", oozie_wf, 60 * 60, starttime)
+    coordinator.save()
+
+    # the bundle is pretty in an OCD kind of way
+    bun = bundle.Bundle("Camus")
+    bun.add(coordinator)
+    bun.save()
+
+    # if the bundle is already in existence, do not submit a new one
+    # NOTE: if we start adding new coordinators to this bundle, there will be a bug
+    # in the fact we cannot automatically reload a bundle it has to be manual.
+    # the scrappy fix is to delete the existing Camus bundle and just re-deploy.
+    if bun.name not in [b['bundleJobName'] for b in oozie.bundles('RUNNING')]:
+        oozie.submit(bun)
+    
+
+if __name__ == '__main__':
+    main()

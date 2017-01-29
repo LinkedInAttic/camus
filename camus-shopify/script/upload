@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+import os
+from fabric.api import env
+from fabric.operations import run, put
+
+env.forward_agent = True
+env.host_string = 'hadoop-misc4.chi.shopify.com'
+env.user = 'deploy'
+app_name = 'camus'
+code_dir = '/u/apps/camus/current'
+path = os.path.join(os.getcwd(), 'camus-shopify', 'target', 'camus-shopify-0.1.0-shopify1.jar')
+
+run('mkdir -p %s' % code_dir)
+put(path, code_dir)
+print('Completed')

@@ -302,7 +302,6 @@ public class CamusJob extends Configured implements Tool {
 		
 		job.setInputFormatClass(EtlInputFormat.class);
 		job.setOutputFormatClass(EtlMultiOutputFormat.class);
-		job.setNumMapTasks(30);
 		job.setNumReduceTasks(0);
 
 		stopTiming("pre-setup");

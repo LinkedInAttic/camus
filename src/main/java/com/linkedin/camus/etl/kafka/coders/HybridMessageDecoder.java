@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Properties;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 
 import com.google.gson.JsonParser;
 import com.google.gson.JsonObject;
@@ -75,7 +76,11 @@ public class HybridMessageDecoder extends MessageDecoder<byte[], String> {
             } else {
                 String timestampString = jsonObject.get(timestampField).getAsString();
                 try {
-                    timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                    if (timestampFormat.equals("iso_nanos")) {
+                        timestamp = Instant.parse(timestampString).toEpochMilli();
+                    } else {
+                        timestamp = new SimpleDateFormat(timestampFormat).parse(timestampString).getTime();
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
